@@ -1,6 +1,12 @@
 package pluginconf
 
+import (
+	"context"
+
+	"github.com/sirupsen/logrus"
+)
+
 type Plugin interface {
-	Initialize(config map[string]interface{}) error
-	Execute(params map[string]interface{}) (interface{}, error)
+	Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error
+	Execute(ctx context.Context, params map[string]interface{}) (interface{}, error)
 }

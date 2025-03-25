@@ -17,7 +17,18 @@ plugins:
     path: plugins/slack/slack.so
     type: notification
     config:
-      webhook_url: "https://hooks.slack.com/services/TXXXXXX/BXXXXXX/XXXXXX"
+      webhook_url: https://hooks.slack.com/services/TXXXXXXXX/BXXXXXXXX/XXXXXXXXXXXXXXXXX
+
+  - name: health-check-plugin
+    path: plugins/healthcheck/health_check.so
+    type: health
+    config: {}
+
+  - name: sleep-plugin
+    path: plugins/sleep/sleep_plugin.so
+    type: test
+    config: {}
+
 
  # - name: sample-1
   #  path: /some/path.so

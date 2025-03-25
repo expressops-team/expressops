@@ -1,9 +1,12 @@
 package pluginconf
 
 import (
+	"context"
 	"fmt"
 	"plugin"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -12,7 +15,8 @@ var (
 )
 
 // loads a plugin into memory from a .so file
-func LoadPlugin(path string, name string) error {
+
+func LoadPlugin(ctx context.Context, path string, name string, config map[string]interface{}, logger *logrus.Logger) error {
 	p, err := plugin.Open(path)
 	if err != nil {
 		return fmt.Errorf("error opening plugin: %v", err)
@@ -26,10 +30,14 @@ func LoadPlugin(path string, name string) error {
 	// Verify the type of the symbol
 	pluginPtr, ok := sym.(*Plugin)
 	if !ok {
-		return fmt.Errorf("type %T does not implement Plugin", sym)
+		return fmt.Errorf("type %T does not implement Plugin interface", sym)
 	}
 
 	pluginInstance := *pluginPtr
+
+	if err := pluginInstance.Initialize(ctx, config, logger); err != nil {
+		return fmt.Errorf("error initializing plugin: %v", err)
+	}
 
 	// Register the plugin in our list of plugins (Registry)
 	mu.Lock()
