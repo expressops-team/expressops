@@ -1,0 +1,51 @@
+# Paso 1: Parsear este fichero yaml y que se guarde en un struct para acceder a los campos
+logging:
+  level: info
+  format: json
+
+# Paso 2: Levantar un server para probar
+server:
+  port: 8080
+  address: 0.0.0.0
+
+  http:
+    protocolVersion: 2
+
+  # Paso 3: Construir un plugin que se compile como .so
+plugins:
+  - name: slack-notifier
+    path: plugins/slack/slack.so
+    type: notification
+    config:
+      webhook_url: "https://hooks.slack.com/services/TXXXXXX/BXXXXXX/XXXXXX"
+
+ # - name: sample-1
+  #  path: /some/path.so
+   # description: hey, i'm a description
+    #config:
+     # cache: true
+      #example: false
+
+ # - name: sample-2
+  #  path: /some/path-2.so
+   # description: hey, i'm not kind
+    #config: {}
+
+ # Paso 4: Crear un pipeline que ejecute los plugins que se han cargado en el paso 3 y que se ejecuten en el orden que se han definido en el fichero yaml   
+flows:
+  - name: incident-flow
+    pipeline:
+      - pluginRef: slack-notifier
+        parameters:
+          message: "¡Alerta de prueba!"
+          channel: "#alerts"
+          severity: "high"
+ 
+
+ # - name: create-credentials
+  #  pipeline:
+   #   - pluginRef: sample
+    #    parameters:
+     #     populateResult: true
+
+      #- pluginRef: sample-2
