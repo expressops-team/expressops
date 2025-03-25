@@ -4,8 +4,8 @@ import (
 	"context"
 	"expressops/internal/config" // imports the internal/config package
 	"expressops/internal/server" // imports the server package
+	"flag"
 	"os"
-	"path/filepath"
 
 	"github.com/sirupsen/logrus" //logger
 )
@@ -18,10 +18,12 @@ func main() {
 		FullTimestamp: true,
 	})
 
-	ctx := context.Background() // creates a new context para gestionar timeouts, cancelaciones, etc.
+	ctx := context.Background() // creates a new context to manage timeouts, cancelaciones, etc.
 
-	// builds the path to the config file
-	configPath := filepath.Join("docs", "samples", "config.yaml")
+	// Parse the command line flags to get the config file path
+	var configPath string
+	flag.StringVar(&configPath, "config", "docs/samples/config.yaml", "Ruta al archivo YAML de configuración")
+	flag.Parse()
 
 	// 1º load the config from YAML
 	cfg, err := config.LoadConfig(ctx, configPath, logger)

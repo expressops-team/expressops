@@ -131,7 +131,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 		fmt.Fprintf(w, "Resultado: %v\n", resultado)
 	})
 
-	http.HandleFunc("/flow", handleFlow(cfg, logger))
+	http.HandleFunc("/flow", handleFlow(context.Background(), cfg, logger))
 
 	// Start server
 	logger.Infof("Escuchando en http://%s", address)
@@ -145,7 +145,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	}
 }
 
-func handleFlow(cfg *v1alpha1.Config, logger *logrus.Logger) http.HandlerFunc {
+func handleFlow(ctx context.Context, cfg *v1alpha1.Config, logger *logrus.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.WithFields(logrus.Fields{
 			"ruta":       "/flow",
@@ -155,7 +155,7 @@ func handleFlow(cfg *v1alpha1.Config, logger *logrus.Logger) http.HandlerFunc {
 		logger.Infof("Ejecutando flujo de incidentes")
 		for _, flow := range cfg.Flows {
 			if flow.Name == "incident-flow" {
-				executeFlow(r.Context(), flow, logger)
+				executeFlow(ctx, flow, logger)
 			}
 		}
 	}
