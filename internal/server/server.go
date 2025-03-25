@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"expressops/api/v1alpha1"
@@ -12,168 +13,203 @@ import (
 	"github.com/sirupsen/logrus" //to fix duplicate log "/" print we would need to import mux
 )
 
-func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
+var flowRegistry map[string]v1alpha1.Flow
 
-	// Build the address
+func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
+	flowRegistry = make(map[string]v1alpha1.Flow)
+	for _, flow := range cfg.Flows {
+		flowRegistry[flow.Name] = flow
+		logger.Infof("Flujo registrado: %s", flow.Name)
+	}
+}
+
+func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
+	// Initializes the map at server startup
+	initializeFlowRegistry(cfg, logger)
+
+	// Dirección del servidor
 	address := fmt.Sprintf("%s:%d", cfg.Server.Address, cfg.Server.Port)
 
+	// Basic route to verify that the server is up
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		logger.WithFields(logrus.Fields{
-			"ruta":       "/",
-			"ip":         r.RemoteAddr,
-			"user_agent": r.UserAgent(),
-		}).Info("Solicitud recibida")
-		fmt.Fprintln(w, "¡Funciona! :D, esta vez en conjunto")
+		logger.Info("Solicitud en ruta raíz recibida")
+		fmt.Fprintf(w, "ExpressOps activo 🟢")
 	})
 
-	http.HandleFunc("/david", func(w http.ResponseWriter, r *http.Request) {
-		logger.WithFields(logrus.Fields{
-			"ruta":       "/david",
-			"ip":         r.RemoteAddr,
-			"user_agent": r.UserAgent(),
-		}).Info("Solicitud recibida")
-		fmt.Fprintf(w, "Hola, David! 🕐 %s\n", time.Now().Format("15:04:05"))
-	})
+	// ONLY one generic handler that will handle all flows
+	http.HandleFunc("/flow", dynamicFlowHandler(logger))
 
-	http.HandleFunc("/nacho", func(w http.ResponseWriter, r *http.Request) {
-		logger.WithFields(logrus.Fields{
-			"ruta":       "/nacho",
-			"ip":         r.RemoteAddr,
-			"user_agent": r.UserAgent(),
-		}).Info("Solicitud recibida")
-		fmt.Fprintf(w, "Hola, Nacho! 🕐 %s\n", time.Now().Format("15:04:05"))
-	})
+	logger.Infof("Servidor escuchando en http://%s", address)
+	server := &http.Server{
+		Addr: address,
+	}
 
-	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		logger.Fatalf("Error al iniciar servidor: %v", err)
+	}
+}
+func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+
+		// Obtienes claramente el flujo desde el parámetro query "flowName"
+		flowName := r.URL.Query().Get("flowName")
+		if flowName == "" {
+			http.Error(w, "Debe indicar flowName", http.StatusBadRequest)
+			return
+		}
+
+		// Verifica que el flujo exista en el registro de flujos
+		flow, exists := flowRegistry[flowName]
+		if !exists {
+			http.Error(w, fmt.Sprintf("Flujo '%s' no encontrado", flowName), http.StatusNotFound)
+			return
+		}
+
 		logger.WithFields(logrus.Fields{
-			"ruta":       "/healthz",
+			"flujo":      flowName,
 			"ip":         r.RemoteAddr,
 			"user_agent": r.UserAgent(),
-		}).Info("Solicitud recibida")
+		}).Info("Ejecutando flujo solicitado dinámicamente")
+
+		// Lee claramente los parámetros adicionales (si existen)
+		paramsRaw := r.URL.Query().Get("params")
+		additionalParams := parseParams(paramsRaw)
+
+		// Ejecuta claramente el flujo encontrado
+		results := executeFlow(ctx, flow, additionalParams, logger)
+
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, "Flujo '%s' ejecutado correctamente. Resultados: %v", flowName, results)
+	}
+}
+
+func parseParams(paramsRaw string) map[string]interface{} {
+	params := make(map[string]interface{})
+	if paramsRaw == "" {
+		return params
+	}
+
+	pairs := strings.Split(paramsRaw, ";")
+	for _, pair := range pairs {
+		kv := strings.SplitN(pair, ":", 2)
+		if len(kv) == 2 {
+			params[kv[0]] = kv[1]
+		}
+	}
+	return params
+}
+
+// Create a dynamic handler for each configured flow
+func handleFlow(flow v1alpha1.Flow, logger *logrus.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+
+		logger.WithFields(logrus.Fields{
+			"ruta":       r.URL.Path,
+			"ip":         r.RemoteAddr,
+			"user_agent": r.UserAgent(),
+			"flujo":      flow.Name,
+		}).Info("Ejecutando flujo solicitado")
+
+		results := executeFlow(ctx, flow, map[string]interface{}{}, logger)
+
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, "Flujo '%s' ejecutado correctamente. Resultados: %v", flow.Name, results)
+	}
+}
+
+// Custom Handler for Detailed Health Check
+func detailedHealthCheckHandler(flow v1alpha1.Flow, logger *logrus.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Info("Solicitud recibida en healthCheckDetailed")
 
 		plugin, err := pluginManager.GetPlugin("health-check-plugin")
 		if err != nil {
 			logger.Errorf("Error obteniendo plugin: %v", err)
-			http.Error(w, "Error interno del servidor", http.StatusInternalServerError)
+			http.Error(w, "Plugin no encontrado", http.StatusInternalServerError)
 			return
 		}
 
+		// The result is already a string formatted directly by the plugin
 		resultRaw, err := plugin.Execute(r.Context(), nil)
 		if err != nil {
 			logger.Errorf("Error ejecutando plugin: %v", err)
-			http.Error(w, "Error interno del servidor", http.StatusInternalServerError)
+			http.Error(w, "Error ejecutando plugin", http.StatusInternalServerError)
 			return
 		}
 
-		resultMap, ok := resultRaw.(map[string]interface{})
+		resultStr, ok := resultRaw.(string)
 		if !ok {
-			logger.Errorf("El resultado no es del tipo esperado")
-			http.Error(w, "Error interno del servidor", http.StatusInternalServerError)
+			http.Error(w, "Formato de resultado inesperado", http.StatusInternalServerError)
 			return
 		}
 
-		// Imprime información formateada
+		// Returns result directly
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		fmt.Fprint(w, resultStr)
+	}
+}
 
-		// CPU
-		fmt.Fprintf(w, "\n🔹 CPU usage:\n")
-		if cpu, ok := resultMap["cpu"].(map[string]interface{}); ok {
-			fmt.Fprintf(w, "  Usage: %.2f%%\n", cpu["usage_percent"].(float64))
-		}
-
-		// Memory
-		fmt.Fprintf(w, "\n🔹 Memory usage:\n")
-		if memory, ok := resultMap["memory"].(map[string]interface{}); ok {
-			fmt.Fprintf(w, "  Total: %.2f GB\n", float64(memory["total"].(uint64))/1e9)
-			fmt.Fprintf(w, "  Used: %.2f GB\n", float64(memory["used"].(uint64))/1e9)
-			fmt.Fprintf(w, "  Free: %.2f GB\n", float64(memory["free"].(uint64))/1e9)
-			fmt.Fprintf(w, "  Usage: %.2f%%\n", memory["used_percent"].(float64))
-		}
-
-		// Disk
-		fmt.Fprintf(w, "\n🔹 Disk usage:\n")
-		if disk, ok := resultMap["disk"].(map[string]interface{}); ok {
-			for mount, usageRaw := range disk {
-				usage := usageRaw.(map[string]interface{})
-				fmt.Fprintf(w, "  📁 Mount: %s\n", mount)
-				fmt.Fprintf(w, "    Total: %.2f GB\n", float64(usage["total"].(uint64))/1e9)
-				fmt.Fprintf(w, "    Used: %.2f GB\n", float64(usage["used"].(uint64))/1e9)
-				fmt.Fprintf(w, "    Free: %.2f GB\n", float64(usage["free"].(uint64))/1e9)
-				fmt.Fprintf(w, "    Usage: %.2f%%\n\n", usage["used_percent"].(float64))
-			}
-		}
-
-		// Estado general
-		fmt.Fprintf(w, "\n🔹 Health Checks:\n")
-		if status, ok := resultMap["health_status"].(map[string]interface{}); ok {
-			for k, v := range status {
-				fmt.Fprintf(w, "  %s: %s\n", k, v.(string))
-			}
-		}
-	})
-
-	http.HandleFunc("/test-context", func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second) // 5 segundos máximo
+// Custom handler to test context timeout
+func contextTimeoutTestHandler(flow v1alpha1.Flow, logger *logrus.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
+
+		logger.Info("Solicitud recibida en contextTimeoutTest")
 
 		plugin, err := pluginManager.GetPlugin("sleep-plugin")
 		if err != nil {
+			logger.Errorf("Plugin no encontrado: %v", err)
 			http.Error(w, "Plugin no encontrado", http.StatusInternalServerError)
 			return
 		}
 
 		resultado, err := plugin.Execute(ctx, nil)
 		if err != nil {
-			fmt.Fprintf(w, "El plugin fue cancelado: %v\n", err)
+			logger.Warnf("Plugin cancelado o error: %v", err)
+			fmt.Fprintf(w, "Plugin cancelado o error: %v\n", err)
 			return
 		}
 
-		fmt.Fprintf(w, "Resultado: %v\n", resultado)
-	})
-
-	http.HandleFunc("/flow", handleFlow(context.Background(), cfg, logger))
-
-	// Start server
-	logger.Infof("Escuchando en http://%s", address)
-	server := &http.Server{
-		Addr:    address,
-		Handler: nil,
-	}
-
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Fatalf("Error al iniciar el servidor: %v", err)
+		fmt.Fprintf(w, "Plugin ejecutado exitosamente: %v\n", resultado)
 	}
 }
 
-func handleFlow(ctx context.Context, cfg *v1alpha1.Config, logger *logrus.Logger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		logger.WithFields(logrus.Fields{
-			"ruta":       "/flow",
-			"ip":         r.RemoteAddr,
-			"user_agent": r.UserAgent(),
-		}).Info("Solicitud recibida")
-		logger.Infof("Ejecutando flujo de incidentes")
-		for _, flow := range cfg.Flows {
-			if flow.Name == "incident-flow" {
-				executeFlow(ctx, flow, logger)
-			}
-		}
-	}
-}
+// Runs the flow and returns results
+func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, logger *logrus.Logger) []interface{} {
+	var results []interface{}
 
-func executeFlow(ctx context.Context, flow v1alpha1.Flow, logger *logrus.Logger) {
 	for _, step := range flow.Pipeline {
+		logger.Infof("Ejecutando plugin: %s", step.PluginRef)
+
 		plugin, err := pluginManager.GetPlugin(step.PluginRef)
 		if err != nil {
-			logger.Errorf("Error obteniendo plugin: %v", err)
+			logger.Errorf("Plugin no encontrado: %v", err)
+			results = append(results, map[string]string{"error": err.Error()})
 			continue
 		}
 
-		_, err = plugin.Execute(ctx, step.Parameters)
+		// combina claramente parámetros del YAML con parámetros adicionales
+		params := make(map[string]interface{})
+		for k, v := range step.Parameters {
+			params[k] = v
+		}
+		for k, v := range additionalParams {
+			params[k] = v
+		}
+
+		res, err := plugin.Execute(ctx, params)
 		if err != nil {
-			logger.Errorf("Error ejecutando plugin: %v", err)
+			logger.Errorf("Error ejecutando plugin %s: %v", step.PluginRef, err)
+			results = append(results, map[string]string{"plugin": step.PluginRef, "error": err.Error()})
 		} else {
-			logger.Infof("Plugin %s ejecutado correctamente", step.PluginRef)
+			results = append(results, map[string]interface{}{"plugin": step.PluginRef, "resultado": res})
 		}
 	}
+
+	return results
 }

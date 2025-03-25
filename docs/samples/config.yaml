@@ -51,6 +51,18 @@ flows:
           message: "¡Alerta de prueba!"
           channel: "#alerts"
           severity: "high"
+
+  - name: healthz
+    customHandler: healthCheckDetailed 
+    pipeline:
+      - pluginRef: health-check-plugin
+
+  - name: test-context
+    customHandler: contextTimeoutTest
+    pipeline:
+      - pluginRef: sleep-plugin
+        parameters:
+          duration: 5s
  
 
  # - name: create-credentials

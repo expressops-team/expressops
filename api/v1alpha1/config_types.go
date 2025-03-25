@@ -37,8 +37,9 @@ type Plugin struct {
 
 // flow section
 type Flow struct {
-	Name     string `yaml:"name"`
-	Pipeline []Step `yaml:"pipeline"`
+	Name          string `yaml:"name"`
+	CustomHandler string `yaml:"customHandler,omitempty"`
+	Pipeline      []Step `yaml:"pipeline"`
 }
 
 // represents each step in the pipeline

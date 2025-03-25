@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -21,6 +22,13 @@ type HealthCheckPlugin struct {
 	logger *logrus.Logger
 	checks map[string]func() error
 	mu     sync.Mutex
+}
+
+// RegisterCheck adds a health check function to the plugin
+func (p *HealthCheckPlugin) RegisterCheck(name string, checkFunc func() error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.checks[name] = checkFunc
 }
 
 // NewHealthCheckPlugin creates a new instance of HealthCheckPlugin
@@ -90,67 +98,51 @@ func (p *HealthCheckPlugin) checkDisk() error {
 func (p *HealthCheckPlugin) Execute(ctx context.Context, params map[string]interface{}) (interface{}, error) {
 	p.logger.Info("Performing health check")
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	var buf bytes.Buffer // Buffer para almacenar resultados formateados
 
-	result := make(map[string]interface{})
-
-	// Get CPU info
+	// CPU info
 	if cpuPercent, err := cpu.Percent(time.Second, false); err == nil && len(cpuPercent) > 0 {
-		result["cpu"] = map[string]interface{}{
-			"usage_percent": cpuPercent[0],
-		}
+		fmt.Fprintf(&buf, "🔹 CPU Usage: %.2f%%\n", cpuPercent[0])
 	}
 
-	// Get Memory info
+	// Memory info
 	if memInfo, err := mem.VirtualMemory(); err == nil {
-		result["memory"] = map[string]interface{}{
-			"total":        memInfo.Total,
-			"used":         memInfo.Used,
-			"free":         memInfo.Free,
-			"used_percent": memInfo.UsedPercent,
-		}
+		fmt.Fprintf(&buf, "\n🔹 Memory:\n")
+		fmt.Fprintf(&buf, "  Total: %.2f GB\n", float64(memInfo.Total)/1e9)
+		fmt.Fprintf(&buf, "  Used: %.2f GB\n", float64(memInfo.Used)/1e9)
+		fmt.Fprintf(&buf, "  Free: %.2f GB\n", float64(memInfo.Free)/1e9)
+		fmt.Fprintf(&buf, "  Usage: %.2f%%\n", memInfo.UsedPercent)
 	}
 
-	// Get Disk info
+	// Disk info
 	if parts, err := disk.Partitions(false); err == nil {
-		diskInfo := make(map[string]interface{})
+		fmt.Fprintf(&buf, "\n🔹 Disk:\n")
 		for _, part := range parts {
 			if usage, err := disk.Usage(part.Mountpoint); err == nil {
-				diskInfo[part.Mountpoint] = map[string]interface{}{
-					"total":        usage.Total,
-					"used":         usage.Used,
-					"free":         usage.Free,
-					"used_percent": usage.UsedPercent,
-				}
+				fmt.Fprintf(&buf, "📁 Mount: %s\n", part.Mountpoint)
+				fmt.Fprintf(&buf, "  Total: %.2f GB\n", float64(usage.Total)/1e9)
+				fmt.Fprintf(&buf, "  Used: %.2f GB\n", float64(usage.Used)/1e9)
+				fmt.Fprintf(&buf, "  Free: %.2f GB\n", float64(usage.Free)/1e9)
+				fmt.Fprintf(&buf, "  Usage: %.2f%%\n\n", usage.UsedPercent)
 			}
 		}
-		result["disk"] = diskInfo
 	}
 
-	// Run health checks
-	healthStatus := make(map[string]string)
+	// Health Checks
+	fmt.Fprintf(&buf, "\n🔹 Health Checks:\n")
 	for name, check := range p.checks {
 		p.logger.Infof("Running check: %s", name)
 		if err := check(); err != nil {
 			p.logger.Errorf("Check failed: %s - %v", name, err)
-			healthStatus[name] = fmt.Sprintf("FAIL: %v", err)
+			fmt.Fprintf(&buf, "%s: 🔴 FAIL - %v\n", name, err)
 		} else {
-			healthStatus[name] = "OK"
+			fmt.Fprintf(&buf, "%s: 🟢 OK\n", name)
 		}
 	}
-	result["health_status"] = healthStatus
 
 	p.logger.Info("Health check completed")
-	return result, nil
-}
 
-// RegisterCheck registers a new custom check
-func (p *HealthCheckPlugin) RegisterCheck(name string, check func() error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.checks[name] = check
-	p.logger.Infof("Registered health check: %s", name)
+	return buf.String(), nil
 }
 
 // Handler for the /healthz endpoint
