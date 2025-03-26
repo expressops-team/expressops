@@ -20,10 +20,12 @@ var flowRegistry map[string]v1alpha1.Flow
 
 func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	flowRegistry = make(map[string]v1alpha1.Flow)
+	fmt.Print("\n") // whitespace
 	for _, flow := range cfg.Flows {
 		flowRegistry[flow.Name] = flow
 		logger.Infof("Flujo registrado: %s", flow.Name)
 	}
+	fmt.Print("\n") // whitespace
 }
 
 func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {

@@ -14,7 +14,7 @@ type SleepPlugin struct {
 
 func (p *SleepPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	p.logger = logger
-	p.logger.Info("Initializing Sleep Plugin")
+	p.logger.Info("Inicializando Sleep Plugin")
 	return nil
 }
 

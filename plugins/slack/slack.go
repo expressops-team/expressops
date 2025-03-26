@@ -26,6 +26,7 @@ func (s *SlackPlugin) Initialize(ctx context.Context, config map[string]interfac
 		return fmt.Errorf("slack webhook URL required")
 	}
 	s.webhook = webhook
+	s.logger.Info("Inicializando Slack Plugin")
 	return nil
 }
 
