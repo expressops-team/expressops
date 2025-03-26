@@ -27,12 +27,6 @@ func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 }
 
 func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
-	// Configure logger to include timestamps
-	logger.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp:   true,
-		TimestampFormat: "2006-01-02 15:04:05",
-	})
-
 	// Initializes the map at server startup
 	initializeFlowRegistry(cfg, logger)
 

@@ -14,7 +14,7 @@ func main() {
 	// Initialize logrus logger
 	logger := logrus.New()
 	logger.Out = os.Stdout
-	logrus.SetFormatter(&logrus.TextFormatter{ // new timestamp format ;D
+	logger.SetFormatter(&logrus.TextFormatter{
 		TimestampFormat: "2006-01-02 15:04:05",
 		FullTimestamp:   true,
 	})
