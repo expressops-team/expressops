@@ -28,19 +28,11 @@ plugins:
     path: plugins/sleep/sleep_plugin.so
     type: test
     config: {}
-
-
- # - name: sample-1
-  #  path: /some/path.so
-   # description: hey, i'm a description
-    #config:
-     # cache: true
-      #example: false
-
- # - name: sample-2
-  #  path: /some/path-2.so
-   # description: hey, i'm not kind
-    #config: {}
+ 
+  - name: kube-health-plugin
+    path: plugins/kubehealth/kube_health.so
+    type: k8s
+    config: {}
 
  # Paso 4: Crear un pipeline que ejecute los plugins que se han cargado en el paso 3 y que se ejecuten en el orden que se han definido en el fichero yaml   
 flows:
@@ -63,12 +55,11 @@ flows:
       - pluginRef: sleep-plugin
         parameters:
           duration: 5s
- 
-
- # - name: create-credentials
-  #  pipeline:
-   #   - pluginRef: sample
-    #    parameters:
-     #     populateResult: true
-
-      #- pluginRef: sample-2
+# Test the cluster health check
+  - name: dr-house
+    description: "Check the health of the cluster"
+    pipeline:
+      - pluginRef: health-check-plugin
+      - pluginRef: kube-health-plugin
+        parameters:
+          namespace: default

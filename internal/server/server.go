@@ -158,6 +158,11 @@ func parseParams(paramsRaw string) map[string]interface{} {
 }
 
 // Runs the flow and returns results
+
+// =================================
+// TODO: add a formatter to the result <---
+// =================================
+
 func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, logger *logrus.Logger) []interface{} {
 	var results []interface{}
 
