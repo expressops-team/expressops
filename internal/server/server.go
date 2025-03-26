@@ -1,7 +1,9 @@
+// internal/server/server.go
 package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,9 +12,10 @@ import (
 	"expressops/api/v1alpha1"
 	pluginManager "expressops/internal/plugin/loader"
 
-	"github.com/sirupsen/logrus" //to fix duplicate log "/" print we would need to import mux
+	"github.com/sirupsen/logrus"
 )
 
+// registry of flows
 var flowRegistry map[string]v1alpha1.Flow
 
 func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
@@ -24,17 +27,68 @@ func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 }
 
 func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
+	// Configure logger to include timestamps
+	logger.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+	})
+
 	// Initializes the map at server startup
 	initializeFlowRegistry(cfg, logger)
 
-	// Dirección del servidor
 	address := fmt.Sprintf("%s:%d", cfg.Server.Address, cfg.Server.Port)
 
 	// Basic route to verify that the server is up
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		logger.Info("Solicitud en ruta raíz recibida")
-		fmt.Fprintf(w, "ExpressOps activo 🟢")
+		fmt.Fprintf(w, "ExpressOps activo 🟢 \n")
 	})
+
+	// plugins registered dynamically
+	for _, pluginConf := range cfg.Plugins {
+		pluginName := pluginConf.Name
+		route := "/flows/" + pluginName
+
+		http.HandleFunc(route, func(name string) http.HandlerFunc {
+			return func(w http.ResponseWriter, r *http.Request) {
+				ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+				defer cancel()
+
+				if r.Method != http.MethodGet {
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+
+				plugin, err := pluginManager.GetPlugin(name)
+				if err != nil {
+					http.Error(w, "Plugin no encontrado", http.StatusNotFound)
+					return
+				}
+
+				result, err := plugin.Execute(ctx, nil)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+				if formatter, ok := plugin.(interface {
+					FormatResult(interface{}) (string, error)
+				}); ok {
+					formatted, err := formatter.FormatResult(result)
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
+					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+					fmt.Fprint(w, formatted)
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(result)
+			}
+		}(pluginName))
+	}
 
 	// ONLY one generic handler that will handle all flows
 	http.HandleFunc("/flow", dynamicFlowHandler(logger))
@@ -48,19 +102,20 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 		logger.Fatalf("Error al iniciar servidor: %v", err)
 	}
 }
+
 func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
 
-		// Obtienes claramente el flujo desde el parámetro query "flowName"
+		// obtain flowName from query parameter "flowName"
 		flowName := r.URL.Query().Get("flowName")
 		if flowName == "" {
 			http.Error(w, "Debe indicar flowName", http.StatusBadRequest)
 			return
 		}
 
-		// Verifica que el flujo exista en el registro de flujos
+		// check if the flow exists in the flow registry
 		flow, exists := flowRegistry[flowName]
 		if !exists {
 			http.Error(w, fmt.Sprintf("Flujo '%s' no encontrado", flowName), http.StatusNotFound)
@@ -73,11 +128,11 @@ func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
 			"user_agent": r.UserAgent(),
 		}).Info("Ejecutando flujo solicitado dinámicamente")
 
-		// Lee claramente los parámetros adicionales (si existen)
+		// read additional parameters (if they exist?)
 		paramsRaw := r.URL.Query().Get("params")
 		additionalParams := parseParams(paramsRaw)
 
-		// Ejecuta claramente el flujo encontrado
+		// execute the found flow
 		results := executeFlow(ctx, flow, additionalParams, logger)
 
 		w.Header().Set("Content-Type", "application/json")
@@ -91,6 +146,7 @@ func parseParams(paramsRaw string) map[string]interface{} {
 		return params
 	}
 
+	// split the params by ;
 	pairs := strings.Split(paramsRaw, ";")
 	for _, pair := range pairs {
 		kv := strings.SplitN(pair, ":", 2)
@@ -99,84 +155,6 @@ func parseParams(paramsRaw string) map[string]interface{} {
 		}
 	}
 	return params
-}
-
-// Create a dynamic handler for each configured flow
-func handleFlow(flow v1alpha1.Flow, logger *logrus.Logger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		defer cancel()
-
-		logger.WithFields(logrus.Fields{
-			"ruta":       r.URL.Path,
-			"ip":         r.RemoteAddr,
-			"user_agent": r.UserAgent(),
-			"flujo":      flow.Name,
-		}).Info("Ejecutando flujo solicitado")
-
-		results := executeFlow(ctx, flow, map[string]interface{}{}, logger)
-
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, "Flujo '%s' ejecutado correctamente. Resultados: %v", flow.Name, results)
-	}
-}
-
-// Custom Handler for Detailed Health Check
-func detailedHealthCheckHandler(flow v1alpha1.Flow, logger *logrus.Logger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		logger.Info("Solicitud recibida en healthCheckDetailed")
-
-		plugin, err := pluginManager.GetPlugin("health-check-plugin")
-		if err != nil {
-			logger.Errorf("Error obteniendo plugin: %v", err)
-			http.Error(w, "Plugin no encontrado", http.StatusInternalServerError)
-			return
-		}
-
-		// The result is already a string formatted directly by the plugin
-		resultRaw, err := plugin.Execute(r.Context(), nil)
-		if err != nil {
-			logger.Errorf("Error ejecutando plugin: %v", err)
-			http.Error(w, "Error ejecutando plugin", http.StatusInternalServerError)
-			return
-		}
-
-		resultStr, ok := resultRaw.(string)
-		if !ok {
-			http.Error(w, "Formato de resultado inesperado", http.StatusInternalServerError)
-			return
-		}
-
-		// Returns result directly
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		fmt.Fprint(w, resultStr)
-	}
-}
-
-// Custom handler to test context timeout
-func contextTimeoutTestHandler(flow v1alpha1.Flow, logger *logrus.Logger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-
-		logger.Info("Solicitud recibida en contextTimeoutTest")
-
-		plugin, err := pluginManager.GetPlugin("sleep-plugin")
-		if err != nil {
-			logger.Errorf("Plugin no encontrado: %v", err)
-			http.Error(w, "Plugin no encontrado", http.StatusInternalServerError)
-			return
-		}
-
-		resultado, err := plugin.Execute(ctx, nil)
-		if err != nil {
-			logger.Warnf("Plugin cancelado o error: %v", err)
-			fmt.Fprintf(w, "Plugin cancelado o error: %v\n", err)
-			return
-		}
-
-		fmt.Fprintf(w, "Plugin ejecutado exitosamente: %v\n", resultado)
-	}
 }
 
 // Runs the flow and returns results
@@ -193,7 +171,7 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 			continue
 		}
 
-		// combina claramente parámetros del YAML con parámetros adicionales
+		// combine the parameters from the YAML with the additional parameters
 		params := make(map[string]interface{})
 		for k, v := range step.Parameters {
 			params[k] = v

@@ -14,9 +14,11 @@ func main() {
 	// Initialize logrus logger
 	logger := logrus.New()
 	logger.Out = os.Stdout
-	logger.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
+	logrus.SetFormatter(&logrus.TextFormatter{ // new timestamp format ;D
+		TimestampFormat: "2006-01-02 15:04:05",
+		FullTimestamp:   true,
 	})
+	logger.SetLevel(logrus.DebugLevel) // set the log level to debug
 
 	ctx := context.Background() // creates a new context to manage timeouts, cancelaciones, etc.
 
