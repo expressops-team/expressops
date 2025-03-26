@@ -34,6 +34,11 @@ plugins:
     type: k8s
     config: {}
 
+  - name: test-print-plugin
+    path: plugins/testprint/testprint.so
+    type: test
+    config: {}
+
  # Paso 4: Crear un pipeline que ejecute los plugins que se han cargado en el paso 3 y que se ejecuten en el orden que se han definido en el fichero yaml   
 flows:
   - name: incident-flow
@@ -60,6 +65,6 @@ flows:
     description: "Check the health of the cluster"
     pipeline:
       - pluginRef: health-check-plugin
-      - pluginRef: kube-health-plugin
+      - pluginRef: test-print-plugin #kube-health-plugin
         parameters:
           namespace: default

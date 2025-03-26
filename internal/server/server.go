@@ -132,7 +132,33 @@ func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
 		results := executeFlow(ctx, flow, additionalParams, logger)
 
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, "Flujo '%s' ejecutado correctamente. Resultados: %v", flowName, results)
+
+		fmt.Fprintf(w, "Flujo '%s' ejecutado correctamente.\n", flowName)
+		for _, result := range results {
+			if resultMap, ok := result.(map[string]interface{}); ok {
+				pluginName := resultMap["plugin"].(string)
+				plugin, err := pluginManager.GetPlugin(pluginName)
+				if err != nil {
+					fmt.Fprintf(w, "Plugin: %s\nError: %v\n\n", pluginName, err)
+					continue
+				}
+
+				// if plugin implements formatter --> use it
+				if formatter, ok := plugin.(interface {
+					FormatResult(interface{}) (string, error)
+				}); ok {
+					formatted, err := formatter.FormatResult(resultMap["resultado"])
+					if err != nil {
+						fmt.Fprintf(w, "Plugin: %s\nError formateando resultado: %v\n\n", pluginName, err)
+						continue
+					}
+					fmt.Fprintf(w, "Plugin: %s\n%s\n\n", pluginName, formatted)
+				} else {
+					// If no formatter, raw result
+					fmt.Fprintf(w, "Plugin: %s\nResultado: %v\n\n", pluginName, resultMap["resultado"])
+				}
+			}
+		}
 	}
 }
 

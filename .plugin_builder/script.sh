@@ -13,6 +13,7 @@ PLUGINS=(
   "plugins/kubehealth/kube_health.go"
   "plugins/sleep/sleep_plugin.go"
   "plugins/slack/slack.go"
+  "plugins/testprint/testprint.go"
 )
 
 for plugin in "${PLUGINS[@]}"; do
