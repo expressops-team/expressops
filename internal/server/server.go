@@ -101,7 +101,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 
 func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second) // if it takes more than 4 seconds, it will be killed
 		defer cancel()
 
 		// obtain flowName from query parameter "flowName"
@@ -180,10 +180,6 @@ func parseParams(paramsRaw string) map[string]interface{} {
 }
 
 // Runs the flow and returns results
-
-// =================================
-// TODO: add a formatter to the result <---
-// =================================
 
 func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, logger *logrus.Logger) []interface{} {
 	var results []interface{}
