@@ -89,6 +89,10 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	// ONLY one generic handler that will handle all flows
 	http.HandleFunc("/flow", dynamicFlowHandler(logger))
 
+	// template for flows
+	fmt.Println("\033[31mTemplate para flujos:\033[0m")
+	fmt.Println("\033[37m➡️\033[0m \033[32mcurl http://0.0.0.0:8080/flow?flowName=<nombre_del_flujo>\033[0m \033[37m⬅️\033[0m\n")
+
 	logger.Infof("Servidor escuchando en http://%s", address)
 	server := &http.Server{
 		Addr: address,
