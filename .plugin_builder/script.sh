@@ -15,6 +15,7 @@ PLUGINS=(
   "plugins/slack/slack.go"
   "plugins/testprint/testprint.go"
   "plugins/clean-disk/clean_disk.go"
+  "plugins/logfilecreator/logfilecreator.go"
 )
 
 for plugin in "${PLUGINS[@]}"; do

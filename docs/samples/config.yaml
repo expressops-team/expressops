@@ -34,13 +34,18 @@ plugins:
     type: k8s
     config: {}
 
-  - name: test-print-plugin
+  - name: test-print
     path: plugins/testprint/testprint.so
     type: test
     config: {}
 
-  - name: clean-disk-plugin
+  - name: clean-disk
     path: plugins/clean-disk/clean_disk.so
+    type: test
+    config: {}
+
+  - name: log-file-creator
+    path: plugins/logfilecreator/logfilecreator.so
     type: test
     config: {}
 
@@ -70,20 +75,18 @@ flows:
     description: "Check the health of the cluster"
     pipeline:
       - pluginRef: health-check-plugin
-      - pluginRef: test-print-plugin #kube-health-plugin <--- this is a test plugin
+      - pluginRef: test-print #kube-health-plugin <--- this is a test plugin
         parameters:
           namespace: default
 
   - name: clean-disk-flow # working on it
     description: "Clean the disk"
     pipeline:
-      - pluginRef: clean-disk-plugin
+      - pluginRef: clean-disk
+      - pluginRef: log-file-creator
         parameters:
           namespace: default
           schedule: "@daily"
-          services:
-            - nginx
-            - redis
           cleanupPaths:
             - /var/cache
             - /tmp
