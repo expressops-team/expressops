@@ -33,6 +33,17 @@ func (s *SlackPlugin) Initialize(ctx context.Context, config map[string]interfac
 // Execute sends a message to a Slack channel
 func (s *SlackPlugin) Execute(ctx context.Context, params map[string]interface{}) (interface{}, error) {
 	message, _ := params["message"].(string)
+
+	// NUEVO: usar _input si no se define "message"
+	if message == "" {
+		if input, ok := params["_input"].(string); ok {
+			message = input
+		}
+	}
+
+	if message == "" {
+		return nil, fmt.Errorf("no hay mensaje que enviar")
+	}
 	channel, _ := params["channel"].(string)
 	severity, _ := params["severity"].(string)
 
@@ -56,6 +67,10 @@ func (s *SlackPlugin) Execute(ctx context.Context, params map[string]interface{}
 	}
 	s.logger.Info("Message successfully sent to Slack")
 	return "success", nil
+}
+
+func (s *SlackPlugin) FormatResult(result interface{}) (string, error) {
+	return fmt.Sprintf("Slack result: %v", result), nil
 }
 
 // PluginInstance is the instance of the plugin that will be registered in the plugin manager at runtime

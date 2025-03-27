@@ -183,6 +183,7 @@ func parseParams(paramsRaw string) map[string]interface{} {
 
 func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, logger *logrus.Logger) []interface{} {
 	var results []interface{}
+	var lastResult interface{} = nil // <- NUEVO: almacena el resultado anterior
 
 	for _, step := range flow.Pipeline {
 		logger.Infof("Ejecutando plugin: %s", step.PluginRef)
@@ -203,12 +204,18 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 			params[k] = v
 		}
 
+		// ✅ PASAMOS EL RESULTADO DEL PASO ANTERIOR
+		if lastResult != nil {
+			params["_input"] = lastResult
+		}
+
 		res, err := plugin.Execute(ctx, params)
 		if err != nil {
 			logger.Errorf("Error ejecutando plugin %s: %v", step.PluginRef, err)
 			results = append(results, map[string]string{"plugin": step.PluginRef, "error": err.Error()})
 		} else {
 			results = append(results, map[string]interface{}{"plugin": step.PluginRef, "resultado": res})
+			lastResult = res // <- guardar resultado para el siguiente paso
 		}
 	}
 

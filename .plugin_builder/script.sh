@@ -5,6 +5,7 @@ set -e
 GREEN="\033[32m"
 RED="\033[31m"
 BLUE="\033[34m"
+YELLOW="\033[33m"
 RESET="\033[0m"
 
 
@@ -14,12 +15,18 @@ PLUGINS=(
   "plugins/sleep/sleep_plugin.go"
   "plugins/slack/slack.go"
   "plugins/testprint/testprint.go"
+  "plugins/formatters/health_alert_formatter.go"
 )
 
 for plugin in "${PLUGINS[@]}"; do
   plugin_dir=$(dirname "$plugin")
   plugin_file=$(basename "$plugin")
   output_file="${plugin_dir}/$(basename "${plugin_file%.go}.so")"
+
+    if [[ -f "$output_file" ]]; then
+    echo -e "${YELLOW}🧹 Eliminando ${output_file} viejo...${RESET}"
+    rm "$output_file"
+  fi
 
   echo -e "${BLUE}Compilando  ${RED}${plugin_file}...${RESET}"
   go build -buildmode=plugin -o "$output_file" "$plugin" && \

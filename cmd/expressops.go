@@ -7,6 +7,7 @@ import (
 	"flag"
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus" //logger
 )
 
@@ -19,6 +20,11 @@ func main() {
 		FullTimestamp:   true,
 	})
 	logger.SetLevel(logrus.DebugLevel) // set the log level to debug
+
+	err := godotenv.Load()
+	if err != nil {
+		logger.Warnf("Advertencia: No se pudo cargar el archivo .env: %v", err)
+	}
 
 	ctx := context.Background() // creates a new context to manage timeouts, cancelaciones, etc.
 

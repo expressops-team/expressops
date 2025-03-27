@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	pluginconf "expressops/internal/plugin/loader"
+	"fmt"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -30,6 +31,10 @@ func (p *SleepPlugin) Execute(ctx context.Context, params map[string]interface{}
 		p.logger.Warn("Sleep Plugin ha sido cancelado!")
 		return nil, ctx.Err()
 	}
+}
+
+func (p *SleepPlugin) FormatResult(result interface{}) (string, error) {
+	return fmt.Sprintf("Resultado del Sleep Plugin: %v", result), nil
 }
 
 var PluginInstance pluginconf.Plugin = &SleepPlugin{}

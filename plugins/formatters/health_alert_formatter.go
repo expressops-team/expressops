@@ -1,0 +1,55 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	pluginconf "expressops/internal/plugin/loader"
+
+	"github.com/sirupsen/logrus"
+)
+
+type FormatterPlugin struct {
+	logger *logrus.Logger
+}
+
+func (f *FormatterPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
+	f.logger = logger
+	f.logger.Info("Inicializando Health Formatter Plugin")
+	return nil
+}
+
+func (f *FormatterPlugin) Execute(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	input, ok := params["_input"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("no se recibió _input válido")
+	}
+
+	status, ok := input["health_status"].(map[string]string)
+	if !ok {
+		return "", fmt.Errorf("resultado sin health_status")
+	}
+
+	msg := ""
+	for k, v := range status {
+		if v != "OK" {
+			msg += fmt.Sprintf("🚨 %s: %s\n", k, v)
+		}
+	}
+
+	if msg == "" {
+		return "", nil // todo bien
+	}
+	return fmt.Sprintf("⚠️ Problemas detectados:\n%s", msg), nil
+}
+func (f *FormatterPlugin) FormatResult(result interface{}) (string, error) {
+	if msg, ok := result.(string); ok {
+		if msg == "" {
+			return "✅ Todo en orden. No se detectaron problemas de salud del sistema.", nil
+		}
+		return fmt.Sprintf("📋 Mensaje generado para alerta:\n%s", msg), nil
+	}
+	return "", fmt.Errorf("resultado inesperado: %v", result)
+}
+
+var PluginInstance pluginconf.Plugin = &FormatterPlugin{}
