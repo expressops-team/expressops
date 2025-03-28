@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -82,125 +83,68 @@ func (p *HealthCheckPlugin) RegisterCheck(name string, check func() error) {
 	p.checks[name] = check
 }
 
-func (p *HealthCheckPlugin) Execute(ctx context.Context, params map[string]interface{}) (interface{}, error) {
-	p.logger.Info("Performing health check")
-	p.mu.Lock()
-	defer p.mu.Unlock()
+func (p *HealthCheckPlugin) Execute(ctx context.Context, r *http.Request, shared *map[string]interface{}) (interface{}, error) {
+	p.logger.Info("Ejecutando Health Check Plugin")
 
-	result := make(map[string]interface{})
+	// Log request info if available
+	if r != nil {
+		p.logger.Infof("Health check solicitado desde: %s", r.RemoteAddr)
+	}
 
-	if cpuPercent, err := cpu.Percent(time.Second, false); err == nil && len(cpuPercent) > 0 {
-		result["cpu"] = map[string]interface{}{
-			"usage_percent": cpuPercent[0],
+	results := make(map[string]string)
+
+	// Get checks to run from shared context
+	checksToRun := []string{}
+	if shared != nil {
+		if specificChecks, ok := (*shared)["checks"].([]string); ok && len(specificChecks) > 0 {
+			checksToRun = specificChecks
 		}
 	}
 
-	if memInfo, err := mem.VirtualMemory(); err == nil {
-		result["memory"] = map[string]interface{}{
-			"total":        memInfo.Total,
-			"used":         memInfo.Used,
-			"free":         memInfo.Free,
-			"used_percent": memInfo.UsedPercent,
+	// If no specific checks requested, run all
+	if len(checksToRun) == 0 {
+		p.mu.Lock()
+		for name := range p.checks {
+			checksToRun = append(checksToRun, name)
 		}
+		p.mu.Unlock()
 	}
 
-	if parts, err := disk.Partitions(false); err == nil {
-		diskInfo := make(map[string]interface{})
-		for _, part := range parts {
-			if usage, err := disk.Usage(part.Mountpoint); err == nil {
-				diskInfo[part.Mountpoint] = map[string]interface{}{
-					"total":        usage.Total,
-					"used":         usage.Used,
-					"free":         usage.Free,
-					"used_percent": usage.UsedPercent,
-				}
-			}
-		}
-		result["disk"] = diskInfo
-	}
+	// Run the checks
+	for _, name := range checksToRun {
+		p.mu.Lock()
+		check, exists := p.checks[name]
+		p.mu.Unlock()
 
-	healthStatus := make(map[string]string)
-	for name, check := range p.checks {
-		p.logger.Infof("Running check: %s", name)
+		if !exists {
+			results[name] = "check not found"
+			continue
+		}
+
 		if err := check(); err != nil {
-			p.logger.Warnf("Check failed: %s - %v", name, err) // we use warnf because it's not an error, it's a warning
-			healthStatus[name] = fmt.Sprintf("FAIL: %v", err)
+			results[name] = fmt.Sprintf("❌ %v", err)
 		} else {
-			healthStatus[name] = "OK"
+			results[name] = "✅ OK"
 		}
 	}
-	result["health_status"] = healthStatus
 
-	p.logger.Info("Health check completed")
-	return result, nil
+	return results, nil
 }
 
 func (p *HealthCheckPlugin) FormatResult(result interface{}) (string, error) {
-	resultMap, ok := result.(map[string]interface{})
+	results, ok := result.(map[string]string)
 	if !ok {
-		return "", fmt.Errorf("unexpected result type")
+		return "", fmt.Errorf("unexpected result type: %T", result)
 	}
 
 	var sb strings.Builder
-	sb.WriteString("\n\033[32mSystem Health Status:\033[0m\n\n")
+	sb.WriteString("💚 Health Check Results:\n")
 
-	if status, ok := resultMap["health_status"].(map[string]string); ok {
-		sb.WriteString("\033[31mHealth Checks:\033[0m\n")
-		for k, v := range status {
-			sb.WriteString(fmt.Sprintf("  %s: %s\n", k, v))
-		}
-		sb.WriteString("\n")
+	for check, status := range results {
+		sb.WriteString(fmt.Sprintf("  %s: %s\n", check, status))
 	}
 
-	if cpuInfo, ok := resultMap["cpu"].(map[string]interface{}); ok {
-		sb.WriteString("\033[34mCPU Usage:\033[0m\n")
-		if usage, ok := cpuInfo["usage_percent"].(float64); ok {
-			sb.WriteString(fmt.Sprintf("  Usage: %.2f%%\n\n", usage))
-		}
-	}
-
-	if memInfo, ok := resultMap["memory"].(map[string]interface{}); ok {
-		sb.WriteString("\033[33mMemory Usage:\033[0m\n")
-		if total, ok := memInfo["total"].(uint64); ok {
-			sb.WriteString(fmt.Sprintf("  Total: %.2f GB\n", float64(total)/1024/1024/1024))
-		}
-		if used, ok := memInfo["used"].(uint64); ok {
-			sb.WriteString(fmt.Sprintf("  Used:  %.2f GB\n", float64(used)/1024/1024/1024))
-		}
-		if free, ok := memInfo["free"].(uint64); ok {
-			sb.WriteString(fmt.Sprintf("  Free:  %.2f GB\n", float64(free)/1024/1024/1024))
-		}
-		if usedPercent, ok := memInfo["used_percent"].(float64); ok {
-			sb.WriteString(fmt.Sprintf("  Usage: %.2f%%\n\n", usedPercent))
-		}
-	}
-
-	if diskInfo, ok := resultMap["disk"].(map[string]interface{}); ok {
-		sb.WriteString("\033[35mDisk Usage:\033[0m\n")
-		for mount, usage := range diskInfo {
-			if len(mount) >= 5 && mount[:5] == "/snap" {
-				continue
-			}
-			if u, ok := usage.(map[string]interface{}); ok {
-				sb.WriteString(fmt.Sprintf("  %s:\n", mount))
-				if total, ok := u["total"].(uint64); ok {
-					sb.WriteString(fmt.Sprintf("    Total: %.2f GB\n", float64(total)/1024/1024/1024))
-				}
-				if used, ok := u["used"].(uint64); ok {
-					sb.WriteString(fmt.Sprintf("    Used:  %.2f GB\n", float64(used)/1024/1024/1024))
-				}
-				if free, ok := u["free"].(uint64); ok {
-					sb.WriteString(fmt.Sprintf("    Free:  %.2f GB\n", float64(free)/1024/1024/1024))
-				}
-				if usedPercent, ok := u["used_percent"].(float64); ok {
-					sb.WriteString(fmt.Sprintf("    Usage: %.2f%%\n", usedPercent))
-				}
-			}
-		}
-	}
-
-	sb.WriteString("\nDone ✅\n")
 	return sb.String(), nil
 }
 
-var PluginInstance = NewHealthCheckPlugin(logrus.New())
+var PluginInstance = NewHealthCheckPlugin(nil)

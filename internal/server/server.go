@@ -62,7 +62,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 					return
 				}
 
-				result, err := plugin.Execute(ctx, nil)
+				result, err := plugin.Execute(ctx, r, &map[string]any{})
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
@@ -74,12 +74,10 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 		}(pluginName))
 	}
 
-	// Ruta genérica para ejecutar flujos definidos
 	http.HandleFunc("/flow", dynamicFlowHandler(logger))
 
 	logger.Infof("Servidor escuchando en http://%s", address)
 
-	// Template para flujos (instrucción curl)
 	fmt.Println("\033[31mTemplate para flujos:\033[0m")
 	fmt.Printf("\033[37m ➡️ \033[0m \033[32mcurl http://%s/flow?flowName=<nombre_del_flujo>\033[0m \033[37m ⬅️ \033[0m\n\n", address)
 
@@ -117,7 +115,7 @@ func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
 		paramsRaw := r.URL.Query().Get("params")
 		additionalParams := parseParams(paramsRaw)
 
-		results := executeFlow(ctx, flow, additionalParams, logger)
+		results := executeFlow(ctx, flow, additionalParams, r, logger)
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(results)
@@ -142,9 +140,10 @@ func parseParams(paramsRaw string) map[string]interface{} {
 }
 
 // executeFlow ejecuta los pasos del flujo secuencialmente y retorna los resultados
-func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, logger *logrus.Logger) []interface{} {
+func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, r *http.Request, logger *logrus.Logger) []interface{} {
 	var results []interface{}
 	var lastResult interface{} = nil
+	shared := &map[string]any{}
 
 	for _, step := range flow.Pipeline {
 		logger.Infof("Ejecutando plugin: %s", step.PluginRef)
@@ -156,18 +155,18 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 			continue
 		}
 
-		params := make(map[string]interface{})
+		// Add parameters to shared context
 		for k, v := range step.Parameters {
-			params[k] = v
+			(*shared)[k] = v
 		}
 		for k, v := range additionalParams {
-			params[k] = v
+			(*shared)[k] = v
 		}
 		if lastResult != nil {
-			params["_input"] = lastResult
+			(*shared)["_input"] = lastResult
 		}
 
-		res, err := plugin.Execute(ctx, params)
+		res, err := plugin.Execute(ctx, r, shared)
 		if err != nil {
 			logger.Errorf("Error ejecutando plugin %s: %v", step.PluginRef, err)
 			results = append(results, map[string]string{"plugin": step.PluginRef, "error": err.Error()})

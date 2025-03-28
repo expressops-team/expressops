@@ -10,10 +10,10 @@ server:
     protocolVersion: 2
 
 plugins:
-  - name: slack-notifier
-    path: plugins/slack/slack.so
-    type: notification
-    config: {}
+#  - name: slack-notifier
+#    path: plugins/slack/slack.so
+#    type: notification
+#    config: {}
 
   - name: health-check-plugin
     path: plugins/healthcheck/health_check.so
@@ -25,10 +25,10 @@ plugins:
     type: test
     config: {}
 
-  - name: kube-health-plugin
-    path: plugins/kubehealth/kube_health.so
-    type: k8s
-    config: {}
+ # - name: kube-health-plugin
+ #   path: plugins/kubehealth/kube_health.so
+ #   type: k8s
+ #   config: {}
 
   - name: test-print-plugin
     path: plugins/testprint/testprint.so

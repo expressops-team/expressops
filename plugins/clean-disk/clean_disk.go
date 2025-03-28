@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,9 +16,11 @@ import (
 )
 
 type CleanDisk struct {
-	logger *logrus.Logger
-	ticker *time.Ticker // daily
-	done   chan bool
+	logger  *logrus.Logger
+	request *http.Request
+	shared  *map[string]any
+	ticker  *time.Ticker // daily
+	done    chan bool
 }
 
 func (c *CleanDisk) cleanDisk(logger *logrus.Logger, params map[string]interface{}) error {
@@ -99,12 +102,16 @@ func (c *CleanDisk) Initialize(ctx context.Context, params map[string]interface{
 	return nil
 }
 
-func (c *CleanDisk) Execute(ctx context.Context, params map[string]interface{}) (interface{}, error) {
-	return nil, c.cleanDisk(c.logger, params)
+func (c *CleanDisk) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
+	return nil, c.cleanDisk(c.logger, *shared)
 }
 
 func (c *CleanDisk) Name() string {
 	return "clean-disk"
+}
+
+func (c *CleanDisk) FormatResult(result interface{}) (string, error) {
+	return "", nil
 }
 
 var PluginInstance pluginconf.Plugin = &CleanDisk{}

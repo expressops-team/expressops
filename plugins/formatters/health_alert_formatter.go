@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	pluginconf "expressops/internal/plugin/loader"
 
@@ -19,8 +20,9 @@ func (f *FormatterPlugin) Initialize(ctx context.Context, config map[string]inte
 	return nil
 }
 
-func (f *FormatterPlugin) Execute(ctx context.Context, params map[string]interface{}) (interface{}, error) {
-	input, ok := params["_input"].(map[string]interface{})
+// Execute processes health check results and formats them for alerts
+func (f *FormatterPlugin) Execute(ctx context.Context, r *http.Request, shared *map[string]any) (interface{}, error) {
+	input, ok := (*shared)["_input"].(map[string]interface{})
 	if !ok {
 		return "", fmt.Errorf("no se recibió _input válido")
 	}
@@ -42,6 +44,7 @@ func (f *FormatterPlugin) Execute(ctx context.Context, params map[string]interfa
 	}
 	return fmt.Sprintf("⚠️ Problemas detectados:\n%s", msg), nil
 }
+
 func (f *FormatterPlugin) FormatResult(result interface{}) (string, error) {
 	if msg, ok := result.(string); ok {
 		if msg == "" {

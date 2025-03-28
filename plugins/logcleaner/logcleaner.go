@@ -2,14 +2,12 @@
 package main
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"context"
 	"fmt"
-	"io"
+	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
+	"strconv"
 	"time"
 
 	pluginconf "expressops/internal/plugin/loader"
@@ -18,164 +16,146 @@ import (
 )
 
 type LogCleaner struct {
-	logger      *logrus.Logger
-	rutaLogs    string
-	weeksToKeep int
+	baseDir    string
+	maxAgeDays int
+	logger     *logrus.Logger
 }
 
-func (l *LogCleaner) Initialize(ctx context.Context, params map[string]interface{}, logger *logrus.Logger) error {
-	l.logger = logger
-	if ruta, ok := params["log_path"].(string); ok && ruta != "" {
-		l.rutaLogs = ruta
+func (p *LogCleaner) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
+	p.logger = logger
+
+	// Get directory from config
+	if dir, ok := config["log_dir"].(string); ok && dir != "" {
+		p.baseDir = dir
 	} else {
-		l.rutaLogs = "logs"
+		p.baseDir = "logs" // Default directory
 	}
 
-	if weeks, ok := params["weeks_to_keep"].(int); ok && weeks > 0 {
-		l.weeksToKeep = weeks
+	// Get max age from config
+	if age, ok := config["max_age_days"].(float64); ok {
+		p.maxAgeDays = int(age)
 	} else {
-		l.weeksToKeep = 4
+		p.maxAgeDays = 30 // Default to 30 days
 	}
+
+	p.logger.Infof("Initializing Log Cleaner Plugin (max age: %d days, directory: %s)",
+		p.maxAgeDays, p.baseDir)
 
 	return nil
 }
 
-func (l *LogCleaner) obtenerSemanaMes(fecha time.Time) int {
-	dia := fecha.Day()
-	if dia <= 7 {
-		return 1
-	} else if dia <= 14 {
-		return 2
-	} else if dia <= 21 {
-		return 3
-	} else {
-		return 4
-	}
-}
+func (p *LogCleaner) Execute(ctx context.Context, r *http.Request, shared *map[string]interface{}) (interface{}, error) {
+	var maxAgeDays int = p.maxAgeDays
+	var targetDir string = p.baseDir
 
-func (l *LogCleaner) obtenerArchivosDiaAnterior() []string {
-	ayer := time.Now().AddDate(0, 0, -1)
-	fechaAyer := ayer.Format("02012006") // DDMMYYYY
+	// Log request if available
+	if r != nil {
+		p.logger.Infof("Log cleanup request from: %s", r.RemoteAddr)
 
-	var archivos []string
-	filepath.Walk(l.rutaLogs, func(ruta string, info os.FileInfo, err error) error {
-		if !info.IsDir() && strings.Contains(ruta, fechaAyer) && strings.HasSuffix(ruta, ".log") {
-			archivos = append(archivos, ruta)
-		}
-		return nil
-	})
-
-	return archivos
-}
-
-func (l *LogCleaner) crearCarpetaRespaldo(fecha time.Time) string {
-	año := fecha.Format("2006")
-	mes := fecha.Format("01")
-	semana := l.obtenerSemanaMes(fecha)
-
-	dirRespaldo := filepath.Join("backups", fmt.Sprintf("%s%s-semana%d", año, mes, semana))
-	os.MkdirAll(dirRespaldo, 0755)
-
-	return dirRespaldo
-}
-
-func (l *LogCleaner) crearArchivoTar(archivos []string, dirRespaldo string) string {
-	if len(archivos) == 0 {
-		return ""
-	}
-
-	horaActual := time.Now().Format("02012006-150405")
-	nombreTar := filepath.Join(dirRespaldo, fmt.Sprintf("logs-%s.tar.gz", horaActual))
-
-	archivoTar, _ := os.Create(nombreTar)
-	defer archivoTar.Close()
-
-	escritorGzip := gzip.NewWriter(archivoTar)
-	defer escritorGzip.Close()
-
-	escritorTar := tar.NewWriter(escritorGzip)
-	defer escritorTar.Close()
-
-	for _, archivo := range archivos {
-		tarFile(escritorTar, archivo)
-	}
-
-	return nombreTar
-}
-
-func tarFile(escritorTar *tar.Writer, rutaArchivo string) {
-	archivo, _ := os.Open(rutaArchivo)
-	defer archivo.Close()
-
-	info, _ := archivo.Stat()
-	cabecera, _ := tar.FileInfoHeader(info, "")
-
-	cabecera.Name = filepath.Base(rutaArchivo)
-
-	escritorTar.WriteHeader(cabecera)
-	io.Copy(escritorTar, archivo)
-}
-
-func (l *LogCleaner) borrarRespaldosAntiguos() {
-	fechaLimite := time.Now().AddDate(0, 0, -l.weeksToKeep*7)
-
-	filepath.Walk("backups", func(ruta string, info os.FileInfo, err error) error {
-		if !info.IsDir() && strings.HasSuffix(ruta, ".tar.gz") {
-			if info.ModTime().Before(fechaLimite) {
-				os.Remove(ruta)
-				l.logger.Infof("Respaldo antiguo borrado: %s", ruta)
+		// Check for parameters in request
+		if ageParam := r.URL.Query().Get("max_age_days"); ageParam != "" {
+			if age, err := strconv.Atoi(ageParam); err == nil && age > 0 {
+				maxAgeDays = age
 			}
 		}
+
+		if dirParam := r.URL.Query().Get("dir"); dirParam != "" {
+			targetDir = dirParam
+		}
+	}
+
+	// Check shared context for parameters
+	if shared != nil {
+		if dir, ok := (*shared)["log_dir"].(string); ok && dir != "" {
+			targetDir = dir
+		}
+
+		if age, ok := (*shared)["max_age_days"].(float64); ok && age > 0 {
+			maxAgeDays = int(age)
+		} else if ageStr, ok := (*shared)["max_age_days"].(string); ok && ageStr != "" {
+			if age, err := strconv.Atoi(ageStr); err == nil && age > 0 {
+				maxAgeDays = age
+			}
+		}
+	}
+
+	// Ensure directory exists
+	if _, err := os.Stat(targetDir); os.IsNotExist(err) {
+		p.logger.Warnf("Directory %s does not exist, nothing to clean", targetDir)
+		return map[string]interface{}{
+			"status":        "warning",
+			"message":       fmt.Sprintf("Directory %s does not exist", targetDir),
+			"files_deleted": 0,
+		}, nil
+	}
+
+	// Calculate cutoff time
+	cutoffTime := time.Now().AddDate(0, 0, -maxAgeDays)
+	p.logger.Infof("Cleaning log files older than %s in %s", cutoffTime.Format("2006-01-02"), targetDir)
+
+	// Track deleted files
+	deletedFiles := []string{}
+
+	// Walk through directory
+	err := filepath.Walk(targetDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Check if file matches log pattern (has .log extension)
+		if filepath.Ext(path) == ".log" {
+			// Check file age
+			if info.ModTime().Before(cutoffTime) {
+				p.logger.Infof("Deleting old log file: %s (modified: %s)",
+					path, info.ModTime().Format("2006-01-02"))
+
+				// Delete the file
+				if err := os.Remove(path); err != nil {
+					p.logger.Errorf("Failed to delete file %s: %v", path, err)
+					return nil // Continue with other files
+				}
+
+				deletedFiles = append(deletedFiles, path)
+			}
+		}
+
 		return nil
 	})
+
+	if err != nil {
+		p.logger.Errorf("Error walking directory %s: %v", targetDir, err)
+		return nil, fmt.Errorf("error cleaning log files: %v", err)
+	}
+
+	// Return results
+	return map[string]interface{}{
+		"status":        "success",
+		"files_deleted": len(deletedFiles),
+		"files":         deletedFiles,
+		"max_age_days":  maxAgeDays,
+		"directory":     targetDir,
+	}, nil
 }
 
-func (l *LogCleaner) Execute(ctx context.Context, params map[string]interface{}) (interface{}, error) {
-	if time.Now().Weekday() != time.Saturday {
-		return map[string]string{"estado": "omitido", "razón": "no es sábado"}, nil
-	}
+func (p *LogCleaner) FormatResult(result interface{}) (string, error) {
+	if resultMap, ok := result.(map[string]interface{}); ok {
+		count, _ := resultMap["files_deleted"].(int)
+		dir, _ := resultMap["directory"].(string)
+		age, _ := resultMap["max_age_days"].(int)
 
-	archivosAyer := l.obtenerArchivosDiaAnterior()
-
-	if len(archivosAyer) == 0 {
-		l.logger.Info("No se encontraron archivos de registro de ayer para archivar")
-		return map[string]string{"estado": "omitido", "razón": "sin logs"}, nil
-	}
-
-	dirRespaldo := l.crearCarpetaRespaldo(time.Now())
-
-	archivoTar := l.crearArchivoTar(archivosAyer, dirRespaldo)
-
-	l.borrarRespaldosAntiguos()
-
-	resultado := map[string]interface{}{
-		"estado":           "éxito",
-		"archivo_respaldo": archivoTar,
-		"total_archivos":   len(archivosAyer),
-		"archivos":         archivosAyer,
-	}
-
-	l.logger.Infof("Se archivaron correctamente %d archivos de registro en %s", len(archivosAyer), archivoTar)
-	return resultado, nil
-}
-
-func (l *LogCleaner) FormatResult(result interface{}) (string, error) {
-	if res, ok := result.(map[string]interface{}); ok {
-		if res["estado"] == "omitido" {
-			return fmt.Sprintf("🔄 Respaldo omitido: %s", res["razón"]), nil
+		if count == 0 {
+			return fmt.Sprintf("🧹 No log files needed cleaning in %s (max age: %d days)", dir, age), nil
 		}
 
-		if res["estado"] == "éxito" {
-			return fmt.Sprintf("📦 Se archivaron correctamente %d logs en %s",
-				res["total_archivos"], res["archivo_respaldo"]), nil
-		}
+		return fmt.Sprintf("🧹 Cleaned %d log files older than %d days from %s", count, age, dir), nil
 	}
 
-	return fmt.Sprintf("Operación Limpiador de Logs: %v", result), nil
+	return "Log cleanup completed", nil
 }
 
-func NewLogCleaner(logger *logrus.Logger) pluginconf.Plugin {
-	return &LogCleaner{logger: logger}
-}
-
-var PluginInstance pluginconf.Plugin = NewLogCleaner(nil)
+var PluginInstance pluginconf.Plugin = &LogCleaner{}

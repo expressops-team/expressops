@@ -5,9 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	pluginconf "expressops/internal/plugin/loader"
 	"fmt"
 	"net/http"
+
+	pluginconf "expressops/internal/plugin/loader"
 
 	"github.com/sirupsen/logrus"
 )
@@ -19,7 +20,6 @@ type SlackPlugin struct {
 
 // Initialize initializes the plugin with the provided configuration
 func (s *SlackPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
-
 	s.logger = logger
 	webhook, ok := config["webhook_url"].(string)
 	if !ok {
@@ -31,19 +31,72 @@ func (s *SlackPlugin) Initialize(ctx context.Context, config map[string]interfac
 }
 
 // Execute sends a message to a Slack channel
-func (s *SlackPlugin) Execute(ctx context.Context, params map[string]interface{}) (interface{}, error) {
-	message, _ := params["message"].(string)
-	channel, _ := params["channel"].(string)
-	severity, _ := params["severity"].(string)
+func (s *SlackPlugin) Execute(ctx context.Context, r *http.Request, shared *map[string]interface{}) (interface{}, error) {
+	var message, channel, severity string
+
+	// Get parameters from shared context
+	if shared != nil {
+		if msg, ok := (*shared)["message"].(string); ok {
+			message = msg
+		}
+		if ch, ok := (*shared)["channel"].(string); ok {
+			channel = ch
+		}
+		if sev, ok := (*shared)["severity"].(string); ok {
+			severity = sev
+		}
+	}
+
+	// Extract parameters from HTTP request if available
+	if r != nil {
+		s.logger.Infof("Solicitud de Slack desde: %s", r.RemoteAddr)
+
+		// Check query parameters
+		if queryMsg := r.URL.Query().Get("message"); queryMsg != "" {
+			message = queryMsg
+		}
+		if queryCh := r.URL.Query().Get("channel"); queryCh != "" {
+			channel = queryCh
+		}
+		if querySev := r.URL.Query().Get("severity"); querySev != "" {
+			severity = querySev
+		}
+	}
+
+	// Verify required parameters
+	if message == "" {
+		return nil, fmt.Errorf("message parameter is required")
+	}
+
+	// Set defaults if not provided
+	if channel == "" {
+		channel = "#general"
+	}
+	if severity == "" {
+		severity = "info"
+	}
 
 	// Prepare the JSON payload
 	payload := map[string]interface{}{
 		"text":    fmt.Sprintf("[%s] %s", severity, message),
 		"channel": channel,
 	}
+
 	// Encode the payload to JSON
-	jsonData, _ := json.Marshal(payload)
-	resp, err := http.Post(s.webhook, "application/json", bytes.NewBuffer(jsonData))
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("error encoding JSON payload: %v", err)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, "POST", s.webhook, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Send the request
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		s.logger.Errorf("Error sending message to Slack: %v", err)
 		return nil, err
@@ -54,8 +107,25 @@ func (s *SlackPlugin) Execute(ctx context.Context, params map[string]interface{}
 		s.logger.Errorf("Slack API error: %s", resp.Status)
 		return nil, fmt.Errorf("slack API error: %s", resp.Status)
 	}
+
 	s.logger.Info("Message successfully sent to Slack")
-	return "success", nil
+	return map[string]interface{}{
+		"status":   "sent",
+		"message":  message,
+		"channel":  channel,
+		"severity": severity,
+	}, nil
+}
+
+func (s *SlackPlugin) FormatResult(result interface{}) (string, error) {
+	if resultMap, ok := result.(map[string]interface{}); ok {
+		if status, ok := resultMap["status"].(string); ok && status == "sent" {
+			channel := resultMap["channel"].(string)
+			severity := resultMap["severity"].(string)
+			return fmt.Sprintf("📢 Mensaje enviado a %s con severidad %s", channel, severity), nil
+		}
+	}
+	return "Mensaje enviado a Slack", nil
 }
 
 // PluginInstance is the instance of the plugin that will be registered in the plugin manager at runtime
