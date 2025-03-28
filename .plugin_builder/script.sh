@@ -10,12 +10,13 @@ RESET="\033[0m"
 
 PLUGINS=(
   "plugins/healthcheck/health_check.go"
-  "plugins/kubehealth/kube_health.go"
+  #"plugins/kubehealth/kube_health.go"
   "plugins/sleep/sleep_plugin.go"
   "plugins/slack/slack.go"
   "plugins/testprint/testprint.go"
   "plugins/clean-disk/clean_disk.go"
   "plugins/logfilecreator/logfilecreator.go"
+  #"plugins/logcleaner/logcleaner.go"
 )
 
 for plugin in "${PLUGINS[@]}"; do

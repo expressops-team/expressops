@@ -29,10 +29,13 @@ plugins:
     type: test
     config: {}
  
-  - name: kube-health-plugin
-    path: plugins/kubehealth/kube_health.so
-    type: k8s
-    config: {}
+ # ===============================================
+ #  Will be implemented in the future
+ #  ==============================================
+ # - name: kube-health-plugin
+ #   path: plugins/kubehealth/kube_health.so
+ #   type: k8s
+ #   config: {}
 
   - name: test-print
     path: plugins/testprint/testprint.so
@@ -50,8 +53,14 @@ plugins:
     config:
       log_path: "logs/daily"
       base_filename: "expressops-"
+    
+  #- name: log-cleaner # Fixed: Added space after dash
+   # path: plugins/logcleaner/logcleaner.so
+    #type: logging
+    #config:
+      #log_path: "logs/daily"
+      #base_filename: "expressops-"
 
- # Paso 4: Crear un pipeline que ejecute los plugins que se han cargado en el paso 3 y que se ejecuten en el orden que se han definido en el fichero yaml   
 flows:
   - name: incident-flow
     pipeline:
@@ -96,7 +105,7 @@ flows:
       - pluginRef: log-file-creator
         parameters:
           plugin_name: "cluster-health-check"
-          plugin_output: "Completed health check of all components"
+          plugin_output: "Completed health check of all components: HealthCheckPlugin.checkCPU, HealthCheckPlugin.checkMemory, HealthCheckPlugin.checkDisk"
 
   - name: clean-disk-flow 
     description: "Clean the disk"
