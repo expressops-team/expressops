@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"expressops/internal/config" // imports the internal/config package
-	"expressops/internal/server" // imports the server package
+	"expressops/internal/config"
+	"expressops/internal/server"
 	"flag"
 	"os"
 

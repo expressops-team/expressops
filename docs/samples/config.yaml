@@ -1,9 +1,7 @@
-# Paso 1: Parsear este fichero yaml y que se guarde en un struct para acceder a los campos
 logging:
   level: info
   format: json
 
-# Paso 2: Levantar un server para probar
 server:
   port: 8080
   address: 0.0.0.0
@@ -11,13 +9,11 @@ server:
   http:
     protocolVersion: 2
 
-  # Paso 3: Construir un plugin que se compile como .so
 plugins:
   - name: slack-notifier
     path: plugins/slack/slack.so
     type: notification
-    config:
-      webhook_url: https://hooks.slack.com/services/TXXXXXXXX/BXXXXXXXX/XXXXXXXXXXXXXXXXX
+    config: {}
 
   - name: health-check-plugin
     path: plugins/healthcheck/health_check.so
@@ -28,38 +24,21 @@ plugins:
     path: plugins/sleep/sleep_plugin.so
     type: test
     config: {}
- 
- # ===============================================
- #  Will be implemented in the future
- #  ==============================================
- # - name: kube-health-plugin
- #   path: plugins/kubehealth/kube_health.so
- #   type: k8s
- #   config: {}
 
-  - name: test-print
+  - name: kube-health-plugin
+    path: plugins/kubehealth/kube_health.so
+    type: k8s
+    config: {}
+
+  - name: test-print-plugin
     path: plugins/testprint/testprint.so
     type: test
     config: {}
 
-  - name: clean-disk
-    path: plugins/clean-disk/clean_disk.so
-    type: test
+  - name: formatter-plugin
+    path: plugins/formatters/health_alert_formatter.so
+    type: utils
     config: {}
-
-  - name: log-file-creator
-    path: plugins/logfilecreator/logfilecreator.so
-    type: logging
-    config:
-      log_path: "logs/daily"
-      base_filename: "expressops-"
-    
-  #- name: log-cleaner # Fixed: Added space after dash
-   # path: plugins/logcleaner/logcleaner.so
-    #type: logging
-    #config:
-      #log_path: "logs/daily"
-      #base_filename: "expressops-"
 
 flows:
   - name: incident-flow
@@ -69,19 +48,11 @@ flows:
           message: "¡Alerta de prueba!"
           channel: "#alerts"
           severity: "high"
-      - pluginRef: log-file-creator
-        parameters:
-          plugin_name: "slack-notifier"
-          plugin_output: "Alerta enviada a Slack"
 
   - name: healthz
     customHandler: healthCheckDetailed 
     pipeline:
       - pluginRef: health-check-plugin
-      - pluginRef: log-file-creator
-        parameters:
-          plugin_name: "health-check-plugin"
-          plugin_output: "Health check completed"
 
   - name: test-context
     customHandler: contextTimeoutTest
@@ -89,44 +60,21 @@ flows:
       - pluginRef: sleep-plugin
         parameters:
           duration: 5s
-      - pluginRef: log-file-creator
-        parameters:
-          plugin_name: "sleep-plugin"
-          plugin_output: "Sleep operation completed"
-
-# Test the cluster health check
+          
   - name: dr-house
     description: "Check the health of the cluster"
     pipeline:
       - pluginRef: health-check-plugin
-      - pluginRef: test-print
+      - pluginRef: test-print-plugin
         parameters:
           namespace: default
-      - pluginRef: log-file-creator
-        parameters:
-          plugin_name: "cluster-health-check"
-          plugin_output: "Completed health check of all components: HealthCheckPlugin.checkCPU, HealthCheckPlugin.checkMemory, HealthCheckPlugin.checkDisk"
 
-  - name: clean-disk-flow 
-    description: "Clean the disk"
-    pipeline:
-      - pluginRef: clean-disk
-        parameters:
-          cleanupPaths:
-            - /var/cache
-            - /tmp
-      - pluginRef: log-file-creator
-        parameters:
-          plugin_name: "clean-disk"
-          plugin_output: "Disk cleanup performed"
-          cleanupPaths: ["/var/cache", "/tmp"]
-  
-  - name: daily-system-log
-    description: "Create a daily log of system status"
+  - name: alert-flow
+    description: "Alert flow for health check"
     pipeline:
       - pluginRef: health-check-plugin
-      - pluginRef: log-file-creator
+      - pluginRef: formatter-plugin
+      - pluginRef: slack-notifier
         parameters:
-          plugin_name: "health-check-plugin"
-          plugin_output: "Daily system health check"
-          base_filename: "daily-health-"
+          channel: "#alerts"
+          severity: "high"

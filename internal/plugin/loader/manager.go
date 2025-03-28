@@ -19,13 +19,13 @@ var (
 func LoadPlugin(ctx context.Context, path string, name string, config map[string]interface{}, logger *logrus.Logger) error {
 	p, err := plugin.Open(path)
 	if err != nil {
-		return fmt.Errorf("error opening plugin: %v", err)
+		return fmt.Errorf("error opening plugin '%s': %w", path, err)
 	}
 
 	// Look up the symbol "PluginInstance" in the plugin
 	sym, err := p.Lookup("PluginInstance")
 	if err != nil {
-		return fmt.Errorf("error looking up symbol: %v", err)
+		return fmt.Errorf("error looking up symbol 'PluginInstance' in plugin '%s': %w", name, err)
 	}
 	// Verify the type of the symbol
 	pluginPtr, ok := sym.(*Plugin)
@@ -36,7 +36,7 @@ func LoadPlugin(ctx context.Context, path string, name string, config map[string
 	pluginInstance := *pluginPtr
 
 	if err := pluginInstance.Initialize(ctx, config, logger); err != nil {
-		return fmt.Errorf("error initializing plugin: %v", err)
+		return fmt.Errorf("error initializing plugin: '%s': %w", name, err)
 	}
 
 	// Register the plugin in our list of plugins (Registry)

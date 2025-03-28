@@ -18,6 +18,7 @@ import (
 // registry of flows
 var flowRegistry map[string]v1alpha1.Flow
 
+// initializeFlowRegistry carga los flujos definidos en el archivo de configuración
 func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	flowRegistry = make(map[string]v1alpha1.Flow)
 	fmt.Print("\n") // whitespace
@@ -29,18 +30,18 @@ func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 }
 
 func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
-	// Initializes the map at server startup
+	// Inicializa el registro de flujos
 	initializeFlowRegistry(cfg, logger)
 
 	address := fmt.Sprintf("%s:%d", cfg.Server.Address, cfg.Server.Port)
 
-	// Basic route to verify that the server is up
+	// Ruta raíz para verificar que el servidor está activo
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		logger.Info("Solicitud en ruta raíz recibida")
 		fmt.Fprintf(w, "ExpressOps activo 🟢 \n")
 	})
 
-	// plugins registered dynamically
+	// Rutas dinámicas por cada plugin configurado
 	for _, pluginConf := range cfg.Plugins {
 		pluginName := pluginConf.Name
 		route := "/flows/" + pluginName
@@ -67,55 +68,40 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 					return
 				}
 
-				if formatter, ok := plugin.(interface {
-					FormatResult(interface{}) (string, error)
-				}); ok {
-					formatted, err := formatter.FormatResult(result)
-					if err != nil {
-						http.Error(w, err.Error(), http.StatusInternalServerError)
-						return
-					}
-					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-					fmt.Fprint(w, formatted)
-					return
-				}
-
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(result)
 			}
 		}(pluginName))
 	}
 
-	// ONLY one generic handler that will handle all flows
+	// Ruta genérica para ejecutar flujos definidos
 	http.HandleFunc("/flow", dynamicFlowHandler(logger))
 
-	// template for flows
-	fmt.Println("\033[31mTemplate para flujos:\033[0m")
-	fmt.Println("\033[37m ➡️ \033[0m \033[32mcurl http://0.0.0.0:8080/flow?flowName=<nombre_del_flujo>\033[0m \033[37m ⬅️ \033[0m \n ")
-
 	logger.Infof("Servidor escuchando en http://%s", address)
-	server := &http.Server{
-		Addr: address,
-	}
 
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	// Template para flujos (instrucción curl)
+	fmt.Println("\033[31mTemplate para flujos:\033[0m")
+	fmt.Printf("\033[37m ➡️ \033[0m \033[32mcurl http://%s/flow?flowName=<nombre_del_flujo>\033[0m \033[37m ⬅️ \033[0m\n\n", address)
+
+	srv := &http.Server{Addr: address}
+
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Fatalf("Error al iniciar servidor: %v", err)
 	}
 }
 
+// dynamicFlowHandler maneja peticiones a /flow y ejecuta flujos configurados
 func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second) // if it takes more than 4 seconds, it will be killed
+		ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second)
 		defer cancel()
 
-		// obtain flowName from query parameter "flowName"
 		flowName := r.URL.Query().Get("flowName")
 		if flowName == "" {
 			http.Error(w, "Debe indicar flowName", http.StatusBadRequest)
 			return
 		}
 
-		// check if the flow exists in the flow registry
 		flow, exists := flowRegistry[flowName]
 		if !exists {
 			http.Error(w, fmt.Sprintf("Flujo '%s' no encontrado", flowName), http.StatusNotFound)
@@ -128,51 +114,23 @@ func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
 			"user_agent": r.UserAgent(),
 		}).Info("Ejecutando flujo solicitado dinámicamente")
 
-		// read additional parameters (if they exist?)
 		paramsRaw := r.URL.Query().Get("params")
 		additionalParams := parseParams(paramsRaw)
 
-		// execute the found flow
 		results := executeFlow(ctx, flow, additionalParams, logger)
 
 		w.Header().Set("Content-Type", "application/json")
-
-		fmt.Fprintf(w, "Flujo '%s' ejecutado correctamente.\n", flowName)
-		for _, result := range results {
-			if resultMap, ok := result.(map[string]interface{}); ok {
-				pluginName := resultMap["plugin"].(string)
-				plugin, err := pluginManager.GetPlugin(pluginName)
-				if err != nil {
-					fmt.Fprintf(w, "Plugin: %s\nError: %v\n\n", pluginName, err)
-					continue
-				}
-
-				// if plugin implements formatter --> use it
-				if formatter, ok := plugin.(interface {
-					FormatResult(interface{}) (string, error)
-				}); ok {
-					formatted, err := formatter.FormatResult(resultMap["resultado"])
-					if err != nil {
-						fmt.Fprintf(w, "Plugin: %s\nError formateando resultado: %v\n\n", pluginName, err)
-						continue
-					}
-					fmt.Fprintf(w, "Plugin: %s\n%s\n\n", pluginName, formatted)
-				} else {
-					// If no formatter, raw result
-					fmt.Fprintf(w, "Plugin: %s\nResultado: %v\n\n", pluginName, resultMap["resultado"])
-				}
-			}
-		}
+		json.NewEncoder(w).Encode(results)
 	}
 }
 
+// parseParams transforma una cadena tipo "key:value;key2:value2" en un map[string]interface{}
 func parseParams(paramsRaw string) map[string]interface{} {
 	params := make(map[string]interface{})
 	if paramsRaw == "" {
 		return params
 	}
 
-	// split the params by ;
 	pairs := strings.Split(paramsRaw, ";")
 	for _, pair := range pairs {
 		kv := strings.SplitN(pair, ":", 2)
@@ -183,10 +141,10 @@ func parseParams(paramsRaw string) map[string]interface{} {
 	return params
 }
 
-// Runs the flow and returns results
-
+// executeFlow ejecuta los pasos del flujo secuencialmente y retorna los resultados
 func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, logger *logrus.Logger) []interface{} {
 	var results []interface{}
+	var lastResult interface{} = nil
 
 	for _, step := range flow.Pipeline {
 		logger.Infof("Ejecutando plugin: %s", step.PluginRef)
@@ -198,13 +156,15 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 			continue
 		}
 
-		// combine the parameters from the YAML with the additional parameters
 		params := make(map[string]interface{})
 		for k, v := range step.Parameters {
 			params[k] = v
 		}
 		for k, v := range additionalParams {
 			params[k] = v
+		}
+		if lastResult != nil {
+			params["_input"] = lastResult
 		}
 
 		res, err := plugin.Execute(ctx, params)
@@ -213,6 +173,7 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 			results = append(results, map[string]string{"plugin": step.PluginRef, "error": err.Error()})
 		} else {
 			results = append(results, map[string]interface{}{"plugin": step.PluginRef, "resultado": res})
+			lastResult = res
 		}
 	}
 
