@@ -19,7 +19,7 @@ func (p *SleepPlugin) Initialize(ctx context.Context, config map[string]interfac
 }
 
 func (p *SleepPlugin) Execute(ctx context.Context, params map[string]interface{}) (interface{}, error) {
-	duration := 10 * time.Second // Dormimos 10 segundos
+	duration := 10 * time.Second
 	p.logger.Info("Sleep Plugin comienza a dormir")
 
 	select {

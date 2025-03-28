@@ -46,8 +46,10 @@ plugins:
 
   - name: log-file-creator
     path: plugins/logfilecreator/logfilecreator.so
-    type: test
-    config: {}
+    type: logging
+    config:
+      log_path: "logs/daily"
+      base_filename: "expressops-"
 
  # Paso 4: Crear un pipeline que ejecute los plugins que se han cargado en el paso 3 y que se ejecuten en el orden que se han definido en el fichero yaml   
 flows:
@@ -58,11 +60,19 @@ flows:
           message: "¡Alerta de prueba!"
           channel: "#alerts"
           severity: "high"
+      - pluginRef: log-file-creator
+        parameters:
+          plugin_name: "slack-notifier"
+          plugin_output: "Alerta enviada a Slack"
 
   - name: healthz
     customHandler: healthCheckDetailed 
     pipeline:
       - pluginRef: health-check-plugin
+      - pluginRef: log-file-creator
+        parameters:
+          plugin_name: "health-check-plugin"
+          plugin_output: "Health check completed"
 
   - name: test-context
     customHandler: contextTimeoutTest
@@ -70,23 +80,44 @@ flows:
       - pluginRef: sleep-plugin
         parameters:
           duration: 5s
+      - pluginRef: log-file-creator
+        parameters:
+          plugin_name: "sleep-plugin"
+          plugin_output: "Sleep operation completed"
+
 # Test the cluster health check
   - name: dr-house
     description: "Check the health of the cluster"
     pipeline:
       - pluginRef: health-check-plugin
-      - pluginRef: test-print #kube-health-plugin <--- this is a test plugin
+      - pluginRef: test-print
         parameters:
           namespace: default
+      - pluginRef: log-file-creator
+        parameters:
+          plugin_name: "cluster-health-check"
+          plugin_output: "Completed health check of all components"
 
-  - name: clean-disk-flow # working on it
+  - name: clean-disk-flow 
     description: "Clean the disk"
     pipeline:
       - pluginRef: clean-disk
-      - pluginRef: log-file-creator
         parameters:
-          namespace: default
-          schedule: "@daily"
           cleanupPaths:
             - /var/cache
             - /tmp
+      - pluginRef: log-file-creator
+        parameters:
+          plugin_name: "clean-disk"
+          plugin_output: "Disk cleanup performed"
+          cleanupPaths: ["/var/cache", "/tmp"]
+  
+  - name: daily-system-log
+    description: "Create a daily log of system status"
+    pipeline:
+      - pluginRef: health-check-plugin
+      - pluginRef: log-file-creator
+        parameters:
+          plugin_name: "health-check-plugin"
+          plugin_output: "Daily system health check"
+          base_filename: "daily-health-"
