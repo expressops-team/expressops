@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -82,7 +83,7 @@ func (p *HealthCheckPlugin) RegisterCheck(name string, check func() error) {
 	p.checks[name] = check
 }
 
-func (p *HealthCheckPlugin) Execute(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
 	p.logger.Info("Performing health check")
 	p.mu.Lock()
 	defer p.mu.Unlock()

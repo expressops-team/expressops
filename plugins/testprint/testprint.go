@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	pluginconf "expressops/internal/plugin/loader" // IMPORTANT: this is the package that defines the Plugin interface
 
@@ -20,7 +21,7 @@ func (p *TestPrintPlugin) Initialize(ctx context.Context, config map[string]inte
 	return nil
 }
 
-func (p *TestPrintPlugin) Execute(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (p *TestPrintPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
 	return "Hello, World!", nil
 }
 

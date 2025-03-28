@@ -4,6 +4,7 @@ import (
 	"context"
 	pluginconf "expressops/internal/plugin/loader"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -19,7 +20,7 @@ func (p *SleepPlugin) Initialize(ctx context.Context, config map[string]interfac
 	return nil
 }
 
-func (p *SleepPlugin) Execute(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (p *SleepPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
 	duration := 10 * time.Second // Dormimos 10 segundos
 	p.logger.Info("Sleep Plugin comienza a dormir")
 

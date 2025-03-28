@@ -61,7 +61,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 					return
 				}
 
-				result, err := plugin.Execute(ctx, nil)
+				result, err := plugin.Execute(ctx, r, nil)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
@@ -128,8 +128,9 @@ func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
 		paramsRaw := r.URL.Query().Get("params")
 		additionalParams := parseParams(paramsRaw)
 
-		// execute the found flow
-		results := executeFlow(ctx, flow, additionalParams, logger)
+		//
+
+		results := executeFlow(ctx, flow, additionalParams, logger, r)
 
 		w.Header().Set("Content-Type", "application/json")
 
@@ -181,10 +182,21 @@ func parseParams(paramsRaw string) map[string]interface{} {
 
 // Runs the flow and returns results
 
-func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, logger *logrus.Logger) []interface{} {
+func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, logger *logrus.Logger, r *http.Request) []interface{} {
 	var results []interface{}
-	var lastResult interface{} = nil // <- NUEVO: almacena el resultado anterior
+	var lastResult interface{} = nil // <-stores the previous result
 
+	// shared whiteboard
+	// Created ONLY ONCE at the start of the flow.
+
+	sharedData := make(map[string]any) // <- shared data between plugins
+
+	//You can pre-fill it with something if you want, for example, URL parameters:
+	for k, v := range additionalParams {
+		sharedData[k] = v
+	}
+
+	// iterate over the steps in the flow
 	for _, step := range flow.Pipeline {
 		logger.Infof("Ejecutando plugin: %s", step.PluginRef)
 
@@ -204,15 +216,32 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 			params[k] = v
 		}
 
-		// ✅ PASAMOS EL RESULTADO DEL PASO ANTERIOR
+		//Add the previuos result to SharedData(replaces '_input')
 		if lastResult != nil {
-			params["_input"] = lastResult
+			sharedData["previous_result"] = lastResult
 		}
 
-		res, err := plugin.Execute(ctx, params)
+		// Add YAML parameters to sharedData (optional)
+		for k, v := range step.Parameters {
+
+			if _, exists := sharedData[k]; !exists {
+				sharedData[k] = v
+			} else {
+				logger.Warnf("La clave '%s' de los parámetros del step ya existe en sharedData, no se sobrescribirá.", k)
+			}
+		}
+
+		// ***** PASO 2: Ejecutar el plugin pasando el request y la pizarra compartida *****
+		// Pasamos 'r' (el http.Request original)
+		// Pasamos '&sharedData' (la dirección/puntero a nuestra pizarra compartida)
+
+		// El plugin puede modificar la pizarra compartida y devolver un resultado
+
+		res, err := plugin.Execute(ctx, r, &sharedData) //<-- ¡LA NUEVA LLAMADA!
 		if err != nil {
 			logger.Errorf("Error ejecutando plugin %s: %v", step.PluginRef, err)
-			results = append(results, map[string]string{"plugin": step.PluginRef, "error": err.Error()})
+			lastResult = nil
+
 		} else {
 			results = append(results, map[string]interface{}{"plugin": step.PluginRef, "resultado": res})
 			lastResult = res // <- guardar resultado para el siguiente paso

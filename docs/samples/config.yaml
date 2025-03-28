@@ -49,10 +49,7 @@ flows:
   - name: incident-flow
     pipeline:
       - pluginRef: slack-notifier
-        parameters:
-          message: "¡Alerta de prueba!"
-          channel: "#alerts"
-          severity: "high"
+
 
   - name: healthz
     customHandler: healthCheckDetailed 
@@ -63,8 +60,7 @@ flows:
     customHandler: contextTimeoutTest
     pipeline:
       - pluginRef: sleep-plugin
-        parameters:
-          duration: 5s
+
           
 # Test the cluster health check
   - name: dr-house

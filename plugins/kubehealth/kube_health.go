@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	pluginconf "expressops/internal/plugin/loader"
@@ -31,9 +32,9 @@ func (p *KubeHealthPlugin) Initialize(ctx context.Context, config map[string]int
 	return nil
 }
 
-func (p *KubeHealthPlugin) Execute(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (p *KubeHealthPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
 	namespace := "default"
-	if ns, ok := params["namespace"].(string); ok {
+	if ns, ok := (*shared)["namespace"].(string); ok {
 		namespace = ns
 	}
 
