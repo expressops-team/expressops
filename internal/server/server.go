@@ -91,8 +91,8 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 
 	logger.Infof("Servidor escuchando en http://%s", address)
 
-	fmt.Println("\033[31mTemplate para flujos:\033[0m")
-	fmt.Printf("\033[37m ➡️ \033[0m \033[32mcurl http://%s/flow?flowName=<nombre_del_flujo>\033[0m \033[37m ⬅️ \033[0m\n\n", address)
+	fmt.Println("\n\033[31mTemplate para flujos:\033[0m")
+	fmt.Printf("\n\033[37m ➡️ \033[0m \033[32mcurl http://%s/flow?flowName=<nombre_del_flujo>\033[0m \033[37m ⬅️ \033[0m\n\n", address)
 
 	server := &http.Server{
 		Addr: address,
@@ -215,6 +215,7 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 		//Add the previuos result to Shared(replaces '_input')
 		if lastResult != nil {
 			(*shared)["previous_result"] = lastResult
+			(*shared)["_input"] = lastResult
 		}
 
 		// Add YAML parameters to sharedData (optional)
