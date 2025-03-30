@@ -39,9 +39,13 @@ func (f FormatterPlugin) Execute(ctx context.Context, request *http.Request, sha
 	}
 
 	if msg == "" {
-		return "", nil // todo bien
+		(*shared)["message"] = "✅ Todo en orden. No se detectaron problemas de salud del sistema."
+		return "", nil
 	}
-	return fmt.Sprintf("⚠️ Problemas detectados:\n%s", msg), nil
+
+	formatted := fmt.Sprintf("⚠️ Problemas detectados:\n%s", msg)
+	(*shared)["message"] = formatted
+	return formatted, nil
 }
 func (f *FormatterPlugin) FormatResult(result interface{}) (string, error) {
 	if msg, ok := result.(string); ok {

@@ -1,9 +1,9 @@
-# Paso 1: Parsear este fichero yaml y que se guarde en un struct para acceder a los campos
+
 logging:
   level: info
   format: json
 
-# Paso 2: Levantar un server para probar
+
 server:
   port: 8080
   address: 0.0.0.0
@@ -11,14 +11,13 @@ server:
   http:
     protocolVersion: 2
 
-  # Paso 3: Construir un plugin que se compile como .so
+
 plugins:
   - name: slack-notifier
     path: plugins/slack/slack.so
     type: notification
     config: {}
       
-
   - name: health-check-plugin
     path: plugins/healthcheck/health_check.so
     type: health
@@ -44,12 +43,11 @@ plugins:
     type: utils
     config: {}
 
- # Paso 4: Crear un pipeline que ejecute los plugins que se han cargado en el paso 3 y que se ejecuten en el orden que se han definido en el fichero yaml   
+
 flows:
   - name: incident-flow
     pipeline:
       - pluginRef: slack-notifier
-
 
   - name: healthz
     customHandler: healthCheckDetailed 
@@ -61,15 +59,11 @@ flows:
     pipeline:
       - pluginRef: sleep-plugin
 
-          
-# Test the cluster health check
   - name: dr-house
     description: "Check the health of the cluster"
     pipeline:
       - pluginRef: health-check-plugin
-      - pluginRef: test-print-plugin #kube-health-plugin
-        parameters:
-          namespace: default
+      - pluginRef: test-print-plugin
 
   - name: alert-flow
     description: "Alert flow for health check"
@@ -77,6 +71,3 @@ flows:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
       - pluginRef: slack-notifier
-        parameters:
-          channel: "#alerts"
-          severity: "high"
