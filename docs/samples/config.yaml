@@ -28,10 +28,10 @@ plugins:
     type: test
     config: {}
  
-  - name: kube-health-plugin
-    path: plugins/kubehealth/kube_health.so
-    type: k8s
-    config: {}
+  - #name: kube-health-plugin
+    #path: plugins/kubehealth/kube_health.so
+    #type: k8s
+    #config: {}
 
   - name: test-print-plugin
     path: plugins/testprint/testprint.so

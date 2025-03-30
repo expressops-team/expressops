@@ -20,12 +20,12 @@ var flowRegistry map[string]v1alpha1.Flow
 
 func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	flowRegistry = make(map[string]v1alpha1.Flow)
-	fmt.Print("\n") // whitespace
+	fmt.Print("\n")
 	for _, flow := range cfg.Flows {
 		flowRegistry[flow.Name] = flow
 		logger.Infof("Flujo registrado: %s", flow.Name)
 	}
-	fmt.Print("\n") // whitespace
+	fmt.Print("\n")
 }
 
 func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
@@ -61,7 +61,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 					return
 				}
 
-				result, err := plugin.Execute(ctx, r, nil)
+				result, err := plugin.Execute(ctx, r, &map[string]any{})
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
@@ -90,6 +90,10 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	http.HandleFunc("/flow", dynamicFlowHandler(logger))
 
 	logger.Infof("Servidor escuchando en http://%s", address)
+
+	fmt.Println("\033[31mTemplate para flujos:\033[0m")
+	fmt.Printf("\033[37m ➡️ \033[0m \033[32mcurl http://%s/flow?flowName=<nombre_del_flujo>\033[0m \033[37m ⬅️ \033[0m\n\n", address)
+
 	server := &http.Server{
 		Addr: address,
 	}
@@ -99,6 +103,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	}
 }
 
+// dynamicFlowHandler handles requests to /flow and executes configured flows
 func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second) // if it takes more than 4 seconds, it will be killed
@@ -144,7 +149,7 @@ func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
 					continue
 				}
 
-				// if plugin implements formatter --> use it
+				// if plugin implements formatter
 				if formatter, ok := plugin.(interface {
 					FormatResult(interface{}) (string, error)
 				}); ok {
@@ -163,6 +168,7 @@ func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
 	}
 }
 
+// parseParams transforms a string of type "key:value;key2:value2" into a map[string]interface{}
 func parseParams(paramsRaw string) map[string]interface{} {
 	params := make(map[string]interface{})
 	if paramsRaw == "" {
@@ -180,21 +186,14 @@ func parseParams(paramsRaw string) map[string]interface{} {
 	return params
 }
 
-// Runs the flow and returns results
+// executeFlow executes the steps in the flow sequentially and returns the results
 
 func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, logger *logrus.Logger, r *http.Request) []interface{} {
 	var results []interface{}
 	var lastResult interface{} = nil // <-stores the previous result
 
 	// shared whiteboard
-	// Created ONLY ONCE at the start of the flow.
-
-	sharedData := make(map[string]any) // <- shared data between plugins
-
-	//You can pre-fill it with something if you want, for example, URL parameters:
-	for k, v := range additionalParams {
-		sharedData[k] = v
-	}
+	shared := &map[string]any{} // <- shared data between plugins
 
 	// iterate over the steps in the flow
 	for _, step := range flow.Pipeline {
@@ -207,44 +206,41 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 			continue
 		}
 
-		// combine the parameters from the YAML with the additional parameters
-		params := make(map[string]interface{})
-		for k, v := range step.Parameters {
-			params[k] = v
-		}
+		// Add the parameters to shaed context
+
 		for k, v := range additionalParams {
-			params[k] = v
+			(*shared)[k] = v
 		}
 
-		//Add the previuos result to SharedData(replaces '_input')
+		//Add the previuos result to Shared(replaces '_input')
 		if lastResult != nil {
-			sharedData["previous_result"] = lastResult
+			(*shared)["previous_result"] = lastResult
 		}
 
 		// Add YAML parameters to sharedData (optional)
 		for k, v := range step.Parameters {
 
-			if _, exists := sharedData[k]; !exists {
-				sharedData[k] = v
+			if _, exists := (*shared)[k]; !exists {
+				(*shared)[k] = v
 			} else {
-				logger.Warnf("La clave '%s' de los parámetros del step ya existe en sharedData, no se sobrescribirá.", k)
+				logger.Warnf("La clave '%s' de los parámetros del step ya existe en shared, no se sobrescribirá.", k)
 			}
 		}
 
-		// ***** PASO 2: Ejecutar el plugin pasando el request y la pizarra compartida *****
-		// Pasamos 'r' (el http.Request original)
-		// Pasamos '&sharedData' (la dirección/puntero a nuestra pizarra compartida)
+		// ***** STEP 2: Run the plugin by passing the request and the shared whiteboard *****
+		// We pass 'r' (the original http.Request)
+		// We pass '&sharedData' (the address/pointer to our shared whiteboard)
 
-		// El plugin puede modificar la pizarra compartida y devolver un resultado
+		// The plugin can modify the shared whiteboard and return a result
 
-		res, err := plugin.Execute(ctx, r, &sharedData) //<-- ¡LA NUEVA LLAMADA!
+		res, err := plugin.Execute(ctx, r, shared) //<-- execute the plugin
 		if err != nil {
 			logger.Errorf("Error ejecutando plugin %s: %v", step.PluginRef, err)
 			lastResult = nil
 
 		} else {
 			results = append(results, map[string]interface{}{"plugin": step.PluginRef, "resultado": res})
-			lastResult = res // <- guardar resultado para el siguiente paso
+			lastResult = res // <- save result for the next step
 		}
 	}
 
