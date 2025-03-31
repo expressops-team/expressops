@@ -42,7 +42,7 @@ func LoadConfig(ctx context.Context, path string, logger *logrus.Logger) (*v1alp
 
 				msg := fmt.Sprintf("la variable de entorno SLACK_WEBHOOK_URL es requerida por el plugin '%s' pero no está definida", pluginCfg.Name)
 				logger.Error(msg)
-				return nil, fmt.Errorf(msg)
+				return nil, fmt.Errorf("%s", msg)
 			}
 
 			if pluginCfg.Config == nil {

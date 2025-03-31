@@ -13,10 +13,10 @@ server:
 
 
 plugins:
- # - name: slack-notifier # no .env yet
- #   path: plugins/slack/slack.so
- #   type: notification
- #   config: {}
+  - name: slack-notifier
+    path: plugins/slack/slack.so
+    type: notification
+    config: {}
       
   - name: health-check-plugin
     path: plugins/healthcheck/health_check.so
@@ -73,7 +73,6 @@ flows:
       - pluginRef: formatter-plugin
       - pluginRef: test-print-plugin # it will be kube-health-plugin in the future :D
       - pluginRef: logfilecreator
-
 
   - name: alert-flow
     pipeline:
