@@ -13,10 +13,10 @@ server:
 
 
 plugins:
- # - name: slack-notifier # no .env yet
- #   path: plugins/slack/slack.so
- #   type: notification
- #   config: {}
+ - name: slack-notifier # no .env yet
+    path: plugins/slack/slack.so
+    type: notification
+    config: {}
       
   - name: health-check-plugin
     path: plugins/healthcheck/health_check.so
