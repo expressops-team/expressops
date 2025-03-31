@@ -71,7 +71,11 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 		}(pluginName))
 	}
 
-	http.HandleFunc("/flow", dynamicFlowHandler(logger))
+	timeout := time.Duration(cfg.Server.TimeoutSec) * time.Second
+
+	// ONLY one generic handler that will handle all flows
+	http.HandleFunc("/flow", dynamicFlowHandler(logger, timeout))
+
 
 	logger.Infof("Servidor escuchando en http://%s", address)
 
@@ -86,10 +90,11 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	}
 }
 
-// dynamicFlowHandler uses the flowName to execute the flow
-func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
+// dynamicFlowHandler handles requests to /flow and executes configured flows
+func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), timeout) // if it takes more than 4 seconds, it will be killed
+
 		defer cancel()
 
 		flowName := r.URL.Query().Get("flowName")
