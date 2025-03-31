@@ -1,4 +1,3 @@
-
 logging:
   level: info
   format: json
@@ -13,10 +12,10 @@ server:
 
 
 plugins:
-  - name: slack-notifier
-    path: plugins/slack/slack.so
-    type: notification
-    config: {}
+ # - name: slack-notifier # no .env yet
+ #   path: plugins/slack/slack.so
+ #   type: notification
+ #   config: {}
       
   - name: health-check-plugin
     path: plugins/healthcheck/health_check.so
@@ -42,6 +41,12 @@ plugins:
     path: plugins/formatters/health_alert_formatter.so
     type: utils
     config: {}
+    
+  - name: logfilecreator
+    path: plugins/logfilecreator/logfilecreator.so
+    type: utils
+    config:
+      log_dir: "logs"
 
 
 flows:
@@ -53,8 +58,9 @@ flows:
     customHandler: healthCheckDetailed 
     pipeline:
       - pluginRef: health-check-plugin
+      - pluginRef: formatter-plugin
 
-  - name: test-context
+  - name: test-context # sleep testing
     customHandler: contextTimeoutTest
     pipeline:
       - pluginRef: sleep-plugin
@@ -63,10 +69,12 @@ flows:
     description: "Check the health of the cluster"
     pipeline:
       - pluginRef: health-check-plugin
-      - pluginRef: test-print-plugin
+      - pluginRef: formatter-plugin
+      - pluginRef: test-print-plugin # it will be kube-health-plugin in the future :D
+      - pluginRef: logfilecreator
+
 
   - name: alert-flow
-    description: "Alert flow for health check"
     pipeline:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin

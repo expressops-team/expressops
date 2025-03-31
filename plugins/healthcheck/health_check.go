@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -137,71 +136,7 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 }
 
 func (p *HealthCheckPlugin) FormatResult(result interface{}) (string, error) {
-	resultMap, ok := result.(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("unexpected result type")
-	}
-
-	var sb strings.Builder
-	sb.WriteString("\n\033[32mSystem Health Status:\033[0m\n\n")
-
-	if status, ok := resultMap["health_status"].(map[string]string); ok {
-		sb.WriteString("\033[31mHealth Checks:\033[0m\n")
-		for k, v := range status {
-			sb.WriteString(fmt.Sprintf("  %s: %s\n", k, v))
-		}
-		sb.WriteString("\n")
-	}
-
-	if cpuInfo, ok := resultMap["cpu"].(map[string]interface{}); ok {
-		sb.WriteString("\033[34mCPU Usage:\033[0m\n")
-		if usage, ok := cpuInfo["usage_percent"].(float64); ok {
-			sb.WriteString(fmt.Sprintf("  Usage: %.2f%%\n\n", usage))
-		}
-	}
-
-	if memInfo, ok := resultMap["memory"].(map[string]interface{}); ok {
-		sb.WriteString("\033[33mMemory Usage:\033[0m\n")
-		if total, ok := memInfo["total"].(uint64); ok {
-			sb.WriteString(fmt.Sprintf("  Total: %.2f GB\n", float64(total)/1024/1024/1024))
-		}
-		if used, ok := memInfo["used"].(uint64); ok {
-			sb.WriteString(fmt.Sprintf("  Used:  %.2f GB\n", float64(used)/1024/1024/1024))
-		}
-		if free, ok := memInfo["free"].(uint64); ok {
-			sb.WriteString(fmt.Sprintf("  Free:  %.2f GB\n", float64(free)/1024/1024/1024))
-		}
-		if usedPercent, ok := memInfo["used_percent"].(float64); ok {
-			sb.WriteString(fmt.Sprintf("  Usage: %.2f%%\n\n", usedPercent))
-		}
-	}
-
-	if diskInfo, ok := resultMap["disk"].(map[string]interface{}); ok {
-		sb.WriteString("\033[35mDisk Usage:\033[0m\n")
-		for mount, usage := range diskInfo {
-			if len(mount) >= 5 && mount[:5] == "/snap" {
-				continue
-			}
-			if u, ok := usage.(map[string]interface{}); ok {
-				sb.WriteString(fmt.Sprintf("  %s:\n", mount))
-				if total, ok := u["total"].(uint64); ok {
-					sb.WriteString(fmt.Sprintf("    Total: %.2f GB\n", float64(total)/1024/1024/1024))
-				}
-				if used, ok := u["used"].(uint64); ok {
-					sb.WriteString(fmt.Sprintf("    Used:  %.2f GB\n", float64(used)/1024/1024/1024))
-				}
-				if free, ok := u["free"].(uint64); ok {
-					sb.WriteString(fmt.Sprintf("    Free:  %.2f GB\n", float64(free)/1024/1024/1024))
-				}
-				if usedPercent, ok := u["used_percent"].(float64); ok {
-					sb.WriteString(fmt.Sprintf("    Usage: %.2f%%\n", usedPercent))
-				}
-			}
-		}
-	}
-
-	sb.WriteString("\nDone ✅\n")
-	return sb.String(), nil
+	return "Health check completed", nil
 }
 
 var PluginInstance = NewHealthCheckPlugin(logrus.New())

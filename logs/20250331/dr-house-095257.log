@@ -1,0 +1,37 @@
+===== Formatted output from dr-house at 2025-03-31 09:52:57 =====
+
+✨ Health Status Report ✨
+
+🔍 Health Checks:
+  disk: ❌ FAIL: high disk usage on /snap/bare/5: 100.00%
+  cpu: ✅ OK
+  memory: ✅ OK
+
+🖥️  CPU Usage:
+  Usage: 15.01%
+
+🧠 Memory Usage:
+  Total: 31.04 GB
+  Used:  5.36 GB
+  Free:  17.50 GB
+  Usage: 17.26%
+
+💽 Disk Usage:
+  /var/snap/firefox/common/host-hunspell:
+    Usage: 6.85%
+    Total: 465.36 GB
+    Free:  411.42 GB
+  /boot/efi:
+    Usage: 4.25%
+    Total: 1.05 GB
+    Free:  1.00 GB
+  /boot:
+    Usage: 10.85%
+    Total: 1.90 GB
+    Free:  1.59 GB
+  /:
+    Usage: 6.85%
+    Total: 465.36 GB
+    Free:  411.42 GB
+
+⚠️ Issues detected! Please check the output above.
