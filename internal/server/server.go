@@ -18,29 +18,27 @@ import (
 // registry of flows
 var flowRegistry map[string]v1alpha1.Flow
 
+// initializeFlowRegistry carga los flujos definidos en el archivo de configuración
 func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	flowRegistry = make(map[string]v1alpha1.Flow)
-	fmt.Print("\n")
+	fmt.Print("\n") // whitespace
 	for _, flow := range cfg.Flows {
 		flowRegistry[flow.Name] = flow
 		logger.Infof("Flujo registrado: %s", flow.Name)
 	}
-	fmt.Print("\n")
+	fmt.Print("\n") // whitespace
 }
 
 func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
-	// Initializes the map at server startup
 	initializeFlowRegistry(cfg, logger)
 
 	address := fmt.Sprintf("%s:%d", cfg.Server.Address, cfg.Server.Port)
 
-	// Basic route to verify that the server is up
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		logger.Info("Solicitud en ruta raíz recibida")
-		fmt.Fprintf(w, "ExpressOps activo 🟢 \n")
+		fmt.Fprintf(w, "Expressops activo 🟢 \n")
 	})
 
-	// plugins registered dynamically
 	for _, pluginConf := range cfg.Plugins {
 		pluginName := pluginConf.Name
 		route := "/flows/" + pluginName
@@ -49,7 +47,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 			return func(w http.ResponseWriter, r *http.Request) {
 				ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 				defer cancel()
-
+				// some error handlings
 				if r.Method != http.MethodGet {
 					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 					return
@@ -67,56 +65,39 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 					return
 				}
 
-				if formatter, ok := plugin.(interface {
-					FormatResult(interface{}) (string, error)
-				}); ok {
-					formatted, err := formatter.FormatResult(result)
-					if err != nil {
-						http.Error(w, err.Error(), http.StatusInternalServerError)
-						return
-					}
-					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-					fmt.Fprint(w, formatted)
-					return
-				}
-
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(result)
 			}
 		}(pluginName))
 	}
 
-	// ONLY one generic handler that will handle all flows
 	http.HandleFunc("/flow", dynamicFlowHandler(logger))
 
 	logger.Infof("Servidor escuchando en http://%s", address)
 
-	fmt.Println("\n\033[31mTemplate para flujos:\033[0m")
-	fmt.Printf("\n\033[37m ➡️ \033[0m \033[32mcurl http://%s/flow?flowName=<nombre_del_flujo>\033[0m \033[37m ⬅️ \033[0m\n\n", address)
+	// help for the user
+	fmt.Println("\033[31mTemplate para flujos:\033[0m")
+	fmt.Printf("\033[37m ➡️ \033[0m \033[32mcurl http://%s/flow?flowName=<nombre_del_flujo>\033[0m \033[37m ⬅️ \033[0m\n\n", address)
 
-	server := &http.Server{
-		Addr: address,
-	}
+	srv := &http.Server{Addr: address}
 
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Fatalf("Error al iniciar servidor: %v", err)
 	}
 }
 
-// dynamicFlowHandler handles requests to /flow and executes configured flows
+// dynamicFlowHandler uses the flowName to execute the flow
 func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second) // if it takes more than 4 seconds, it will be killed
+		ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second)
 		defer cancel()
 
-		// obtain flowName from query parameter "flowName"
 		flowName := r.URL.Query().Get("flowName")
 		if flowName == "" {
 			http.Error(w, "Debe indicar flowName", http.StatusBadRequest)
 			return
 		}
 
-		// check if the flow exists in the flow registry
 		flow, exists := flowRegistry[flowName]
 		if !exists {
 			http.Error(w, fmt.Sprintf("Flujo '%s' no encontrado", flowName), http.StatusNotFound)
@@ -129,53 +110,89 @@ func dynamicFlowHandler(logger *logrus.Logger) http.HandlerFunc {
 			"user_agent": r.UserAgent(),
 		}).Info("Ejecutando flujo solicitado dinámicamente")
 
-		// read additional parameters (if they exist?)
 		paramsRaw := r.URL.Query().Get("params")
 		additionalParams := parseParams(paramsRaw)
 
-		//
+		results := executeFlow(ctx, flow, additionalParams, r, logger)
 
-		results := executeFlow(ctx, flow, additionalParams, logger, r)
+		// Check if the client wants formatted text output
+		// is it necessary?
+		outputFormat := r.URL.Query().Get("format")
+		if outputFormat == "text" {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+
+			status := "OK"
+			for _, res := range results {
+				if result, ok := res.(map[string]interface{}); ok {
+					if _, hasError := result["error"]; hasError {
+						status = "ERROR"
+						break
+					}
+				}
+			}
+
+			if status == "OK" {
+				fmt.Fprintf(w, "Flow '%s' executed successfully with %d plugin(s)\n",
+					flowName, len(results))
+			} else {
+				fmt.Fprintf(w, "Flow '%s' executed with errors. Check server logs for details.\n",
+					flowName)
+			}
+			return
+		} else if outputFormat == "verbose" {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+
+			var formattedOutput strings.Builder
+			formattedOutput.WriteString(fmt.Sprintf("Resultado del flujo: %s\n\n", flowName))
+
+			for _, res := range results {
+				if result, ok := res.(map[string]interface{}); ok {
+					plugin := result["plugin"].(string)
+					formattedOutput.WriteString(fmt.Sprintf("Plugin: %s\n", plugin))
+
+					if formatted, ok := result["formatted_result"].(string); ok && formatted != "" {
+						formattedOutput.WriteString(formatted)
+					} else if err, ok := result["error"].(string); ok {
+						formattedOutput.WriteString(fmt.Sprintf("❌ Error: %s\n", err))
+					} else {
+						formattedOutput.WriteString(fmt.Sprintf("Resultado: %v\n", result["resultado"]))
+					}
+					formattedOutput.WriteString("\n")
+				}
+			}
+
+			fmt.Fprint(w, formattedOutput.String())
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 
-		fmt.Fprintf(w, "Flujo '%s' ejecutado correctamente.\n", flowName)
-		for _, result := range results {
-			if resultMap, ok := result.(map[string]interface{}); ok {
-				pluginName := resultMap["plugin"].(string)
-				plugin, err := pluginManager.GetPlugin(pluginName)
-				if err != nil {
-					fmt.Fprintf(w, "Plugin: %s\nError: %v\n\n", pluginName, err)
-					continue
-				}
+		response := map[string]interface{}{
+			"flow":    flowName,
+			"success": true,
+			"count":   len(results),
+		}
 
-				// if plugin implements formatter
-				if formatter, ok := plugin.(interface {
-					FormatResult(interface{}) (string, error)
-				}); ok {
-					formatted, err := formatter.FormatResult(resultMap["resultado"])
-					if err != nil {
-						fmt.Fprintf(w, "Plugin: %s\nError formateando resultado: %v\n\n", pluginName, err)
-						continue
-					}
-					fmt.Fprintf(w, "Plugin: %s\n%s\n\n", pluginName, formatted)
-				} else {
-					// If no formatter, raw result
-					fmt.Fprintf(w, "Plugin: %s\nResultado: %v\n\n", pluginName, resultMap["resultado"])
+		for _, res := range results {
+			if result, ok := res.(map[string]interface{}); ok {
+				if _, hasError := result["error"]; hasError {
+					response["success"] = false
+					break
 				}
 			}
 		}
+
+		json.NewEncoder(w).Encode(response)
 	}
 }
 
-// parseParams transforms a string of type "key:value;key2:value2" into a map[string]interface{}
+// transform the params string to a map[string]interface{}
 func parseParams(paramsRaw string) map[string]interface{} {
 	params := make(map[string]interface{})
 	if paramsRaw == "" {
 		return params
 	}
 
-	// split the params by ;
 	pairs := strings.Split(paramsRaw, ";")
 	for _, pair := range pairs {
 		kv := strings.SplitN(pair, ":", 2)
@@ -186,63 +203,83 @@ func parseParams(paramsRaw string) map[string]interface{} {
 	return params
 }
 
-// executeFlow executes the steps in the flow sequentially and returns the results
-
-func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, logger *logrus.Logger, r *http.Request) []interface{} {
+// step by step execution of the flow
+func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, r *http.Request, logger *logrus.Logger) []interface{} {
 	var results []interface{}
-	var lastResult interface{} = nil // <-stores the previous result
+	shared := make(map[string]interface{})
 
-	// shared whiteboard
-	shared := &map[string]any{} // <- shared data between plugins
+	for k, v := range additionalParams {
+		shared[k] = v //necessary for the new parameter "shared"
+	}
 
-	// iterate over the steps in the flow
+	var lastResult interface{}
 	for _, step := range flow.Pipeline {
-		logger.Infof("Ejecutando plugin: %s", step.PluginRef)
-
-		plugin, err := pluginManager.GetPlugin(step.PluginRef)
-		if err != nil {
-			logger.Errorf("Plugin no encontrado: %v", err)
-			results = append(results, map[string]string{"error": err.Error()})
+		// Skip commented plugins
+		if step.PluginRef == "" {
 			continue
 		}
 
-		// Add the parameters to shaed context
-
-		for k, v := range additionalParams {
-			(*shared)[k] = v
+		plugin, err := pluginManager.GetPlugin(step.PluginRef)
+		if err != nil {
+			logger.Errorf("Plugin no encontrado: %s - %v", step.PluginRef, err)
+			results = append(results, map[string]interface{}{
+				"plugin": step.PluginRef,
+				"error":  fmt.Sprintf("Plugin no encontrado: %v", err),
+			})
+			continue
 		}
 
-		//Add the previuos result to Shared(replaces '_input')
-		if lastResult != nil {
-			(*shared)["previous_result"] = lastResult
-			(*shared)["_input"] = lastResult
-		}
-
-		// Add YAML parameters to sharedData (optional)
 		for k, v := range step.Parameters {
+			shared[k] = v
+		}
 
-			if _, exists := (*shared)[k]; !exists {
-				(*shared)[k] = v
-			} else {
-				logger.Warnf("La clave '%s' de los parámetros del step ya existe en shared, no se sobrescribirá.", k)
+		shared["previous_result"] = lastResult
+
+		if step.PluginRef != "health-check-plugin" {
+			shared["_input"] = lastResult
+		}
+
+		logger.Infof("Ejecutando plugin: %s", step.PluginRef)
+		res, err := plugin.Execute(ctx, r, &shared)
+		if err != nil {
+			logger.Errorf("Error ejecutando plugin: %s - %v", step.PluginRef, err)
+			results = append(results, map[string]interface{}{
+				"plugin": step.PluginRef,
+				"error":  fmt.Sprintf("Error: %v", err),
+			})
+			continue
+		}
+
+		var formattedResult string
+		if res != nil {
+			var fmtErr error
+			formattedResult, fmtErr = plugin.FormatResult(res)
+			if fmtErr != nil {
+				logger.Warnf("Error al formatear resultado de %s: %v", step.PluginRef, fmtErr)
+				formattedResult = fmt.Sprintf("%v", res)
 			}
 		}
 
-		// ***** STEP 2: Run the plugin by passing the request and the shared whiteboard *****
-		// We pass 'r' (the original http.Request)
-		// We pass '&sharedData' (the address/pointer to our shared whiteboard)
-
-		// The plugin can modify the shared whiteboard and return a result
-
-		res, err := plugin.Execute(ctx, r, shared) //<-- execute the plugin
-		if err != nil {
-			logger.Errorf("Error ejecutando plugin %s: %v", step.PluginRef, err)
-			lastResult = nil
-
-		} else {
-			results = append(results, map[string]interface{}{"plugin": step.PluginRef, "resultado": res})
-			lastResult = res // <- save result for the next step
+		// Add result to results array
+		result := map[string]interface{}{
+			"plugin":    step.PluginRef,
+			"resultado": res,
 		}
+
+		// Only add formatted_result if it exists
+		if formattedResult != "" {
+			result["formatted_result"] = formattedResult
+		}
+
+		results = append(results, result)
+
+		if len(formattedResult) > 100 {
+			logger.Infof("Resultado de %s: %s...", step.PluginRef, formattedResult[:100])
+		} else {
+			logger.Infof("Resultado de %s: %s", step.PluginRef, formattedResult)
+		}
+
+		lastResult = res
 	}
 
 	return results

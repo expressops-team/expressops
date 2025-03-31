@@ -22,10 +22,17 @@ func (p *TestPrintPlugin) Initialize(ctx context.Context, config map[string]inte
 }
 
 func (p *TestPrintPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
-	return "Hello, World!", nil
+	p.logger.Info("Request recibido desde: " + request.RemoteAddr + ", User-Agent: " + request.UserAgent())
+
+	// Just return a simple colored message with emoji
+	return fmt.Sprintf("\033[1;32m👋 Hola soy una prueba: %s!\033[0m", "test"), nil
 }
 
 func (p *TestPrintPlugin) FormatResult(result interface{}) (string, error) {
+	// Just return the result as is without any transformation
+	if str, ok := result.(string); ok {
+		return str, nil
+	}
 	return fmt.Sprintf("%v", result), nil
 }
 

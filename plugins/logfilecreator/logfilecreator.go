@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -25,11 +23,10 @@ func (p *LogFileCreator) Initialize(ctx context.Context, config map[string]inter
 	p.logger = logger
 	baseDir, ok := config["log_dir"].(string)
 	if !ok {
-		baseDir = "logs" // Default to logs directory
+		baseDir = "logs"
 	}
 	p.baseDir = baseDir
 
-	// Create logs directory if it doesn't exist
 	if err := os.MkdirAll(p.baseDir, 0755); err != nil {
 		return fmt.Errorf("could not create logs directory: %v", err)
 	}
@@ -40,149 +37,223 @@ func (p *LogFileCreator) Initialize(ctx context.Context, config map[string]inter
 
 func (p *LogFileCreator) Execute(ctx context.Context, r *http.Request, shared *map[string]interface{}) (interface{}, error) {
 	var results interface{}
-	var baseFilename string
-	var logEntries []string
+	var flowName string
+	var logText []string
 
-	// Log the request
 	if r != nil {
 		p.logger.Infof("Log request from: %s", r.RemoteAddr)
 	}
 
-	// Check for results in shared context
+	currentTime := time.Now()
+	dateStr := currentTime.Format("20060102")
+	timeStr := currentTime.Format("150405")
+
+	dateDir := filepath.Join(p.baseDir, dateStr)
+	if err := os.MkdirAll(dateDir, 0755); err != nil {
+		return nil, fmt.Errorf("could not create date directory: %v", err)
+	}
+
+	dailyLogPath := filepath.Join(dateDir, "daily.log")
+
+	if r != nil && r.URL != nil {
+		flowName = r.URL.Query().Get("flowName")
+	}
+
 	if shared != nil {
 		if res, exists := (*shared)["results"]; exists {
 			results = res
 		}
 
-		// Check for filename in shared context
-		if name, exists := (*shared)["filename"].(string); exists && name != "" {
-			baseFilename = name
-		}
-	}
-
-	// Check for parameters in request if available
-	if r != nil {
-		if filename := r.URL.Query().Get("filename"); filename != "" {
-			baseFilename = filename
-		}
-	}
-
-	// Generate default filename if not provided
-	if baseFilename == "" {
-		baseFilename = "log_" + time.Now().Format("20060102_150405")
-	}
-
-	// Ensure filename has .log extension
-	if !strings.HasSuffix(baseFilename, ".log") {
-		baseFilename += ".log"
-	}
-
-	// Create full path
-	logFilePath := filepath.Join(p.baseDir, baseFilename)
-
-	// Begin collecting log entries
-	logEntries = append(logEntries, fmt.Sprintf("Log generated at: %s", time.Now().Format("2006-01-02 15:04:05")))
-
-	// Process results based on type
-	if results != nil {
-		// Extract health information if it's a plugin result
-		if healthChecks := p.extractHealthChecks(results); healthChecks != nil {
-			logEntries = append(logEntries, "\n--- Health Check Results ---")
-			for name, status := range healthChecks {
-				logEntries = append(logEntries, fmt.Sprintf("%s: %s", name, status))
+		if flowName == "" {
+			if fn, exists := (*shared)["flow_name"].(string); exists && fn != "" {
+				flowName = fn
 			}
 		}
 
-		// Add raw results
-		logEntries = append(logEntries, "\n--- Raw Results ---")
-		resultsJSON, err := json.MarshalIndent(results, "", "  ")
-		if err != nil {
-			logEntries = append(logEntries, "Error serializing results: "+err.Error())
-		} else {
-			logEntries = append(logEntries, string(resultsJSON))
-		}
-	} else {
-		logEntries = append(logEntries, "No results provided")
-	}
-
-	// Write to log file
-	err := os.WriteFile(logFilePath, []byte(strings.Join(logEntries, "\n")), 0644)
-	if err != nil {
-		p.logger.Errorf("Error writing log file: %v", err)
-		return nil, fmt.Errorf("error writing log file: %v", err)
-	}
-
-	p.logger.Infof("Log file created: %s", logFilePath)
-
-	return map[string]interface{}{
-		"filename": baseFilename,
-		"path":     logFilePath,
-		"entries":  len(logEntries),
-	}, nil
-}
-
-// FormatResult formats the result of the execution
-func (p *LogFileCreator) FormatResult(result interface{}) (string, error) {
-	if resultMap, ok := result.(map[string]interface{}); ok {
-		if path, ok := resultMap["path"].(string); ok {
-			entries, _ := resultMap["entries"].(int)
-			return fmt.Sprintf("📝 Log file created at %s with %d entries", path, entries), nil
+		if formattedOutput, exists := (*shared)["formatted_output"].(string); exists && formattedOutput != "" {
+			logText = append(logText, fmt.Sprintf("===== Formatted output from %s at %s =====",
+				flowName, currentTime.Format("2006-01-02 15:04:05")))
+			logText = append(logText, formattedOutput)
 		}
 	}
-	return "Log file created successfully", nil
-}
 
-// extractHealthChecks extracts health check information from results
-func (p *LogFileCreator) extractHealthChecks(results interface{}) map[string]string {
-	healthChecks := make(map[string]string)
+	if flowName == "" {
+		flowName = "unknown"
+	}
 
-	// Try to process as array of plugin results
-	if resultsArray, ok := results.([]interface{}); ok {
-		for _, result := range resultsArray {
-			if resultMap, ok := result.(map[string]interface{}); ok {
-				pluginName, _ := resultMap["plugin"].(string)
-				formatted, _ := resultMap["formatted"].(string)
+	logEntry := fmt.Sprintf("time=\"%s\" level=info msg=\"===== Entrada de registro en %s =====\"\n",
+		currentTime.Format("2006-01-02 15:04:05"), currentTime.Format("2006-01-02 15:04:05"))
+	logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Flow ejecutado: %s\"\n",
+		currentTime.Format("2006-01-02 15:04:05"), flowName)
 
-				if strings.Contains(pluginName, "health") || strings.Contains(formatted, "health") {
-					// For health check plugins, extract status
-					if strings.Contains(formatted, "💚") {
-						healthChecks[pluginName] = "Healthy"
-					} else if strings.Contains(formatted, "❤️") {
-						healthChecks[pluginName] = "Critical"
-					} else if strings.Contains(formatted, "💛") {
-						healthChecks[pluginName] = "Warning"
+	if shared != nil {
+		paramSummary := "  "
+		paramCount := 0
+		for k, v := range *shared {
+			if !strings.HasPrefix(k, "_") && k != "results" && k != "formatted_output" {
+				if paramCount > 0 {
+					paramSummary += ", "
+				}
+				paramSummary += fmt.Sprintf("%s: %v", k, v)
+				paramCount++
+			}
+		}
+
+		if paramCount > 0 {
+			logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Parámetros del flujo: %s\"\n",
+				currentTime.Format("2006-01-02 15:04:05"), paramSummary)
+		}
+	}
+
+	pluginLogs := make(map[string]string)
+
+	if results != nil {
+		resultArray, isArray := results.([]interface{})
+		if isArray {
+			pluginList := ""
+			for _, res := range resultArray {
+				if resMap, ok := res.(map[string]interface{}); ok {
+					if plugin, ok := resMap["plugin"].(string); ok {
+						if pluginList != "" {
+							pluginList += ", "
+						}
+						pluginList += plugin
+					}
+				}
+			}
+
+			if pluginList != "" {
+				logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugins ejecutados: %s\"\n",
+					currentTime.Format("2006-01-02 15:04:05"), pluginList)
+			}
+
+			for idx, res := range resultArray {
+				if resMap, ok := res.(map[string]interface{}); ok {
+					plugin, hasPlugin := resMap["plugin"].(string)
+					if !hasPlugin {
+						continue
 					}
 
-					// Extract individual checks from Kubernetes health check
-					if strings.Contains(pluginName, "kube") {
-						p.extractKubeHealthDetails(formatted, healthChecks)
+					var pluginLog strings.Builder
+
+					pluginLog.WriteString(fmt.Sprintf("===== Plugin %s execution at %s =====\n\n",
+						plugin, currentTime.Format("2006-01-02 15:04:05")))
+
+					pluginLog.WriteString(fmt.Sprintf("Flow: %s\n", flowName))
+					pluginLog.WriteString(fmt.Sprintf("Execution order: %d of %d\n\n", idx+1, len(resultArray)))
+
+					if _, hasError := resMap["error"]; hasError {
+						errMsg, _ := resMap["error"].(string)
+						pluginLog.WriteString(fmt.Sprintf("Status: ERROR\n"))
+						pluginLog.WriteString(fmt.Sprintf("Error message: %s\n\n", errMsg))
+					} else {
+						pluginLog.WriteString("Status: SUCCESS\n\n")
+					}
+
+					if formatted, ok := resMap["formatted_result"].(string); ok && formatted != "" {
+						pluginLog.WriteString("Output:\n")
+						pluginLog.WriteString(formatted)
+						pluginLog.WriteString("\n")
+					} else if rawResult, ok := resMap["resultado"]; ok {
+						pluginLog.WriteString("Raw output:\n")
+						pluginLog.WriteString(fmt.Sprintf("%v\n", rawResult))
+					}
+
+					pluginLogs[plugin] = pluginLog.String()
+
+					if _, hasError := resMap["error"]; hasError {
+						logEntry += fmt.Sprintf("time=\"%s\" level=error msg=\"Plugin %s ejecutado con errores\"\n",
+							currentTime.Format("2006-01-02 15:04:05"), plugin)
+					} else {
+						if strings.Contains(plugin, "health") {
+							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin ejecutado: %s - Revisión de salud del sistema completada\"\n",
+								currentTime.Format("2006-01-02 15:04:05"), plugin)
+						} else if strings.Contains(plugin, "format") {
+							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin ejecutado: %s - Formateo de resultados completado\"\n",
+								currentTime.Format("2006-01-02 15:04:05"), plugin)
+						} else if strings.Contains(plugin, "print") {
+							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin ejecutado: %s - Impresión de resultados completada\"\n",
+								currentTime.Format("2006-01-02 15:04:05"), plugin)
+						} else if strings.Contains(plugin, "log") {
+							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin ejecutado: %s - Registro de resultados completado\"\n",
+								currentTime.Format("2006-01-02 15:04:05"), plugin)
+						} else if strings.Contains(plugin, "slack") {
+							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin ejecutado: %s - Notificación enviada\"\n",
+								currentTime.Format("2006-01-02 15:04:05"), plugin)
+						} else {
+							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin ejecutado: %s - Completado\"\n",
+								currentTime.Format("2006-01-02 15:04:05"), plugin)
+						}
 					}
 				}
 			}
 		}
 	}
 
-	// If we found any health checks, return them
-	if len(healthChecks) > 0 {
-		return healthChecks
+	var file *os.File
+	var err error
+
+	if _, err = os.Stat(dailyLogPath); os.IsNotExist(err) {
+		file, err = os.Create(dailyLogPath)
+	} else {
+		file, err = os.OpenFile(dailyLogPath, os.O_APPEND|os.O_WRONLY, 0644)
 	}
 
-	return nil
-}
+	if err != nil {
+		p.logger.Errorf("Error opening daily log file: %v", err)
+		return nil, fmt.Errorf("error opening daily log file: %v", err)
+	}
+	defer file.Close()
 
-// extractKubeHealthDetails extracts details from Kubernetes health check formatted output
-func (p *LogFileCreator) extractKubeHealthDetails(formatted string, healthChecks map[string]string) {
-	// Extract pod statuses
-	podRegex := regexp.MustCompile(`(\w+):\s+(\w+)`)
-	matches := podRegex.FindAllStringSubmatch(formatted, -1)
+	if _, err = file.WriteString(logEntry); err != nil {
+		p.logger.Errorf("Error writing to daily log file: %v", err)
+		return nil, fmt.Errorf("error writing to daily log file: %v", err)
+	}
 
-	for _, match := range matches {
-		if len(match) == 3 {
-			podName := match[1]
-			podStatus := match[2]
-			healthChecks["pod:"+podName] = podStatus
+	for plugin, pluginLog := range pluginLogs {
+		safePluginName := strings.ReplaceAll(plugin, "/", "-")
+		safePluginName = strings.ReplaceAll(safePluginName, " ", "_")
+
+		pluginLogFilename := fmt.Sprintf("%s-%s.log", safePluginName, timeStr)
+		pluginLogPath := filepath.Join(dateDir, pluginLogFilename)
+
+		if err := os.WriteFile(pluginLogPath, []byte(pluginLog), 0644); err != nil {
+			p.logger.Warnf("Could not write log for plugin %s: %v", plugin, err)
+		} else {
+			p.logger.Infof("Created log for plugin %s at %s", plugin, pluginLogPath)
 		}
 	}
+
+	if len(logText) > 0 {
+		flowLogFilename := fmt.Sprintf("%s-%s.log", flowName, timeStr)
+		flowLogPath := filepath.Join(dateDir, flowLogFilename)
+
+		err = os.WriteFile(flowLogPath, []byte(strings.Join(logText, "\n")), 0644)
+		if err != nil {
+			p.logger.Warnf("Could not write flow log: %v", err)
+		} else {
+			p.logger.Infof("Created flow log at %s", flowLogPath)
+		}
+	}
+
+	p.logger.Infof("Daily log entry appended to: %s", dailyLogPath)
+
+	return map[string]interface{}{
+		"date_dir":  dateDir,
+		"daily_log": dailyLogPath,
+		"timestamp": currentTime.Format("2006-01-02 15:04:05"),
+		"flow":      flowName,
+	}, nil
+}
+
+func (p *LogFileCreator) FormatResult(result interface{}) (string, error) {
+	if resultMap, ok := result.(map[string]interface{}); ok {
+		if dir, ok := resultMap["date_dir"].(string); ok {
+			flow, _ := resultMap["flow"].(string)
+			return fmt.Sprintf("📝 Logs for flow '%s' created in directory %s", flow, dir), nil
+		}
+	}
+	return "Logs created successfully", nil
 }
 
 var PluginInstance pluginconf.Plugin = &LogFileCreator{}
