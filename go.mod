@@ -3,7 +3,6 @@ module expressops
 go 1.24 // latest version rn
 
 require (
-	github.com/joho/godotenv v1.5.1
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/sirupsen/logrus v1.9.3
 	gopkg.in/yaml.v3 v3.0.1

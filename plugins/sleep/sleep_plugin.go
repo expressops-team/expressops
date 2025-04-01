@@ -27,7 +27,7 @@ func (p *SleepPlugin) Execute(ctx context.Context, req *http.Request, shared *ma
 	select {
 	case <-time.After(duration):
 		p.logger.Info("Sleep Plugin finished successfully")
-		return fmt.Sprintf("Slept for %d seconds", duration.Seconds()), nil
+		return fmt.Sprintf("Slept for %.0f seconds", duration.Seconds()), nil
 	case <-ctx.Done():
 		p.logger.Warn("Sleep Plugin has been cancelled!")
 		return nil, ctx.Err()
@@ -35,7 +35,7 @@ func (p *SleepPlugin) Execute(ctx context.Context, req *http.Request, shared *ma
 }
 
 func (p *SleepPlugin) FormatResult(result interface{}) (string, error) {
-	return fmt.Sprintf("Resultado del Sleep Plugin: %v", result), nil
+	return fmt.Sprintf("Sleep Plugin Result: %v", result), nil
 }
 
 var PluginInstance pluginconf.Plugin = &SleepPlugin{}

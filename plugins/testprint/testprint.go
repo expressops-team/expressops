@@ -25,7 +25,7 @@ func (p *TestPrintPlugin) Execute(ctx context.Context, request *http.Request, sh
 	p.logger.Info("Request received from: " + request.RemoteAddr + ", User-Agent: " + request.UserAgent())
 
 	// Just return a simple colored message with emoji
-	return fmt.Sprintf("\033[1;32m👋 Hola soy una prueba: %s!\033[0m", "test"), nil
+	return fmt.Sprintf("\033[1;32m👋 Hello, I am a test: %s!\033[0m", "test"), nil
 }
 
 func (p *TestPrintPlugin) FormatResult(result interface{}) (string, error) {

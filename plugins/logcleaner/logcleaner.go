@@ -92,12 +92,12 @@ func (p *LogCleaner) Execute(ctx context.Context, r *http.Request, shared *map[s
 
 	if err != nil {
 		p.logger.Warnf("Error zipping weekly logs: %v", err)
-		zipResult = fmt.Sprintf("Error al comprimir logs: %v", err)
+		zipResult = fmt.Sprintf("Error compressing logs: %v", err)
 	} else if len(zippedFiles) > 0 {
 		p.logger.Infof("Zipped %d log files for the week", len(zippedFiles))
-		zipResult = fmt.Sprintf("Se comprimieron %d archivos de log", len(zippedFiles))
+		zipResult = fmt.Sprintf(" %d log files were compressed", len(zippedFiles))
 	} else {
-		zipResult = "No hay archivos para comprimir en esta semana"
+		zipResult = "There are no files to compress this week."
 	}
 
 	cutoffTime := time.Now().AddDate(0, 0, -maxAgeDays)

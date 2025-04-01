@@ -20,10 +20,6 @@ func main() {
 	})
 	logger.SetLevel(logrus.DebugLevel) // set the log level to debug
 
-	if err := godotenv.Load(); err != nil {
-		logger.Warnf("Warning: Could not load .env file: %v", err)
-	}
-
 	ctx := context.Background() // creates a new context to manage timeouts, cancelaciones, etc.
 
 	// Parse the command line flags to get the config file path
@@ -34,7 +30,7 @@ func main() {
 	// 1º load the config from YAML
 	cfg, err := config.LoadConfig(ctx, configPath, logger)
 	if err != nil {
-		logger.Fatalf("Error al cargar la configuración: %v", err)
+		logger.Fatalf("Error loading configuration: %v", err)
 	}
 
 	// 2º start the server
