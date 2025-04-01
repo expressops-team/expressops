@@ -1,0 +1,3 @@
+time="2025-04-01 10:11:59" level=info msg="===== Entrada de registro en 2025-04-01 10:11:59 ====="
+time="2025-04-01 10:11:59" level=info msg="Flow ejecutado: dr-house"
+time="2025-04-01 10:11:59" level=info msg="Parámetros del flujo:   previous_result: [1;32m👋 Hola soy una prueba: test![0m"
