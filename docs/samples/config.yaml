@@ -12,7 +12,7 @@ server:
     protocolVersion: 2
 
 plugins:
-  - name: slack-notifier # no .env yet
+  - name: slack-notifier
     path: plugins/slack/slack.so
     type: notification
     config: {}

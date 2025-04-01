@@ -13,7 +13,9 @@ PLUGINS=(
     "plugins/healthcheck/health_check.go"
   # "plugins/kubehealth/kube_health.go" <== tarda demasiado ademas no lo usamos
   "plugins/sleep/sleep_plugin.go"
+
   "plugins/slack/slack.go" 
+
   "plugins/testprint/testprint.go"
   "plugins/formatters/health_alert_formatter.go"
   "plugins/clean-disk/clean_disk.go"
