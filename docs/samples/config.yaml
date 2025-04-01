@@ -55,6 +55,11 @@ plugins:
       log_dir: "logs"
       max_age_days: 30
 
+  - name: menu
+    path: plugins/menu/menu.so
+    type: utils
+    config: {}
+
 
 flows:
   - name: incident-flow
@@ -93,3 +98,14 @@ flows:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
       - pluginRef: slack-notifier
+
+  - name: menu
+    pipeline:
+      - pluginRef: menu
+    parameters:
+      flows:
+        - incident-flow
+        - healthz
+        - test-context
+        - dr-house
+        - weekly-cleanup

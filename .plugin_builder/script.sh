@@ -21,6 +21,7 @@ PLUGINS=(
   "plugins/clean-disk/clean_disk.go"
   "plugins/logfilecreator/logfilecreator.go"
   "plugins/logcleaner/logcleaner.go"
+  "plugins/menu/menu.go"
 )
 
 for plugin in "${PLUGINS[@]}"; do
