@@ -17,7 +17,7 @@ type FormatterPlugin struct {
 
 func (f *FormatterPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	f.logger = logger
-	f.logger.Info("Inicializando Health Formatter Plugin")
+	f.logger.Info("Initializing Health Formatter Plugin")
 	return nil
 }
 
@@ -27,7 +27,7 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 	input, ok := (*shared)["_input"].(map[string]interface{})
 	if !ok {
 		f.logger.Error("No valid _input received")
-		return "", fmt.Errorf("no se recibió _input válido")
+		return "", fmt.Errorf("no valid _input received")
 	}
 
 	var formatted strings.Builder
@@ -37,7 +37,7 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 	status, ok := input["health_status"].(map[string]string)
 	if !ok {
 		f.logger.Error("Result without health_status field")
-		return "", fmt.Errorf("resultado sin health_status")
+		return "", fmt.Errorf("health check result must contain a health_status field")
 	}
 
 	hasErrors := false

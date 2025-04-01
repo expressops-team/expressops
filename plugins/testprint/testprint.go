@@ -17,12 +17,12 @@ type TestPrintPlugin struct {
 
 func (p *TestPrintPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	p.logger = logger
-	p.logger.Info("Inicializando TestPrint Plugin")
+	p.logger.Info("Initializing TestPrint Plugin")
 	return nil
 }
 
 func (p *TestPrintPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
-	p.logger.Info("Request recibido desde: " + request.RemoteAddr + ", User-Agent: " + request.UserAgent())
+	p.logger.Info("Request received from: " + request.RemoteAddr + ", User-Agent: " + request.UserAgent())
 
 	// Just return a simple colored message with emoji
 	return fmt.Sprintf("\033[1;32m👋 Hola soy una prueba: %s!\033[0m", "test"), nil

@@ -16,20 +16,20 @@ type SleepPlugin struct {
 
 func (p *SleepPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	p.logger = logger
-	p.logger.Info("Inicializando Sleep Plugin")
+	p.logger.Info("Initializing Sleep Plugin")
 	return nil
 }
 
-func (p *SleepPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
+func (p *SleepPlugin) Execute(ctx context.Context, req *http.Request, shared *map[string]any) (any, error) {
+	p.logger.Info("Sleep Plugin starting to sleep")
 	duration := 10 * time.Second // Dormimos 10 segundos
-	p.logger.Info("Sleep Plugin comienza a dormir")
 
 	select {
 	case <-time.After(duration):
-		p.logger.Info("Sleep Plugin terminó exitosamente")
-		return "He terminado de dormir!", nil
+		p.logger.Info("Sleep Plugin finished successfully")
+		return fmt.Sprintf("Slept for %d seconds", duration.Seconds()), nil
 	case <-ctx.Done():
-		p.logger.Warn("Sleep Plugin ha sido cancelado!")
+		p.logger.Warn("Sleep Plugin has been cancelled!")
 		return nil, ctx.Err()
 	}
 }

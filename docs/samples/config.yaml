@@ -15,7 +15,8 @@ plugins:
   - name: slack-notifier
     path: plugins/slack/slack.so
     type: notification
-    config: {}
+    config:
+      webhook_url: $SLACK_WEBHOOK_URL # obligatory env var
       
   - name: health-check-plugin
     path: plugins/healthcheck/health_check.so
@@ -61,6 +62,7 @@ flows:
     description: "Notify the team when an incident occurs" #rn only for testing
     pipeline:
       - pluginRef: slack-notifier
+      - pluginRef: logfilecreator
 
   - name: healthz
     description: "Health check"
@@ -89,7 +91,14 @@ flows:
       - pluginRef: logcleaner
 
   - name: alert-flow
+    description: "Health check with notification"
     pipeline:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
       - pluginRef: slack-notifier
+      - pluginRef: logfilecreator
+
+  - name: logs-view
+    description: "View and manage logs"
+    pipeline:
+      - pluginRef: logcleaner

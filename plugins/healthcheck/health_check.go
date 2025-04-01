@@ -30,7 +30,7 @@ func NewHealthCheckPlugin(logger *logrus.Logger) pluginconf.Plugin {
 
 func (p *HealthCheckPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	p.logger = logger
-	p.logger.Info("Inicializando Health Check Plugin")
+	p.logger.Info("Initializing Health Check Plugin")
 	p.RegisterCheck("cpu", p.checkCPU)
 	p.RegisterCheck("memory", p.checkMemory)
 	p.RegisterCheck("disk", p.checkDisk)
