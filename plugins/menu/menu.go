@@ -2,6 +2,7 @@
 // - add a way to get the flows from the config
 // - add a way to get the port from the config
 // - choose the flow from where i execute curl
+// IGNORE THIS PLUGIN 
 package main
 
 import (
