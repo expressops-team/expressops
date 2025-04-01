@@ -11,14 +11,16 @@ RESET="\033[0m"
 
 PLUGINS=(
     "plugins/healthcheck/health_check.go"
-  # "plugins/kubehealth/kube_health.go" <== tarda demasiado
+  # "plugins/kubehealth/kube_health.go" <== tarda demasiado ademas no lo usamos
   "plugins/sleep/sleep_plugin.go"
-  "plugins/slack/slack.go" <== no .env yet
+
+  "plugins/slack/slack.go" 
+
   "plugins/testprint/testprint.go"
   "plugins/formatters/health_alert_formatter.go"
   "plugins/clean-disk/clean_disk.go"
   "plugins/logfilecreator/logfilecreator.go"
-  # "plugins/logcleaner/logcleaner.go"
+  "plugins/logcleaner/logcleaner.go"
 )
 
 for plugin in "${PLUGINS[@]}"; do

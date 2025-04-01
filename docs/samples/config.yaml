@@ -11,7 +11,6 @@ server:
   http:
     protocolVersion: 2
 
-
 plugins:
   - name: slack-notifier
     path: plugins/slack/slack.so
@@ -48,20 +47,30 @@ plugins:
     type: utils
     config:
       log_dir: "logs"
+      
+  - name: logcleaner
+    path: plugins/logcleaner/logcleaner.so
+    type: utils
+    config:
+      log_dir: "logs"
+      max_age_days: 30
 
 
 flows:
   - name: incident-flow
+    description: "Notify the team when an incident occurs" #rn only for testing
     pipeline:
       - pluginRef: slack-notifier
 
   - name: healthz
+    description: "Health check"
     customHandler: healthCheckDetailed 
     pipeline:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
 
   - name: test-context # sleep testing
+    description: "Test the context timeout"
     customHandler: contextTimeoutTest
     pipeline:
       - pluginRef: sleep-plugin
@@ -73,6 +82,11 @@ flows:
       - pluginRef: formatter-plugin
       - pluginRef: test-print-plugin # it will be kube-health-plugin in the future :D
       - pluginRef: logfilecreator
+
+  - name: weekly-cleanup
+    description: "Weekly log zip and cleanup"
+    pipeline:
+      - pluginRef: logcleaner
 
   - name: alert-flow
     pipeline:
