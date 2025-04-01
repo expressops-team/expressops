@@ -21,16 +21,15 @@ func main() {
 	})
 	logger.SetLevel(logrus.DebugLevel) // set the log level to debug
 
-	err := godotenv.Load()
-	if err != nil {
-		logger.Warnf("Advertencia: No se pudo cargar el archivo .env: %v", err)
+	if err := godotenv.Load(); err != nil {
+		logger.Warnf("Warning: Could not load .env file: %v", err)
 	}
 
 	ctx := context.Background() // creates a new context to manage timeouts, cancelaciones, etc.
 
 	// Parse the command line flags to get the config file path
 	var configPath string
-	flag.StringVar(&configPath, "config", "docs/samples/config.yaml", "Ruta al archivo YAML de configuración")
+	flag.StringVar(&configPath, "config", "docs/samples/config.yaml", "Path to YAML configuration file")
 	flag.Parse()
 
 	// 1º load the config from YAML

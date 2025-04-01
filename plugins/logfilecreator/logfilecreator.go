@@ -46,7 +46,7 @@ func (p *LogFileCreator) Execute(ctx context.Context, r *http.Request, shared *m
 
 	currentTime := time.Now()
 	dateStr := currentTime.Format("20060102")
-	timeStr := currentTime.Format("150405")
+	timeStr := currentTime.Format("2006-01-02 15:04:05")
 
 	dateDir := filepath.Join(p.baseDir, dateStr)
 	if err := os.MkdirAll(dateDir, 0755); err != nil {
@@ -81,10 +81,11 @@ func (p *LogFileCreator) Execute(ctx context.Context, r *http.Request, shared *m
 		flowName = "unknown"
 	}
 
-	logEntry := fmt.Sprintf("time=\"%s\" level=info msg=\"===== Entrada de registro en %s =====\"\n",
-		currentTime.Format("2006-01-02 15:04:05"), currentTime.Format("2006-01-02 15:04:05"))
-	logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Flow ejecutado: %s\"\n",
-		currentTime.Format("2006-01-02 15:04:05"), flowName)
+	logEntry := fmt.Sprintf(
+		"time=\"%s\" level=info msg=\"===== Log entry at %s =====\"\n",
+		timeStr, timeStr,
+	)
+	logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Flow executed: %s\"\n", timeStr, flowName)
 
 	if shared != nil {
 		paramSummary := "  "
@@ -100,8 +101,7 @@ func (p *LogFileCreator) Execute(ctx context.Context, r *http.Request, shared *m
 		}
 
 		if paramCount > 0 {
-			logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Parámetros del flujo: %s\"\n",
-				currentTime.Format("2006-01-02 15:04:05"), paramSummary)
+			logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Flow parameters: %s\"\n", timeStr, paramSummary)
 		}
 	}
 
@@ -123,8 +123,8 @@ func (p *LogFileCreator) Execute(ctx context.Context, r *http.Request, shared *m
 			}
 
 			if pluginList != "" {
-				logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugins ejecutados: %s\"\n",
-					currentTime.Format("2006-01-02 15:04:05"), pluginList)
+				logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugins executed: %s\"\n",
+					timeStr, pluginList)
 			}
 
 			for idx, res := range resultArray {
@@ -162,27 +162,27 @@ func (p *LogFileCreator) Execute(ctx context.Context, r *http.Request, shared *m
 					pluginLogs[plugin] = pluginLog.String()
 
 					if _, hasError := resMap["error"]; hasError {
-						logEntry += fmt.Sprintf("time=\"%s\" level=error msg=\"Plugin %s ejecutado con errores\"\n",
-							currentTime.Format("2006-01-02 15:04:05"), plugin)
+						logEntry += fmt.Sprintf("time=\"%s\" level=error msg=\"Plugin %s executed with errors\"\n",
+							timeStr, plugin)
 					} else {
 						if strings.Contains(plugin, "health") {
-							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin ejecutado: %s - Revisión de salud del sistema completada\"\n",
-								currentTime.Format("2006-01-02 15:04:05"), plugin)
+							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin executed: %s - System health check completed\"\n",
+								timeStr, plugin)
 						} else if strings.Contains(plugin, "format") {
-							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin ejecutado: %s - Formateo de resultados completado\"\n",
-								currentTime.Format("2006-01-02 15:04:05"), plugin)
+							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin executed: %s - Result formatting completed\"\n",
+								timeStr, plugin)
 						} else if strings.Contains(plugin, "print") {
-							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin ejecutado: %s - Impresión de resultados completada\"\n",
-								currentTime.Format("2006-01-02 15:04:05"), plugin)
+							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin executed: %s - Result printing completed\"\n",
+								timeStr, plugin)
 						} else if strings.Contains(plugin, "log") {
-							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin ejecutado: %s - Registro de resultados completado\"\n",
-								currentTime.Format("2006-01-02 15:04:05"), plugin)
+							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin executed: %s - Result logging completed\"\n",
+								timeStr, plugin)
 						} else if strings.Contains(plugin, "slack") {
-							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin ejecutado: %s - Notificación enviada\"\n",
-								currentTime.Format("2006-01-02 15:04:05"), plugin)
+							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin executed: %s - Notification sent\"\n",
+								timeStr, plugin)
 						} else {
-							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin ejecutado: %s - Completado\"\n",
-								currentTime.Format("2006-01-02 15:04:05"), plugin)
+							logEntry += fmt.Sprintf("time=\"%s\" level=info msg=\"Plugin executed: %s - Completed\"\n",
+								timeStr, plugin)
 						}
 					}
 				}

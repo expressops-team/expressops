@@ -15,7 +15,8 @@ plugins:
   - name: slack-notifier
     path: plugins/slack/slack.so
     type: notification
-    config: {}
+    config:
+      webhook_url: $SLACK_WEBHOOK_URL # obligatory env var
       
   - name: health-check-plugin
     path: plugins/healthcheck/health_check.so
@@ -54,11 +55,6 @@ plugins:
     config:
       log_dir: "logs"
       max_age_days: 30
-
-  - name: menu
-    path: plugins/menu/menu.so
-    type: utils
-    config: {}
 
 
 flows:
@@ -106,16 +102,3 @@ flows:
     description: "View and manage logs"
     pipeline:
       - pluginRef: logcleaner
-      - pluginRef: menu
-
-  - name: menu
-    description: "Interactive menu to select flows"
-    pipeline:
-      - pluginRef: menu
-    #parameters:                           NO PARAMETERS, FIND ANOTHER WAY TO GET THE FLOW LIST
-    #  flows:
-    #    - incident-flow
-    #    - healthz
-    #    - test-context
-    #    - dr-house
-    #    - weekly-cleanup

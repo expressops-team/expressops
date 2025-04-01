@@ -24,20 +24,20 @@ type CleanDisk struct {
 }
 
 func (c *CleanDisk) cleanDisk(logger *logrus.Logger, params map[string]interface{}) error {
-	logger.Info("Iniciando limpieza de disco")
+	logger.Info("Starting disk cleanup")
 
-	// Clean /tmp directory
-	logger.Info("Limpiando directorio /tmp")
+	// Clean temp directory
+	logger.Info("Cleaning /tmp directory")
 	err := cleanDirectory("/tmp", logger)
 	if err != nil {
 		return fmt.Errorf("error cleaning /tmp: %v", err)
 	}
 
 	// Clean cache directories
-	logger.Info("Limpiando directorios de caché")
+	logger.Info("Cleaning cache directories")
 	cacheDirs := []string{
-		"/var/cache",
-		filepath.Join(os.Getenv("HOME"), ".cache"),
+		"/var/cache/apt",
+		"/var/tmp",
 	}
 	for _, dir := range cacheDirs {
 		err := cleanDirectory(dir, logger)
@@ -46,14 +46,15 @@ func (c *CleanDisk) cleanDisk(logger *logrus.Logger, params map[string]interface
 		}
 	}
 
-	// Run system disk cleanup
-	logger.Info("Limpiando sistema de archivos")
-	cmd := exec.Command("sync") // after this you can reboot
+	// Sync filesystem
+	logger.Info("Cleaning filesystem")
+	cmd := exec.Command("sync")
 	if err := cmd.Run(); err != nil {
 		logger.Warnf("Error running sync: %v", err)
+		return err
 	}
+	logger.Info("Filesystem cleaned successfully")
 
-	logger.Info("Limpiado sistema de archivos exitosamente")
 	return nil
 }
 
@@ -70,9 +71,9 @@ func cleanDirectory(dir string, logger *logrus.Logger) error {
 		path := filepath.Join(dir, entry.Name())
 		err := os.RemoveAll(path)
 		if err != nil {
-			logger.Warnf("No se pudo eliminar %s: %v", path, err)
+			logger.Warnf("Could not delete %s: %v", path, err)
 		} else {
-			logger.Debugf("Eliminado %s", path)
+			logger.Debugf("Deleted %s", path)
 		}
 	}
 	return nil
@@ -83,15 +84,15 @@ func (c *CleanDisk) Initialize(ctx context.Context, params map[string]interface{
 	c.done = make(chan bool)
 	c.ticker = time.NewTicker(24 * time.Hour)
 
-	logger.Info("Inicializando CleanDisk plugin")
+	logger.Info("Initializing CleanDisk plugin")
 	go func() {
 		for {
 			select {
 			case <-c.ticker.C:
 				if err := c.cleanDisk(logger, params); err != nil {
-					logger.Errorf("Cleanup falló: %v", err)
+					logger.Errorf("Cleanup failed: %v", err)
 				}
-				logger.Info("Cleanup completado exitosamente 😎 \n")
+				logger.Info("Cleanup completed successfully 😎 \n")
 			case <-c.done:
 				c.ticker.Stop()
 				return

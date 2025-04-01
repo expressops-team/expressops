@@ -24,7 +24,7 @@ func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	fmt.Print("\n") // whitespace
 	for _, flow := range cfg.Flows {
 		flowRegistry[flow.Name] = flow
-		logger.Infof("Flujo registrado: %s", flow.Name)
+		logger.Infof("Flow registered: %s", flow.Name)
 	}
 	fmt.Print("\n") // whitespace
 }
@@ -35,7 +35,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	address := fmt.Sprintf("%s:%d", cfg.Server.Address, cfg.Server.Port)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		logger.Info("Solicitud en ruta raíz recibida")
+		logger.Info("Request received at root path")
 		fmt.Fprintf(w, "Expressops activo 🟢 \n")
 	})
 
@@ -55,7 +55,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 
 				plugin, err := pluginManager.GetPlugin(name)
 				if err != nil {
-					http.Error(w, "Plugin no encontrado", http.StatusNotFound)
+					http.Error(w, "Plugin not found", http.StatusNotFound)
 					return
 				}
 
@@ -76,8 +76,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	// ONLY one generic handler that will handle all flows
 	http.HandleFunc("/flow", dynamicFlowHandler(logger, timeout))
 
-
-	logger.Infof("Servidor escuchando en http://%s", address)
+	logger.Infof("Server listening on http://%s", address)
 
 	// help for the user
 	fmt.Println("\033[31mTemplate para flujos:\033[0m")
@@ -86,7 +85,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	srv := &http.Server{Addr: address}
 
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Fatalf("Error al iniciar servidor: %v", err)
+		logger.Fatalf("Error starting server: %v", err)
 	}
 }
 
@@ -105,15 +104,15 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 
 		flow, exists := flowRegistry[flowName]
 		if !exists {
-			http.Error(w, fmt.Sprintf("Flujo '%s' no encontrado", flowName), http.StatusNotFound)
+			http.Error(w, fmt.Sprintf("Flow '%s' not found", flowName), http.StatusNotFound)
 			return
 		}
 
 		logger.WithFields(logrus.Fields{
-			"flujo":      flowName,
+			"flow":       flowName,
 			"ip":         r.RemoteAddr,
 			"user_agent": r.UserAgent(),
-		}).Info("Ejecutando flujo solicitado dinámicamente")
+		}).Info("Executing requested flow dynamically")
 
 		paramsRaw := r.URL.Query().Get("params")
 		additionalParams := parseParams(paramsRaw)
@@ -148,7 +147,7 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 
 			var formattedOutput strings.Builder
-			formattedOutput.WriteString(fmt.Sprintf("Resultado del flujo: %s\n\n", flowName))
+			formattedOutput.WriteString(fmt.Sprintf("Flow result: %s\n\n", flowName))
 
 			for _, res := range results {
 				if result, ok := res.(map[string]interface{}); ok {
@@ -160,7 +159,7 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 					} else if err, ok := result["error"].(string); ok {
 						formattedOutput.WriteString(fmt.Sprintf("❌ Error: %s\n", err))
 					} else {
-						formattedOutput.WriteString(fmt.Sprintf("Resultado: %v\n", result["resultado"]))
+						formattedOutput.WriteString(fmt.Sprintf("Result: %v\n", result["result"]))
 					}
 					formattedOutput.WriteString("\n")
 				}
@@ -226,10 +225,10 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 
 		plugin, err := pluginManager.GetPlugin(step.PluginRef)
 		if err != nil {
-			logger.Errorf("Plugin no encontrado: %s - %v", step.PluginRef, err)
+			logger.Errorf("Plugin not found: %s - %v", step.PluginRef, err)
 			results = append(results, map[string]interface{}{
 				"plugin": step.PluginRef,
-				"error":  fmt.Sprintf("Plugin no encontrado: %v", err),
+				"error":  fmt.Sprintf("Plugin not found: %v", err),
 			})
 			continue
 		}
@@ -244,10 +243,10 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 			shared["_input"] = lastResult
 		}
 
-		logger.Infof("Ejecutando plugin: %s", step.PluginRef)
+		logger.Infof("Executing plugin: %s", step.PluginRef)
 		res, err := plugin.Execute(ctx, r, &shared)
 		if err != nil {
-			logger.Errorf("Error ejecutando plugin: %s - %v", step.PluginRef, err)
+			logger.Errorf("Error executing plugin: %s - %v", step.PluginRef, err)
 			results = append(results, map[string]interface{}{
 				"plugin": step.PluginRef,
 				"error":  fmt.Sprintf("Error: %v", err),
@@ -260,15 +259,15 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 			var fmtErr error
 			formattedResult, fmtErr = plugin.FormatResult(res)
 			if fmtErr != nil {
-				logger.Warnf("Error al formatear resultado de %s: %v", step.PluginRef, fmtErr)
+				logger.Warnf("Error formatting result from %s: %v", step.PluginRef, fmtErr)
 				formattedResult = fmt.Sprintf("%v", res)
 			}
 		}
 
 		// Add result to results array
 		result := map[string]interface{}{
-			"plugin":    step.PluginRef,
-			"resultado": res,
+			"plugin": step.PluginRef,
+			"result": res,
 		}
 
 		// Only add formatted_result if it exists
@@ -279,9 +278,9 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 		results = append(results, result)
 
 		if len(formattedResult) > 100 {
-			logger.Infof("Resultado de %s: %s...", step.PluginRef, formattedResult[:100])
+			logger.Infof("Result from %s: %s...", step.PluginRef, formattedResult[:100])
 		} else {
-			logger.Infof("Resultado de %s: %s", step.PluginRef, formattedResult)
+			logger.Infof("Result from %s: %s", step.PluginRef, formattedResult)
 		}
 
 		lastResult = res
