@@ -7,7 +7,6 @@ import (
 	"flag"
 	"os"
 
-	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus" //logger
 )
 
