@@ -21,12 +21,12 @@ var flowRegistry map[string]v1alpha1.Flow
 // initializeFlowRegistry carga los flujos definidos en el archivo de configuración
 func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	flowRegistry = make(map[string]v1alpha1.Flow)
-	fmt.Print("\n") // whitespace
+	logger.Info("") // whitespace
 	for _, flow := range cfg.Flows {
 		flowRegistry[flow.Name] = flow
 		logger.Infof("Flujo registrado: %s", flow.Name)
 	}
-	fmt.Print("\n") // whitespace
+	logger.Info("") // whitespace
 }
 
 func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
@@ -36,7 +36,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		logger.Info("Solicitud en ruta raíz recibida")
-		fmt.Fprintf(w, "Expressops activo 🟢 \n")
+		w.Write([]byte("Expressops activo 🟢 \n"))
 	})
 
 	for _, pluginConf := range cfg.Plugins {
@@ -76,12 +76,11 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	// ONLY one generic handler that will handle all flows
 	http.HandleFunc("/flow", dynamicFlowHandler(logger, timeout))
 
-
 	logger.Infof("Servidor escuchando en http://%s", address)
 
 	// help for the user
-	fmt.Println("\033[31mTemplate para flujos:\033[0m")
-	fmt.Printf("\033[37m ➡️ \033[0m \033[32mcurl http://%s/flow?flowName=<nombre_del_flujo>\033[0m \033[37m ⬅️ \033[0m\n\n", address)
+	logger.Info("Template para flujos:")
+	logger.Infof("➡️ curl http://%s/flow?flowName=<nombre_del_flujo> ⬅️", address)
 
 	srv := &http.Server{Addr: address}
 
@@ -137,9 +136,11 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 			}
 
 			if status == "OK" {
+				logger.Infof("Flujo '%s' ejecutado exitosamente con %d plugin(s)", flowName, len(results))
 				fmt.Fprintf(w, "Flow '%s' executed successfully with %d plugin(s)\n",
 					flowName, len(results))
 			} else {
+				logger.Warnf("Flujo '%s' ejecutado con errores", flowName)
 				fmt.Fprintf(w, "Flow '%s' executed with errors. Check server logs for details.\n",
 					flowName)
 			}
@@ -240,9 +241,7 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 
 		shared["previous_result"] = lastResult
 
-		if step.PluginRef != "health-check-plugin" {
-			shared["_input"] = lastResult
-		}
+		shared["_input"] = lastResult
 
 		logger.Infof("Ejecutando plugin: %s", step.PluginRef)
 		res, err := plugin.Execute(ctx, r, &shared)

@@ -39,11 +39,8 @@ ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plug
 ## 📦 Requirements
 
 > 🐧 ExpressOps runs on Linux (due to the Go plugin system).
-
 - Golang 1.20+
-- Docker CE 20.10+
-- make (to compile plugins)
-- kubectl 1.24+ *(optional, only if deploying to Kubernetes)*
+
 
 
 ## 🔧 Installation
