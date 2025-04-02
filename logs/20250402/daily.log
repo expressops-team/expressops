@@ -1,0 +1,3 @@
+time="2025-04-02 12:26:00" level=info msg="===== Log entry at 2025-04-02 12:26:00 ====="
+time="2025-04-02 12:26:00" level=info msg="Flow executed: alert-flow"
+time="2025-04-02 12:26:00" level=info msg="Flow parameters:   previous_result: Message sent to Slack"

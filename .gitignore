@@ -1,0 +1,10 @@
+# Ignorar archivos compilados de plugins (.so)
+plugins/slack/slack.so
+plugins/healthcheck/health_check.so
+plugins/sleep/sleep_plugin.so
+plugins/formatters/health_alert_formatter.so
+plugins/testprint/testprint.so
+plugins/logfilecreator/logfilecreator.so
+plugins/logcleaner/logcleaner.so
+plugins/clean-disk/clean-disk.so
+plugins/kube_health/kube_health.so
