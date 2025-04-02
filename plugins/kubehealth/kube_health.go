@@ -28,7 +28,7 @@ func NewKubeHealthPlugin(logger *logrus.Logger) pluginconf.Plugin {
 
 func (p *KubeHealthPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	p.logger = logger
-	p.logger.Info("Inicializando KubeHealth Plugin")
+	p.logger.Info("Initializing KubeHealth Plugin")
 	return nil
 }
 
