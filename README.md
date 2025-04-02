@@ -31,7 +31,6 @@ ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plug
   - **test-print-plugin**: debug plugin that prints test data.
   - **logfilecreator**: generates daily logs per flow/plugin.
   - **logcleaner**: deletes old log files to save disk space.
-  - **menu**: displays all the avaliable flows from the YAML file.
 - ⚙️ YAML-based flow configuration (define execution pipelines).
 - 🌐 HTTP server with endpoints to trigger flows dynamically.
 - 📜 Detailed logging for debugging and traceability.

@@ -78,10 +78,9 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	http.HandleFunc("/flow", dynamicFlowHandler(logger, timeout))
 	logger.Infof("Server listening on http://%s", address)
 
-
 	// help for the user
-	logger.Info("Template para flujos:")
-	logger.Infof("➡️ curl http://%s/flow?flowName=<nombre_del_flujo> ⬅️", address)
+	logger.Info("Template for flows:")
+	logger.Infof("➡️ curl http://%s/flow?flowName=<flow_name> ⬅️", address)
 
 	srv := &http.Server{Addr: address}
 
@@ -137,11 +136,11 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 			}
 
 			if status == "OK" {
-				logger.Infof("Flujo '%s' ejecutado exitosamente con %d plugin(s)", flowName, len(results))
+				logger.Infof("Flow '%s' executed successfully with %d plugin(s)", flowName, len(results))
 				fmt.Fprintf(w, "Flow '%s' executed successfully with %d plugin(s)\n",
 					flowName, len(results))
 			} else {
-				logger.Warnf("Flujo '%s' ejecutado con errores", flowName)
+				logger.Warnf("Flow '%s' executed with errors", flowName)
 				fmt.Fprintf(w, "Flow '%s' executed with errors. Check server logs for details.\n",
 					flowName)
 			}

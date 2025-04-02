@@ -26,7 +26,8 @@ plugins:
   - name: sleep-plugin
     path: plugins/sleep/sleep_plugin.so
     type: test
-    config: {}
+    config: 
+      duration_seconds: ${SLEEP_DURATION:-10}  # Sleep duration in seconds
  
   - #name: kube-health-plugin
     #path: plugins/kubehealth/kube_health.so
