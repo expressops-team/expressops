@@ -36,24 +36,6 @@ func LoadConfig(ctx context.Context, path string, logger *logrus.Logger) (*v1alp
 	for i := range cfg.Plugins {
 		pluginCfg := &cfg.Plugins[i]
 
-		// 				<====> NOT NECESSARY <====>
-		// // Process environment variables for plugin configuration
-		// for key, value := range pluginCfg.Config {
-		// 	if strValue, ok := value.(string); ok && len(strValue) > 0 && strValue[0] == '$' {
-		// 		envVarName := strValue[1:]
-		// 		envVarValue := os.Getenv(envVarName)
-
-		// 		if envVarValue == "" {
-		// 			msg := fmt.Sprintf("environment variable %s required by plugin '%s' is not defined", envVarName, pluginCfg.Name)
-		// 			logger.Error(msg)
-		// 			return nil, fmt.Errorf("%s", msg)
-		// 		}
-
-		// 		pluginCfg.Config[key] = envVarValue
-		// 		logger.Debugf("Injected %s environment variable into plugin '%s' configuration", envVarName, pluginCfg.Name)
-		// 	}
-		// }
-
 		logger.Debugf("Loading plugin code: %s (Path: %s)", pluginCfg.Name, pluginCfg.Path)
 		if err := pluginManager.LoadPlugin(ctx, pluginCfg.Path, pluginCfg.Name, pluginCfg.Config, logger); err != nil {
 			return nil, fmt.Errorf("error loading plugin '%s' from '%s': %w", pluginCfg.Name, pluginCfg.Path, err)
