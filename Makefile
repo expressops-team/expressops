@@ -12,14 +12,14 @@ PRINT = @echo
 
 build-plugins:
 	$(PRINT) "$(BLUE)Building plugins...$(RESET)"
-	go build -buildmode=plugin -o plugins/healthcheck/health_check.so plugins/healthcheck/health_check.go
-	go build -buildmode=plugin -o plugins/sleep/sleep_plugin.so plugins/sleep/sleep_plugin.go
-	go build -buildmode=plugin -o plugins/slack/slack.so plugins/slack/slack.go
-	go build -buildmode=plugin -o plugins/testprint/testprint.so plugins/testprint/testprint.go
-	go build -buildmode=plugin -o plugins/formatters/health_alert_formatter.so plugins/formatters/health_alert_formatter.go
-	go build -buildmode=plugin -o plugins/clean-disk/clean_disk.so plugins/clean-disk/clean_disk.go
-	go build -buildmode=plugin -o plugins/logfilecreator/logfilecreator.so plugins/logfilecreator/logfilecreator.go
-	go build -buildmode=plugin -o plugins/logcleaner/logcleaner.so plugins/logcleaner/logcleaner.go
+	@for dir in $(shell find plugins -type f -name "*.go" -exec dirname {} \; | sort -u); do \
+		for gofile in $$dir/*.go; do \
+			if [ -f "$$gofile" ]; then \
+				plugin_name=$$(basename "$$gofile" .go); \
+				go build -buildmode=plugin -o "$$dir/$$plugin_name.so" "$$gofile"; \
+			fi \
+		done \
+	done
 	$(PRINT) "$(GREEN)✨ Plugins built$(RESET)"
 
 run: build-plugins

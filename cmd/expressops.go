@@ -7,6 +7,8 @@ import (
 	"flag"
 	"os"
 
+	"github.com/joho/godotenv" // imports the godotenv package
+
 	"github.com/sirupsen/logrus" //logger
 )
 
