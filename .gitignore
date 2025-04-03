@@ -1,2 +1,12 @@
 # Ignorar archivos compilados de plugins (.so)
 plugins/**/*.so
+
+# Compiled Go binary
+expressops
+
+
+# Log files
+logs/*.log
+
+# Log zip files
+logs/*.zip
