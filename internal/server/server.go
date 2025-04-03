@@ -36,7 +36,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		logger.Info("Request received at root path")
-		fmt.Fprintf(w, "Expressops activo 🟢 \n")
+		fmt.Fprintf(w, "Expressops active 🟢 \n")
 
 	})
 
@@ -98,7 +98,7 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 
 		flowName := r.URL.Query().Get("flowName")
 		if flowName == "" {
-			http.Error(w, "Debe indicar flowName", http.StatusBadRequest)
+			http.Error(w, "Must indicate flowName", http.StatusBadRequest)
 			return
 		}
 
@@ -118,58 +118,6 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 		additionalParams := parseParams(paramsRaw)
 
 		results := executeFlow(ctx, flow, additionalParams, r, logger)
-
-		// Check if the client wants formatted text output
-		// is it necessary?
-		outputFormat := r.URL.Query().Get("format")
-		if outputFormat == "text" {
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-
-			status := "OK"
-			for _, res := range results {
-				if result, ok := res.(map[string]interface{}); ok {
-					if _, hasError := result["error"]; hasError {
-						status = "ERROR"
-						break
-					}
-				}
-			}
-
-			if status == "OK" {
-				logger.Infof("Flow '%s' executed successfully with %d plugin(s)", flowName, len(results))
-				fmt.Fprintf(w, "Flow '%s' executed successfully with %d plugin(s)\n",
-					flowName, len(results))
-			} else {
-				logger.Warnf("Flow '%s' executed with errors", flowName)
-				fmt.Fprintf(w, "Flow '%s' executed with errors. Check server logs for details.\n",
-					flowName)
-			}
-			return
-		} else if outputFormat == "verbose" {
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-
-			var formattedOutput strings.Builder
-			formattedOutput.WriteString(fmt.Sprintf("Flow result: %s\n\n", flowName))
-
-			for _, res := range results {
-				if result, ok := res.(map[string]interface{}); ok {
-					plugin := result["plugin"].(string)
-					formattedOutput.WriteString(fmt.Sprintf("Plugin: %s\n", plugin))
-
-					if formatted, ok := result["formatted_result"].(string); ok && formatted != "" {
-						formattedOutput.WriteString(formatted)
-					} else if err, ok := result["error"].(string); ok {
-						formattedOutput.WriteString(fmt.Sprintf("❌ Error: %s\n", err))
-					} else {
-						formattedOutput.WriteString(fmt.Sprintf("Result: %v\n", result["result"]))
-					}
-					formattedOutput.WriteString("\n")
-				}
-			}
-
-			fmt.Fprint(w, formattedOutput.String())
-			return
-		}
 
 		w.Header().Set("Content-Type", "application/json")
 

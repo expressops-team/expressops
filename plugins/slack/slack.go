@@ -140,11 +140,10 @@ func (s *SlackPlugin) Execute(ctx context.Context, _ *http.Request, shared *map[
 
 // FormatResult follows the original implementation
 func (s *SlackPlugin) FormatResult(result interface{}) (string, error) {
-	// Podrías hacer este formato más útil si el resultado es el mapa que devolvemos ahora
 	if resultMap, ok := result.(map[string]interface{}); ok {
-		return fmt.Sprintf("Resultado Slack: Status=%v", resultMap["status"]), nil
+		return fmt.Sprintf("Slack Result: Status=%v", resultMap["status"]), nil
 	}
-	return fmt.Sprintf("Resultado Slack: %v", result), nil
+	return fmt.Sprintf("Slack Result: %v", result), nil
 }
 
 // PluginInstance follows the original implementation

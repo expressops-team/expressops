@@ -14,11 +14,6 @@ func main() {
 	// Initialize logrus logger
 	logger := logrus.New()
 	logger.Out = os.Stdout
-	logger.SetFormatter(&logrus.TextFormatter{
-		TimestampFormat: "2006-01-02 15:04:05",
-		FullTimestamp:   true,
-	})
-	logger.SetLevel(logrus.DebugLevel) // set the log level to debug
 
 	ctx := context.Background() // creates a new context to manage timeouts, cancelaciones, etc.
 
@@ -32,6 +27,26 @@ func main() {
 	if err != nil {
 		logger.Fatalf("Error loading configuration: %v", err)
 	}
+
+	var formatter logrus.Formatter
+	switch cfg.Logging.Format {
+	case "json":
+		formatter = &logrus.JSONFormatter{}
+	case "verbose":
+		formatter = &logrus.TextFormatter{
+			ForceColors:     true,
+			FullTimestamp:   true,
+			TimestampFormat: "2006-01-02 15:04:05",
+		}
+	default: // fallback to plain text
+		formatter = &logrus.TextFormatter{
+			FullTimestamp:   true,
+			TimestampFormat: "2006-01-02 15:04:05",
+		}
+	}
+	logger.SetFormatter(formatter)
+
+	logger.SetLevel(logrus.DebugLevel) // set the log level to debug
 
 	// 2º start the server
 	server.StartServer(cfg, logger)
