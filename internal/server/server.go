@@ -36,7 +36,7 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		logger.Info("Request received at root path")
-		fmt.Fprintf(w, "Expressops activo 🟢 \n")
+		fmt.Fprintf(w, "Expressops active 🟢 \n")
 
 	})
 
@@ -98,7 +98,7 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 
 		flowName := r.URL.Query().Get("flowName")
 		if flowName == "" {
-			http.Error(w, "Debe indicar flowName", http.StatusBadRequest)
+			http.Error(w, "Must indicate flowName", http.StatusBadRequest)
 			return
 		}
 
