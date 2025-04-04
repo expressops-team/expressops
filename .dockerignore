@@ -1,0 +1,34 @@
+# Compiled binaries and plugins
+*.exe
+*.out
+*.test
+*.so
+plugins/**/*.so
+
+# Git metadata
+.git
+.gitignore
+
+# Logs and temp files
+*.log
+*.swp
+*.swo
+
+# Local environment/config files
+.env
+*.project
+*.settings
+
+# Editor/IDE directories
+.vscode/
+.vs/
+*.idea/
+
+# Build tools or scripts not needed in the image
+.plugin_builder/
+
+# Docs and assets (not required at runtime)
+README.md
+LICENSE
+docs/
+
