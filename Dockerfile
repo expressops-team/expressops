@@ -18,5 +18,6 @@ COPY --from=builder /app/expressops .
 COPY docs/samples/config.yaml ./config.yaml
 COPY --from=builder /app/plugins/ plugins/
 ENTRYPOINT [ "./expressops" ]
+CMD [ "-config", "/app/config.yaml" ]
 EXPOSE 8080
 
