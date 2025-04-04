@@ -45,6 +45,7 @@ func (p *LogCleaner) Initialize(ctx context.Context, config map[string]interface
 	return nil
 }
 
+// Execute cleans old log files and compresses weekly logs
 func (p *LogCleaner) Execute(ctx context.Context, r *http.Request, shared *map[string]interface{}) (interface{}, error) {
 	var maxAgeDays int = p.maxAgeDays
 	var targetDir string = p.baseDir
@@ -147,6 +148,7 @@ func (p *LogCleaner) Execute(ctx context.Context, r *http.Request, shared *map[s
 	}, nil
 }
 
+// zipWeeklyLogs compresses log files from the current week into a single archive
 func (p *LogCleaner) zipWeeklyLogs(logsDir, zipDir string) ([]string, error) {
 	if err := os.MkdirAll(zipDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create zip directory: %v", err)
@@ -244,6 +246,7 @@ func (p *LogCleaner) zipWeeklyLogs(logsDir, zipDir string) ([]string, error) {
 	return zippedFiles, nil
 }
 
+// user-friendly output message describing the cleanup operation
 func (p *LogCleaner) FormatResult(result interface{}) (string, error) {
 	if resultMap, ok := result.(map[string]interface{}); ok {
 		count, _ := resultMap["files_deleted"].(int)

@@ -246,6 +246,7 @@ func (p *LogFileCreator) Execute(ctx context.Context, r *http.Request, shared *m
 	}, nil
 }
 
+// user-friendly message about where logs were created
 func (p *LogFileCreator) FormatResult(result interface{}) (string, error) {
 	if resultMap, ok := result.(map[string]interface{}); ok {
 		if dir, ok := resultMap["date_dir"].(string); ok {

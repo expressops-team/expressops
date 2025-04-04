@@ -1,6 +1,6 @@
 logging:
   level: info
-  format: json
+  format: text # bcs logger is initialized with text formatter
 
 
 server:

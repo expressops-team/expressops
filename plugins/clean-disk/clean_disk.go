@@ -23,6 +23,35 @@ type CleanDisk struct {
 	done    chan bool
 }
 
+func (c *CleanDisk) Initialize(ctx context.Context, params map[string]interface{}, logger *logrus.Logger) error {
+	c.logger = logger
+	c.done = make(chan bool)
+	c.ticker = time.NewTicker(24 * time.Hour)
+
+	logger.Info("Initializing CleanDisk plugin")
+	go func() {
+		for {
+			select {
+			case <-c.ticker.C:
+				if err := c.cleanDisk(logger, params); err != nil {
+					logger.Errorf("Cleanup failed: %v", err)
+				}
+				logger.Info("Cleanup completed successfully 😎 \n")
+			case <-c.done:
+				c.ticker.Stop()
+				return
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (c *CleanDisk) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
+	return nil, c.cleanDisk(c.logger, *shared)
+}
+
+// cleanDisk removes temporary and cache files from the system
 func (c *CleanDisk) cleanDisk(logger *logrus.Logger, params map[string]interface{}) error {
 	logger.Info("Starting disk cleanup")
 
@@ -79,38 +108,11 @@ func cleanDirectory(dir string, logger *logrus.Logger) error {
 	return nil
 }
 
-func (c *CleanDisk) Initialize(ctx context.Context, params map[string]interface{}, logger *logrus.Logger) error {
-	c.logger = logger
-	c.done = make(chan bool)
-	c.ticker = time.NewTicker(24 * time.Hour)
-
-	logger.Info("Initializing CleanDisk plugin")
-	go func() {
-		for {
-			select {
-			case <-c.ticker.C:
-				if err := c.cleanDisk(logger, params); err != nil {
-					logger.Errorf("Cleanup failed: %v", err)
-				}
-				logger.Info("Cleanup completed successfully 😎 \n")
-			case <-c.done:
-				c.ticker.Stop()
-				return
-			}
-		}
-	}()
-
-	return nil
-}
-
-func (c *CleanDisk) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
-	return nil, c.cleanDisk(c.logger, *shared)
-}
-
 func (c *CleanDisk) Name() string {
 	return "clean-disk"
 }
 
+// FormatResult formats the result of the cleanup operation
 func (c *CleanDisk) FormatResult(result interface{}) (string, error) {
 	return "", nil
 }
