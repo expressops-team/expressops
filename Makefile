@@ -1,3 +1,4 @@
+# docker run -d --name expressops-demo -p 8080:8080 expressops:latest   <-- for testing
 # make build-plugins // make run // make clean // make help // make docker-build // make docker-run
 
 # make run <===

@@ -5,8 +5,8 @@ WORKDIR /app
 COPY ["go.mod", "go.sum", "./"]
 RUN go mod download
 COPY . .
-
-RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u); do \
+# find every plugin and build it
+RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u); do \ 
       for gofile in $dir/*.go; do \
         if [ -f "$gofile" ]; then \
           plugin_name=$(basename "$gofile" .go); \
@@ -25,6 +25,7 @@ WORKDIR /app
 COPY --from=builder /app/expressops .
 COPY --from=builder /app/plugins /app/plugins
 
+# create a minimal config file, to not put it manually
 RUN echo 'logging:' > /app/config.yaml && \
     echo '  level: info' >> /app/config.yaml && \
     echo '  format: text' >> /app/config.yaml && \
