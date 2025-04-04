@@ -21,12 +21,10 @@ var flowRegistry map[string]v1alpha1.Flow
 // initializeFlowRegistry carga los flujos definidos en el archivo de configuración
 func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	flowRegistry = make(map[string]v1alpha1.Flow)
-	logger.Info("") // whitespace
 	for _, flow := range cfg.Flows {
 		flowRegistry[flow.Name] = flow
 		logger.Infof("Flow registered: %s", flow.Name)
 	}
-	logger.Info("") // whitespace
 }
 
 func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
@@ -34,43 +32,13 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 
 	address := fmt.Sprintf("%s:%d", cfg.Server.Address, cfg.Server.Port)
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		logger.Info("Request received at root path")
-		fmt.Fprintf(w, "Expressops active 🟢 \n")
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		logger.Info("Health check request received")
 
+		// You could add actual health checks here
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte("OK"))
 	})
-
-	for _, pluginConf := range cfg.Plugins {
-		pluginName := pluginConf.Name
-		route := "/flows/" + pluginName
-
-		http.HandleFunc(route, func(name string) http.HandlerFunc {
-			return func(w http.ResponseWriter, r *http.Request) {
-				ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-				defer cancel()
-				// some error handlings
-				if r.Method != http.MethodGet {
-					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-					return
-				}
-
-				plugin, err := pluginManager.GetPlugin(name)
-				if err != nil {
-					http.Error(w, "Plugin not found", http.StatusNotFound)
-					return
-				}
-
-				result, err := plugin.Execute(ctx, r, &map[string]any{})
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-
-				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(result)
-			}
-		}(pluginName))
-	}
 
 	timeout := time.Duration(cfg.Server.TimeoutSec) * time.Second
 
@@ -79,7 +47,6 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	logger.Infof("Server listening on http://%s", address)
 
 	// help for the user
-	logger.Info("Template for flows:")
 	logger.Infof("➡️ curl http://%s/flow?flowName=<flow_name> ⬅️", address)
 
 	srv := &http.Server{Addr: address}

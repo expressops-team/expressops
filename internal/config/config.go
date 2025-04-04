@@ -13,6 +13,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// InitializeLogger creates a basic logger with default configuration
+func InitializeLogger() *logrus.Logger {
+	logger := logrus.New()
+	logger.Out = os.Stdout
+
+	// Use basic text formatter initially
+	logger.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+	})
+
+	return logger
+}
+
 // Load the configuration from YAML
 func LoadConfig(ctx context.Context, path string, logger *logrus.Logger) (*v1alpha1.Config, error) {
 	data, err := os.ReadFile(path)
@@ -45,4 +59,29 @@ func LoadConfig(ctx context.Context, path string, logger *logrus.Logger) (*v1alp
 
 	logger.Info("All plugins processed. Final configuration ready.")
 	return &cfg, nil
+}
+func ConfigureLogger(cfg *v1alpha1.Config, logger *logrus.Logger) {
+	// Configure based on config
+	var formatter logrus.Formatter
+	switch cfg.Logging.Format {
+	case "json":
+		formatter = &logrus.JSONFormatter{}
+	default: // plain text
+		formatter = &logrus.TextFormatter{
+			FullTimestamp:   true,
+			TimestampFormat: "2006-01-02 15:04:05",
+		}
+	}
+	logger.SetFormatter(formatter)
+
+	logLevel := logrus.DebugLevel // default level
+
+	if cfg.Logging.Level != "" {
+		if level, err := logrus.ParseLevel(cfg.Logging.Level); err == nil {
+			logLevel = level
+		}
+	}
+
+	logger.SetLevel(logLevel)
+	logger.Infof("Logger configured with format=%s and level=%s", cfg.Logging.Format, logLevel)
 }

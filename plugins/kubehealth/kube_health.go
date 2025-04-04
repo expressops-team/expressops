@@ -20,18 +20,14 @@ type KubeHealthPlugin struct {
 	logger *logrus.Logger
 }
 
-func NewKubeHealthPlugin(logger *logrus.Logger) pluginconf.Plugin {
-	return &KubeHealthPlugin{
-		logger: logger,
-	}
-}
-
+// Initialize sets up the plugin with logger and configuration
 func (p *KubeHealthPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	p.logger = logger
 	p.logger.Info("Initializing KubeHealth Plugin")
 	return nil
 }
 
+// Execute connects to Kubernetes and retrieves pod status information
 func (p *KubeHealthPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
 	namespace := "default"
 	if ns, ok := (*shared)["namespace"].(string); ok {
@@ -74,6 +70,7 @@ func (p *KubeHealthPlugin) Execute(ctx context.Context, request *http.Request, s
 	return results, nil
 }
 
+// FormatResult creates a human-readable representation of pod statuses
 func (p *KubeHealthPlugin) FormatResult(result interface{}) (string, error) {
 	pods, ok := result.([]map[string]string)
 	if !ok {
@@ -90,6 +87,13 @@ func (p *KubeHealthPlugin) FormatResult(result interface{}) (string, error) {
 		sb.WriteString(line)
 	}
 	return sb.String(), nil
+}
+
+// NewKubeHealthPlugin creates a new instance of the KubeHealth plugin
+func NewKubeHealthPlugin(logger *logrus.Logger) pluginconf.Plugin {
+	return &KubeHealthPlugin{
+		logger: logger,
+	}
 }
 
 var PluginInstance = NewKubeHealthPlugin(logrus.New())

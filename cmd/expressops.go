@@ -5,15 +5,12 @@ import (
 	"expressops/internal/config" // imports the internal/config package
 	"expressops/internal/server" // imports the server package
 	"flag"
-	"os"
-
-	"github.com/sirupsen/logrus" //logger
+	//logger
 )
 
 func main() {
-	// Initialize logrus logger
-	logger := logrus.New()
-	logger.Out = os.Stdout
+	// Initialize basic logger
+	logger := config.InitializeLogger()
 
 	ctx := context.Background() // creates a new context to manage timeouts, cancelaciones, etc.
 
@@ -28,25 +25,9 @@ func main() {
 		logger.Fatalf("Error loading configuration: %v", err)
 	}
 
-	var formatter logrus.Formatter
-	switch cfg.Logging.Format {
-	case "json":
-		formatter = &logrus.JSONFormatter{}
-	case "verbose":
-		formatter = &logrus.TextFormatter{
-			FullTimestamp:   true,
-			TimestampFormat: "2006-01-02 15:04:05",
-		}
-	default: // fallback to plain text
-		formatter = &logrus.TextFormatter{
-			FullTimestamp:   true,
-			TimestampFormat: "2006-01-02 15:04:05",
-		}
-	}
-	logger.SetFormatter(formatter)
+	// 2º configure logger based on loaded config
+	config.ConfigureLogger(cfg, logger)
 
-	logger.SetLevel(logrus.DebugLevel) // set the log level to debug
-
-	// 2º start the server
+	// 3º start the server
 	server.StartServer(cfg, logger)
 }
