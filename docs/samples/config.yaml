@@ -13,45 +13,45 @@ server:
 
 plugins:
   - name: slack-notifier
-    path: plugins/slack/slack.so
+    path: /app/plugins/slack/slack.so
     type: notification
     config:
       webhook_url: $SLACK_WEBHOOK_URL # obligatory env var
       
   - name: health-check-plugin
-    path: plugins/healthcheck/health_check.so
+    path: /app/plugins/healthcheck/health_check.so
     type: health
     config: {}
 
   - name: sleep-plugin
-    path: plugins/sleep/sleep_plugin.so
+    path: /app/plugins/sleep/sleep_plugin.so
     type: test
     config: 
-      duration_seconds: ${SLEEP_DURATION:-10}  # Sleep duration in seconds
- 
+      duration_seconds: 10 
+  
   - #name: kube-health-plugin
-    #path: plugins/kubehealth/kube_health.so
+    #path: /app/plugins/kubehealth/kube_health.so
     #type: k8s
     #config: {}
 
   - name: test-print-plugin
-    path: plugins/testprint/testprint.so
+    path: /app/plugins/testprint/testprint.so
     type: test
     config: {}
 
   - name: formatter-plugin
-    path: plugins/formatters/health_alert_formatter.so
+    path: /app/plugins/formatters/health_alert_formatter.so
     type: utils
     config: {}
     
   - name: logfilecreator
-    path: plugins/logfilecreator/logfilecreator.so
+    path: /app/plugins/logfilecreator/logfilecreator.so
     type: utils
     config:
       log_dir: "logs"
       
   - name: logcleaner
-    path: plugins/logcleaner/logcleaner.so
+    path: /app/plugins/logcleaner/logcleaner.so
     type: utils
     config:
       log_dir: "logs"

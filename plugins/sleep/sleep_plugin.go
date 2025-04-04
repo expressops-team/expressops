@@ -22,7 +22,13 @@ func (p *SleepPlugin) Initialize(ctx context.Context, config map[string]interfac
 
 func (p *SleepPlugin) Execute(ctx context.Context, req *http.Request, shared *map[string]any) (any, error) {
 	p.logger.Info("Sleep Plugin starting to sleep")
-	duration := 10 * time.Second // We slept for 10 seconds
+
+	configDuration, ok := (*shared)["duration_seconds"].(int)
+	if !ok || configDuration <= 0 {
+		configDuration = 10
+	}
+
+	duration := time.Duration(configDuration) * time.Second
 
 	select {
 	case <-time.After(duration):

@@ -24,11 +24,8 @@ plugins/**/*.so
 .vs/
 *.idea/
 
-# Build tools or scripts not needed in the image
-.plugin_builder/
 
 # Docs and assets (not required at runtime)
 README.md
 LICENSE
-docs/
 
