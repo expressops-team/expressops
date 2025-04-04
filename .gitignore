@@ -1,4 +1,4 @@
-# Ignorar archivos compilados de plugins (.so)
+# Ignore compiled plugin files (.so)
 plugins/**/*.so
 
 # Compiled Go binary
