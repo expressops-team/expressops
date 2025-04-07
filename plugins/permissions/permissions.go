@@ -80,7 +80,7 @@ func (p *PermissionsPlugin) Execute(ctx context.Context, request *http.Request, 
 	if enablePermissionsFeature == 0 {
 		p.logger.Info("Permissions feature is disabled, returning GCP integration message")
 		message := map[string]interface{}{
-			"message": "🚧 Próximamente: Integración con Google Cloud Platform (GCP) 🚧\n\n" +
+			"message": "🚧 Coming soon: Integration with Google Cloud Platform (GCP) 🚧\n\n" +
 				"🔄 Working on implementing permissions directly to GCP.\n" +
 				"🔐 This functionality will allow managing permissions at the project and folder level.\n" +
 				"📅 Available in the future.\n\n" +
