@@ -10,68 +10,103 @@ YELLOW = \033[33m
 RESET = \033[0m
 PRINT = @echo 
 
-# Docker variables
-IMAGE_NAME = expressops
-TAG = latest
-CONTAINER_NAME = expressops-app
-DOCKER_PORT = 8080
-HOST_PORT = 8080
+# Configurable variables (can be overridden with environment variables)
+IMAGE_NAME ?= expressops
+CONTAINER_NAME ?= expressops-app
+HOST_PORT ?= 8080
+SERVER_PORT ?= 8080
+SERVER_ADDRESS ?= 0.0.0.0
+TIMEOUT_SECONDS ?= 4
+LOG_LEVEL ?= info
+LOG_FORMAT ?= text
+SLACK_WEBHOOK_URL ?= 
+CONFIG_PATH ?= docs/samples/config.yaml
+CONFIG_MOUNT_PATH ?= /app/config.yaml
 
-.PHONY: build-plugins run clean help docker-build docker-run docker-clean docker-compose
+.PHONY: build run docker-build docker-run docker-clean help
 
-build-plugins:
-	$(PRINT) "$(BLUE)Building plugins...$(RESET)"
-	@for dir in $(shell find plugins -type f -name "*.go" -exec dirname {} \; | sort -u); do \
+# Build plugins and application locally
+build:
+	@echo "Cleaning previous plugins..."
+	@find plugins -name "*.so" -delete
+	@echo "Building plugins..."
+	@for dir in $$(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u); do \
 		for gofile in $$dir/*.go; do \
 			if [ -f "$$gofile" ]; then \
 				plugin_name=$$(basename "$$gofile" .go); \
-				go build -buildmode=plugin -o "$$dir/$$plugin_name.so" "$$gofile"; \
+				echo "Building plugin $$plugin_name.so from $$gofile"; \
+				CGO_ENABLED=1 GOOS=linux go build -buildmode=plugin -o "$$dir/$$plugin_name.so" "$$gofile" || exit 1; \
 			fi \
 		done \
 	done
-	$(PRINT) "$(GREEN)✨ Plugins built$(RESET)"
+	@echo "Verifying compiled plugins:"
+	@find plugins -name "*.so" | sort
+	@echo "Building main application..."
+	@go build -o expressops ./cmd
+	@echo "✅ Build completed"
 
-run: build-plugins
-	$(PRINT) "$(YELLOW)🎉 Running ExpressOps$(RESET)"
-	go run cmd/expressops.go
+# Run the application locally
+run: build
+	@echo "🚀 Starting ExpressOps"
+	./expressops -config $(CONFIG_PATH)
 
-clean:
-	$(PRINT) "$(YELLOW)🧹 Cleaning plugins$(RESET)"
-	find plugins -name "*.so" -type f -delete
-	$(PRINT) "$(GREEN)✅ Cleanup complete$(RESET)"
-
+# Build Docker image
 docker-build:
-	$(PRINT) "$(BLUE)🐳 Building Docker image...$(RESET)"
-	docker build -t $(IMAGE_NAME):$(TAG) .
-	$(PRINT) "$(GREEN)✅ Docker image built: $(IMAGE_NAME):$(TAG)$(RESET)"
+	@echo "🐳 Building Docker image..."
+	docker build \
+		--build-arg SERVER_PORT=$(SERVER_PORT) \
+		--build-arg SERVER_ADDRESS=$(SERVER_ADDRESS) \
+		--build-arg TIMEOUT_SECONDS=$(TIMEOUT_SECONDS) \
+		--build-arg LOG_LEVEL=$(LOG_LEVEL) \
+		--build-arg LOG_FORMAT=$(LOG_FORMAT) \
+		--build-arg CONFIG_PATH=$(CONFIG_MOUNT_PATH) \
+		-t $(IMAGE_NAME):latest .
+	@echo "✅ Image built: $(IMAGE_NAME):latest"
 
+# Run Docker container
 docker-run: docker-build
-	$(PRINT) "$(YELLOW)🚀 Running container from image: $(IMAGE_NAME):$(TAG)$(RESET)"
-	docker run --name $(CONTAINER_NAME) -p $(HOST_PORT):$(DOCKER_PORT) \
-		-e SLACK_WEBHOOK_URL \
-		-e SLEEP_DURATION \
-		--rm $(IMAGE_NAME):$(TAG)
+	@echo "🚀 Starting container..."
+	@echo "📌 Application available at http://localhost:$(HOST_PORT)"
+	docker run --name $(CONTAINER_NAME) \
+		-p $(HOST_PORT):$(SERVER_PORT) \
+		-e SERVER_PORT=$(SERVER_PORT) \
+		-e SERVER_ADDRESS=$(SERVER_ADDRESS) \
+		-e TIMEOUT_SECONDS=$(TIMEOUT_SECONDS) \
+		-e LOG_LEVEL=$(LOG_LEVEL) \
+		-e LOG_FORMAT=$(LOG_FORMAT) \
+		-e SLACK_WEBHOOK_URL=$(SLACK_WEBHOOK_URL) \
+		-v $(PWD)/$(CONFIG_PATH):$(CONFIG_MOUNT_PATH) \
+		--rm $(IMAGE_NAME):latest
 
+# Clean Docker resources
 docker-clean:
-	$(PRINT) "$(YELLOW)🧹 Cleaning Docker resources$(RESET)"
+	@echo "🧹 Cleaning Docker resources..."
 	-docker stop $(CONTAINER_NAME) 2>/dev/null || true
 	-docker rm $(CONTAINER_NAME) 2>/dev/null || true
-	-docker rmi $(IMAGE_NAME):$(TAG) 2>/dev/null || true
-	$(PRINT) "$(GREEN)✅ Docker cleanup complete$(RESET)"
+	-docker rmi $(IMAGE_NAME):latest 2>/dev/null || true
+	@echo "✅ Cleanup completed"
 
-# Example of a docker-compose target that can be expanded later
-docker-compose:
-	$(PRINT) "$(BLUE)🔄 Starting services with Docker Compose...$(RESET)"
-	docker-compose up --build
-
+# Help
 help:
-	@echo "make build-plugins - Build plugins"
-	@echo "make run          - Build and run"
-	@echo "make clean        - Clean .so files"
-	@echo "make docker-build - Build Docker image"
-	@echo "make docker-run   - Run container (builds image if needed)"
-	@echo "make docker-clean - Clean Docker containers and images"
-	@echo "make docker-compose - Run with Docker Compose"
-	@echo "make help         - Help"
+	@echo "Available commands:"
+	@echo "================================================"
+	@echo "  make help          - Show this help"
+	@echo "  make build         - Build plugins and application"
+	@echo "  make run           - Run application locally"
+	@echo "  make docker-build  - Build Docker image"
+	@echo "  make docker-run    - Run container"
+	@echo
+	@echo "Configurable variables (current values):"
+	@echo "  IMAGE_NAME       = $(IMAGE_NAME)"
+	@echo "  CONTAINER_NAME   = $(CONTAINER_NAME)"
+	@echo "  HOST_PORT        = $(HOST_PORT)"
+	@echo "  SERVER_PORT      = $(SERVER_PORT)"
+	@echo "  SERVER_ADDRESS   = $(SERVER_ADDRESS)"
+	@echo "  TIMEOUT_SECONDS  = $(TIMEOUT_SECONDS)"
+	@echo "  LOG_LEVEL        = $(LOG_LEVEL)"
+	@echo "  LOG_FORMAT       = $(LOG_FORMAT)"
+	@echo "  SLACK_WEBHOOK_URL = $(SLACK_WEBHOOK_URL)"
+	@echo "  CONFIG_PATH      = $(CONFIG_PATH)"
+	@echo "  CONFIG_MOUNT_PATH = $(CONFIG_MOUNT_PATH)"
 
-.DEFAULT_GOAL := build-plugins
+.DEFAULT_GOAL := help

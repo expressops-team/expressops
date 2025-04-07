@@ -1,3 +1,0 @@
-time="2025-04-04 14:39:38" level=info msg="===== Log entry at 2025-04-04 14:39:38 ====="
-time="2025-04-04 14:39:38" level=info msg="Flow executed: alert-flow"
-time="2025-04-04 14:39:38" level=info msg="Flow parameters:   previous_result: Message sent to Slack"

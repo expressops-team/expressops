@@ -134,7 +134,6 @@ func (s *SlackPlugin) Execute(ctx context.Context, _ *http.Request, shared *map[
 		return nil, fmt.Errorf("slack API error: %s", resp.Status)
 	}
 
-	s.logger.Info("Message sent successfully to Slack.")
 	return "Message sent to Slack", nil
 }
 

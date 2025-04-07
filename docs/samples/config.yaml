@@ -21,7 +21,11 @@ plugins:
   - name: health-check-plugin
     path: plugins/healthcheck/health_check.so
     type: health
-    config: {}
+    config:
+      thresholds:
+        cpu: 90.0
+        memory: 90.0
+        disk: 85.0
 
   - name: sleep-plugin
     path: plugins/sleep/sleep_plugin.so
@@ -42,20 +46,17 @@ plugins:
   - name: formatter-plugin
     path: plugins/formatters/health_alert_formatter.so
     type: utils
-    config: {}
-    
-  - name: logfilecreator
-    path: plugins/logfilecreator/logfilecreator.so
-    type: utils
     config:
-      log_dir: "logs"
-      
-  - name: logcleaner
-    path: plugins/logcleaner/logcleaner.so
-    type: utils
-    config:
-      log_dir: "logs"
-      max_age_days: 30
+      thresholds:
+        cpu:
+          warning: 50
+          critical: 80
+        memory:
+          warning: 60
+          critical: 85
+        disk:
+          warning: 80
+          critical: 90
 
 
 flows:
@@ -63,7 +64,6 @@ flows:
     description: "Notify the team when an incident occurs" #rn only for testing
     pipeline:
       - pluginRef: slack-notifier
-      - pluginRef: logfilecreator
 
   - name: healthz
     description: "Health check"
@@ -84,12 +84,6 @@ flows:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
       - pluginRef: test-print-plugin # it will be kube-health-plugin in the future :D
-      - pluginRef: logfilecreator
-
-  - name: weekly-cleanup
-    description: "Weekly log zip and cleanup"
-    pipeline:
-      - pluginRef: logcleaner
 
   - name: alert-flow
     description: "Health check with notification"
@@ -97,8 +91,3 @@ flows:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
       - pluginRef: slack-notifier
-
-  - name: logs-view
-    description: "View and manage logs"
-    pipeline:
-      - pluginRef: logcleaner
