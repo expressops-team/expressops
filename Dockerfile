@@ -15,7 +15,9 @@ RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u
       done \
     done
 
+
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o expressops ./cmd
+
 RUN upx expressops || echo "UPX compression failed, continuing anyway"
 
 FROM alpine:3.21
@@ -48,4 +50,6 @@ RUN echo 'logging:' > /app/config.yaml && \
 VOLUME ["/app/logs"]
 EXPOSE 8080
 ENTRYPOINT ["./expressops"]
+
 CMD ["-config", "/app/config.yaml"]
+

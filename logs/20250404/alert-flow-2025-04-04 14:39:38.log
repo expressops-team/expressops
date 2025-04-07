@@ -1,0 +1,41 @@
+===== Formatted output from alert-flow at 2025-04-04 14:39:38 =====
+
+✨ Health Status Report ✨
+
+🔍 Health Checks:
+  cpu: ✅ OK
+  memory: ✅ OK
+  disk: ✅ OK
+
+🖥️  CPU Usage:
+  Usage: 5.67%
+
+🧠 Memory Usage:
+  Total: 15.26 GB
+  Used:  4.72 GB
+  Free:  1.21 GB
+  Usage: 30.91%
+
+💽 Disk Usage:
+  /app/logs:
+    Usage: 12.97%
+    Total: 465.36 GB
+    Free:  384.37 GB
+  /app/config.yaml:
+    Usage: 12.97%
+    Total: 465.36 GB
+    Free:  384.37 GB
+  /etc/resolv.conf:
+    Usage: 12.97%
+    Total: 465.36 GB
+    Free:  384.37 GB
+  /etc/hostname:
+    Usage: 12.97%
+    Total: 465.36 GB
+    Free:  384.37 GB
+  /etc/hosts:
+    Usage: 12.97%
+    Total: 465.36 GB
+    Free:  384.37 GB
+
+✅ All systems operational!
