@@ -1,12 +1,11 @@
 FROM golang:1.24.2-alpine3.21 AS builder
 RUN apk add --no-cache git upx build-base
-ENV GOTOOLCHAIN=auto
 WORKDIR /app
 COPY ["go.mod", "go.sum", "./"]
 RUN go mod download
 COPY . .
-# find every plugin and build it
-RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u); do \ 
+# Compilar plugins
+RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u); do \
       for gofile in $dir/*.go; do \
         if [ -f "$gofile" ]; then \
           plugin_name=$(basename "$gofile" .go); \
@@ -14,42 +13,45 @@ RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u
         fi \
       done \
     done
+<<<<<<< HEAD
 
 
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o expressops ./cmd
 
 RUN upx expressops || echo "UPX compression failed, continuing anyway"
+=======
+# Compilar aplicación principal
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o expressops ./cmd
+>>>>>>> db06aae (NO LOG PLUGIN // NOT WORKING)
 
 FROM alpine:3.21
-LABEL Name=expressops
-RUN apk --no-cache add ca-certificates tzdata && mkdir -p /app/logs
+
+# Variables configurables mediante build args
+ARG SERVER_PORT=8080
+ARG SERVER_ADDRESS=0.0.0.0
+ARG TIMEOUT_SECONDS=4
+ARG LOG_LEVEL=info
+ARG LOG_FORMAT=text
+
+RUN apk --no-cache add ca-certificates tzdata curl
 WORKDIR /app
 COPY --from=builder /app/expressops .
 COPY --from=builder /app/plugins /app/plugins
+COPY docs/samples/config.yaml /app/config.yaml
 
-# create a minimal config file, to not put it manually
-RUN echo 'logging:' > /app/config.yaml && \
-    echo '  level: info' >> /app/config.yaml && \
-    echo '  format: text' >> /app/config.yaml && \
-    echo '' >> /app/config.yaml && \
-    echo 'server:' >> /app/config.yaml && \
-    echo '  port: 8080' >> /app/config.yaml && \
-    echo '  address: 0.0.0.0' >> /app/config.yaml && \
-    echo '  timeoutSeconds: 4' >> /app/config.yaml && \
-    echo '' >> /app/config.yaml && \
-    echo '  http:' >> /app/config.yaml && \
-    echo '    protocolVersion: 2' >> /app/config.yaml && \
-    echo '' >> /app/config.yaml && \
-    echo 'plugins: []' >> /app/config.yaml && \
-    echo '' >> /app/config.yaml && \
-    echo 'flows:' >> /app/config.yaml && \
-    echo '  - name: healthz' >> /app/config.yaml && \
-    echo '    description: "Health check"' >> /app/config.yaml && \
-    echo '    pipeline: []' >> /app/config.yaml
+# Configurar variables en tiempo de construcción
+ENV SERVER_PORT=${SERVER_PORT}
+ENV SERVER_ADDRESS=${SERVER_ADDRESS}
+ENV TIMEOUT_SECONDS=${TIMEOUT_SECONDS}
+ENV LOG_LEVEL=${LOG_LEVEL}
+ENV LOG_FORMAT=${LOG_FORMAT}
 
-VOLUME ["/app/logs"]
-EXPOSE 8080
+EXPOSE ${SERVER_PORT}
 ENTRYPOINT ["./expressops"]
+<<<<<<< HEAD
 
 CMD ["-config", "/app/config.yaml"]
 
+=======
+CMD ["-config", "/docs/samples/config.yaml"]
+>>>>>>> db06aae (NO LOG PLUGIN // NOT WORKING)

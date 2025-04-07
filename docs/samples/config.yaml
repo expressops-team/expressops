@@ -43,19 +43,6 @@ plugins:
     path: plugins/formatters/health_alert_formatter.so
     type: utils
     config: {}
-    
-  - name: logfilecreator
-    path: plugins/logfilecreator/logfilecreator.so
-    type: utils
-    config:
-      log_dir: "logs"
-      
-  - name: logcleaner
-    path: plugins/logcleaner/logcleaner.so
-    type: utils
-    config:
-      log_dir: "logs"
-      max_age_days: 30
 
 
 flows:
@@ -63,7 +50,6 @@ flows:
     description: "Notify the team when an incident occurs" #rn only for testing
     pipeline:
       - pluginRef: slack-notifier
-      - pluginRef: logfilecreator
 
   - name: healthz
     description: "Health check"
@@ -84,21 +70,19 @@ flows:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
       - pluginRef: test-print-plugin # it will be kube-health-plugin in the future :D
-      - pluginRef: logfilecreator
-
-  - name: weekly-cleanup
-    description: "Weekly log zip and cleanup"
-    pipeline:
-      - pluginRef: logcleaner
 
   - name: alert-flow
     description: "Health check with notification"
     pipeline:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
+<<<<<<< HEAD
       - pluginRef: slack-notifier
 
   - name: logs-view
     description: "View and manage logs"
     pipeline:
       - pluginRef: logcleaner
+=======
+      - pluginRef: slack-notifier
+>>>>>>> db06aae (NO LOG PLUGIN // NOT WORKING)
