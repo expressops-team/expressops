@@ -17,7 +17,7 @@ ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plug
 
 ## 🧭 Architecture Overview
 
-![ExpressOps Architecture](docs/img/architecture.png)
+![Functional perspective ](docs/img/architecture.png)
 
 
 ## ✨ Features

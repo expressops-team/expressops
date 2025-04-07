@@ -97,7 +97,6 @@ flows:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
       - pluginRef: slack-notifier
-      - pluginRef: logfilecreator
 
   - name: logs-view
     description: "View and manage logs"
