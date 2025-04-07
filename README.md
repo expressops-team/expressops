@@ -29,8 +29,6 @@ ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plug
   - **slack-notifier**: sends messages to a Slack channel.
   - **sleep-plugin**: delays flow execution to test timeouts.
   - **test-print-plugin**: debug plugin that prints test data.
-  - **logfilecreator**: generates daily logs per flow/plugin.
-  - **logcleaner**: deletes old log files to save disk space.
 - ⚙️ YAML-based flow configuration (define execution pipelines).
 - 🌐 HTTP server with endpoints to trigger flows dynamically.
 - 📜 Detailed logging for debugging and traceability.
@@ -103,7 +101,6 @@ This flow performs:
 
 3. Prints a test message
 
-4. Saves results into a log file
 ```bash
 curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
 ```

@@ -10,7 +10,7 @@ YELLOW = \033[33m
 RESET = \033[0m
 PRINT = @echo 
 
-# Variables configurables (se pueden sobrescribir con variables de entorno)
+# Configurable variables (can be overridden with environment variables)
 IMAGE_NAME ?= expressops
 CONTAINER_NAME ?= expressops-app
 HOST_PORT ?= 8080
@@ -19,45 +19,54 @@ SERVER_ADDRESS ?= 0.0.0.0
 TIMEOUT_SECONDS ?= 4
 LOG_LEVEL ?= info
 LOG_FORMAT ?= text
+SLACK_WEBHOOK_URL ?= 
+CONFIG_PATH ?= docs/samples/config.yaml
+CONFIG_MOUNT_PATH ?= /app/config.yaml
 
 .PHONY: build run docker-build docker-run docker-clean help
 
-# Compilar plugins y la aplicación localmente
+# Build plugins and application locally
 build:
-	@echo "Compilando plugins..."
+	@echo "Cleaning previous plugins..."
+	@find plugins -name "*.so" -delete
+	@echo "Building plugins..."
 	@for dir in $$(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u); do \
 		for gofile in $$dir/*.go; do \
 			if [ -f "$$gofile" ]; then \
 				plugin_name=$$(basename "$$gofile" .go); \
-				go build -buildmode=plugin -o "$$dir/$$plugin_name.so" "$$gofile"; \
+				echo "Building plugin $$plugin_name.so from $$gofile"; \
+				CGO_ENABLED=1 GOOS=linux go build -buildmode=plugin -o "$$dir/$$plugin_name.so" "$$gofile" || exit 1; \
 			fi \
 		done \
 	done
-	@echo "Compilando aplicación..."
+	@echo "Verifying compiled plugins:"
+	@find plugins -name "*.so" | sort
+	@echo "Building main application..."
 	@go build -o expressops ./cmd
-	@echo "✅ Compilación completada"
+	@echo "✅ Build completed"
 
-# Ejecutar la aplicación localmente
+# Run the application locally
 run: build
-	@echo "🚀 Iniciando ExpressOps"
-	./expressops -config docs/samples/config.yaml
+	@echo "🚀 Starting ExpressOps"
+	./expressops -config $(CONFIG_PATH)
 
-# Construir imagen Docker
+# Build Docker image
 docker-build:
-	@echo "🐳 Construyendo imagen Docker..."
+	@echo "🐳 Building Docker image..."
 	docker build \
 		--build-arg SERVER_PORT=$(SERVER_PORT) \
 		--build-arg SERVER_ADDRESS=$(SERVER_ADDRESS) \
 		--build-arg TIMEOUT_SECONDS=$(TIMEOUT_SECONDS) \
 		--build-arg LOG_LEVEL=$(LOG_LEVEL) \
 		--build-arg LOG_FORMAT=$(LOG_FORMAT) \
+		--build-arg CONFIG_PATH=$(CONFIG_MOUNT_PATH) \
 		-t $(IMAGE_NAME):latest .
-	@echo "✅ Imagen construida: $(IMAGE_NAME):latest"
+	@echo "✅ Image built: $(IMAGE_NAME):latest"
 
-# Ejecutar contenedor Docker
+# Run Docker container
 docker-run: docker-build
-	@echo "🚀 Iniciando contenedor..."
-	@echo "📌 Aplicación disponible en http://localhost:$(HOST_PORT)"
+	@echo "🚀 Starting container..."
+	@echo "📌 Application available at http://localhost:$(HOST_PORT)"
 	docker run --name $(CONTAINER_NAME) \
 		-p $(HOST_PORT):$(SERVER_PORT) \
 		-e SERVER_PORT=$(SERVER_PORT) \
@@ -65,26 +74,29 @@ docker-run: docker-build
 		-e TIMEOUT_SECONDS=$(TIMEOUT_SECONDS) \
 		-e LOG_LEVEL=$(LOG_LEVEL) \
 		-e LOG_FORMAT=$(LOG_FORMAT) \
-		-v $(PWD)/docs/samples:/app/config \
+		-e SLACK_WEBHOOK_URL=$(SLACK_WEBHOOK_URL) \
+		-v $(PWD)/$(CONFIG_PATH):$(CONFIG_MOUNT_PATH) \
 		--rm $(IMAGE_NAME):latest
 
-# Limpiar recursos Docker
+# Clean Docker resources
 docker-clean:
-	@echo "🧹 Limpiando recursos Docker..."
+	@echo "🧹 Cleaning Docker resources..."
 	-docker stop $(CONTAINER_NAME) 2>/dev/null || true
 	-docker rm $(CONTAINER_NAME) 2>/dev/null || true
 	-docker rmi $(IMAGE_NAME):latest 2>/dev/null || true
-	@echo "✅ Limpieza completada"
+	@echo "✅ Cleanup completed"
 
-# Ayuda
+# Help
 help:
-	@echo "Comandos disponibles:"
-	@echo "  make build         - Compilar plugins y aplicación"
-	@echo "  make run           - Ejecutar aplicación localmente"
-	@echo "  make docker-build  - Construir imagen Docker"
-	@echo "  make docker-run    - Ejecutar contenedor"
+	@echo "Available commands:"
+	@echo "================================================"
+	@echo "  make help          - Show this help"
+	@echo "  make build         - Build plugins and application"
+	@echo "  make run           - Run application locally"
+	@echo "  make docker-build  - Build Docker image"
+	@echo "  make docker-run    - Run container"
 	@echo
-	@echo "Variables configurables (actuales):"
+	@echo "Configurable variables (current values):"
 	@echo "  IMAGE_NAME       = $(IMAGE_NAME)"
 	@echo "  CONTAINER_NAME   = $(CONTAINER_NAME)"
 	@echo "  HOST_PORT        = $(HOST_PORT)"
@@ -93,5 +105,8 @@ help:
 	@echo "  TIMEOUT_SECONDS  = $(TIMEOUT_SECONDS)"
 	@echo "  LOG_LEVEL        = $(LOG_LEVEL)"
 	@echo "  LOG_FORMAT       = $(LOG_FORMAT)"
+	@echo "  SLACK_WEBHOOK_URL = $(SLACK_WEBHOOK_URL)"
+	@echo "  CONFIG_PATH      = $(CONFIG_PATH)"
+	@echo "  CONFIG_MOUNT_PATH = $(CONFIG_MOUNT_PATH)"
 
 .DEFAULT_GOAL := help

@@ -21,7 +21,11 @@ plugins:
   - name: health-check-plugin
     path: plugins/healthcheck/health_check.so
     type: health
-    config: {}
+    config:
+      thresholds:
+        cpu: 90.0
+        memory: 90.0
+        disk: 85.0
 
   - name: sleep-plugin
     path: plugins/sleep/sleep_plugin.so
@@ -42,7 +46,17 @@ plugins:
   - name: formatter-plugin
     path: plugins/formatters/health_alert_formatter.so
     type: utils
-    config: {}
+    config:
+      thresholds:
+        cpu:
+          warning: 50
+          critical: 80
+        memory:
+          warning: 60
+          critical: 85
+        disk:
+          warning: 80
+          critical: 90
 
 
 flows:
@@ -76,13 +90,4 @@ flows:
     pipeline:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
-<<<<<<< HEAD
       - pluginRef: slack-notifier
-
-  - name: logs-view
-    description: "View and manage logs"
-    pipeline:
-      - pluginRef: logcleaner
-=======
-      - pluginRef: slack-notifier
->>>>>>> db06aae (NO LOG PLUGIN // NOT WORKING)

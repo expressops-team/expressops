@@ -191,11 +191,14 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 		}
 
 		results = append(results, result)
-
-		if len(formattedResult) > 100 {
-			logger.Infof("Result from %s: %s...", step.PluginRef, formattedResult[:100])
+		if step.PluginRef == "formatter-plugin" {
+			logger.Infof("Result from %s: [long output, check the slack channel ;D]", step.PluginRef)
 		} else {
-			logger.Infof("Result from %s: %s", step.PluginRef, formattedResult)
+			if len(formattedResult) > 100 {
+				logger.Infof("Result from %s: %s...", step.PluginRef, formattedResult[:100])
+			} else {
+				logger.Infof("Result from %s: %s", step.PluginRef, formattedResult)
+			}
 		}
 
 		lastResult = res

@@ -11,14 +11,78 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// ThresholdLevels defines the threshold levels for metrics
+type ThresholdLevels struct {
+	Warning  float64
+	Critical float64
+}
+
+// DefaultThresholds provides default values for different metrics
+var DefaultThresholds = map[string]ThresholdLevels{
+	"cpu":    {Warning: 50, Critical: 80},
+	"memory": {Warning: 50, Critical: 80},
+	"disk":   {Warning: 80, Critical: 90},
+}
+
 type FormatterPlugin struct {
-	logger *logrus.Logger
+	logger     *logrus.Logger
+	thresholds map[string]ThresholdLevels
+	config     map[string]interface{}
 }
 
 func (f *FormatterPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	f.logger = logger
+	f.config = config
 	f.logger.Info("Initializing Health Formatter Plugin")
+
+	// Initialize thresholds with defaults
+	f.thresholds = make(map[string]ThresholdLevels)
+	for k, v := range DefaultThresholds {
+		f.thresholds[k] = v
+	}
+
+	// Override with config if provided
+	if thresholdsConfig, ok := config["thresholds"].(map[string]interface{}); ok {
+		for metricType, thresholdValues := range thresholdsConfig {
+			if values, ok := thresholdValues.(map[string]interface{}); ok {
+				threshold := ThresholdLevels{}
+
+				if warning, ok := values["warning"].(float64); ok {
+					threshold.Warning = warning
+				}
+
+				if critical, ok := values["critical"].(float64); ok {
+					threshold.Critical = critical
+				}
+
+				f.thresholds[metricType] = threshold
+			}
+		}
+	}
+
 	return nil
+}
+
+func (f *FormatterPlugin) formatPercentage(value float64, metricType string, forLog bool) string {
+	threshold, exists := f.thresholds[metricType]
+	if !exists {
+		return fmt.Sprintf("%.2f%%", value)
+	}
+
+	if forLog {
+		return fmt.Sprintf("%.2f%%", value)
+	}
+
+	if value >= threshold.Critical {
+		return fmt.Sprintf("%.2f%% 🔴 CRITICAL", value)
+	} else if value >= threshold.Warning {
+		return fmt.Sprintf("%.2f%% 🟠 WARNING", value)
+	}
+	return fmt.Sprintf("%.2f%%", value)
+}
+
+func (f *FormatterPlugin) formatSize(value uint64) string {
+	return fmt.Sprintf("%.2f GB", float64(value)/1024/1024/1024)
 }
 
 func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
@@ -30,9 +94,14 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 		return "", fmt.Errorf("no valid _input received")
 	}
 
-	var formatted strings.Builder
+	// Simple log format (single line)
+	var logFormatted strings.Builder
+	logFormatted.WriteString("Health check: ")
+
+	// Rich format for alerts/display
+	var alertFormatted strings.Builder
 	// Clean output ;)
-	formatted.WriteString("\n✨ Health Status Report ✨\n\n")
+	alertFormatted.WriteString("\n✨ Health Status Report ✨\n\n")
 
 	status, ok := input["health_status"].(map[string]string)
 	if !ok {
@@ -41,59 +110,83 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 	}
 
 	hasErrors := false
-	formatted.WriteString("🔍 Health Checks:\n")
+
+	// Process health status checks
+	checksOK := true
+	alertFormatted.WriteString("🔍 Health Checks:\n")
 	for k, v := range status {
 		if v == "OK" {
-			formatted.WriteString(fmt.Sprintf("  %s: ✅ OK\n", k))
+			alertFormatted.WriteString(fmt.Sprintf("  %s: ✅ OK\n", k))
 		} else {
+			checksOK = false
 			hasErrors = true
-			formatted.WriteString(fmt.Sprintf("  %s: ❌ %s\n", k, v))
+			alertFormatted.WriteString(fmt.Sprintf("  %s: ❌ %s\n", k, v))
 		}
 	}
-	formatted.WriteString("\n")
+
+	// Add checks status to log
+	if checksOK {
+		logFormatted.WriteString("Checks:OK ")
+	} else {
+		logFormatted.WriteString("Checks:FAIL ")
+	}
+
+	alertFormatted.WriteString("\n")
 
 	// CPU info
 	if cpuInfo, ok := input["cpu"].(map[string]interface{}); ok {
-		formatted.WriteString("🖥️  CPU Usage:\n")
+		alertFormatted.WriteString("🖥️  CPU Usage:\n")
 		if usage, ok := cpuInfo["usage_percent"].(float64); ok {
-			if usage > 80 {
-				formatted.WriteString(fmt.Sprintf("  Usage: %.2f%% (HIGH)\n", usage))
-			} else if usage > 50 {
-				formatted.WriteString(fmt.Sprintf("  Usage: %.2f%% (MEDIUM)\n", usage))
-			} else {
-				formatted.WriteString(fmt.Sprintf("  Usage: %.2f%%\n", usage))
+			// Check thresholds for errors only
+			cpuThreshold := f.thresholds["cpu"]
+			if usage >= cpuThreshold.Critical || usage >= cpuThreshold.Warning {
+				hasErrors = true
 			}
+
+			// Simpler log format without status indicators
+			logFormatted.WriteString(fmt.Sprintf("CPU:%.1f%% ", usage))
+			alertFormatted.WriteString(fmt.Sprintf("  Usage: %s\n", f.formatPercentage(usage, "cpu", false)))
 		}
-		formatted.WriteString("\n")
+		alertFormatted.WriteString("\n")
 	}
 
 	// Memory info
 	if memInfo, ok := input["memory"].(map[string]interface{}); ok {
-		formatted.WriteString("🧠 Memory Usage:\n")
+		alertFormatted.WriteString("🧠 Memory Usage:\n")
+
+		if usedPercent, ok := memInfo["used_percent"].(float64); ok {
+			// Check thresholds for errors only
+			memThreshold := f.thresholds["memory"]
+			if usedPercent >= memThreshold.Critical || usedPercent >= memThreshold.Warning {
+				hasErrors = true
+			}
+
+			// Simpler log format without status indicators
+			logFormatted.WriteString(fmt.Sprintf("Mem:%.1f%% ", usedPercent))
+			alertFormatted.WriteString(fmt.Sprintf("  Usage: %s\n", f.formatPercentage(usedPercent, "memory", false)))
+		}
+
 		if total, ok := memInfo["total"].(uint64); ok {
-			formatted.WriteString(fmt.Sprintf("  Total: %.2f GB\n", float64(total)/1024/1024/1024))
+			alertFormatted.WriteString(fmt.Sprintf("  Total: %s\n", f.formatSize(total)))
 		}
 		if used, ok := memInfo["used"].(uint64); ok {
-			formatted.WriteString(fmt.Sprintf("  Used:  %.2f GB\n", float64(used)/1024/1024/1024))
+			alertFormatted.WriteString(fmt.Sprintf("  Used:  %s\n", f.formatSize(used)))
 		}
 		if free, ok := memInfo["free"].(uint64); ok {
-			formatted.WriteString(fmt.Sprintf("  Free:  %.2f GB\n", float64(free)/1024/1024/1024))
+			alertFormatted.WriteString(fmt.Sprintf("  Free:  %s\n", f.formatSize(free)))
 		}
-		if usedPercent, ok := memInfo["used_percent"].(float64); ok {
-			if usedPercent > 80 {
-				formatted.WriteString(fmt.Sprintf("  Usage: %.2f%% (HIGH)\n", usedPercent))
-			} else if usedPercent > 50 {
-				formatted.WriteString(fmt.Sprintf("  Usage: %.2f%% (MEDIUM)\n", usedPercent))
-			} else {
-				formatted.WriteString(fmt.Sprintf("  Usage: %.2f%%\n", usedPercent))
-			}
-		}
-		formatted.WriteString("\n")
+
+		alertFormatted.WriteString("\n")
 	}
 
 	// Disk info
 	if diskInfo, ok := input["disk"].(map[string]interface{}); ok {
-		formatted.WriteString("💽 Disk Usage:\n")
+		alertFormatted.WriteString("💽 Disk Usage:\n")
+
+		// Track most critical disk usage
+		maxDiskUsage := 0.0
+		var criticalMount string
+
 		for mount, usage := range diskInfo {
 			// Skip snap mounts to reduce spam
 			if strings.HasPrefix(mount, "/snap") {
@@ -101,46 +194,70 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 			}
 
 			if u, ok := usage.(map[string]interface{}); ok {
-				formatted.WriteString(fmt.Sprintf("  %s:\n", mount))
+				alertFormatted.WriteString(fmt.Sprintf("  %s:\n", mount))
 
 				usedPercent, hasPercent := u["used_percent"].(float64)
 				if hasPercent {
-					// Display warning/critical status for high disk usage
-					if usedPercent >= 90 {
-						formatted.WriteString(fmt.Sprintf("    Usage: %.2f%% 🔴 CRITICAL\n", usedPercent))
-						hasErrors = true
-					} else if usedPercent >= 80 {
-						formatted.WriteString(fmt.Sprintf("    Usage: %.2f%% 🟠 WARNING\n", usedPercent))
-						hasErrors = true
-					} else {
-						formatted.WriteString(fmt.Sprintf("    Usage: %.2f%%\n", usedPercent))
+					// Check disk threshold
+					diskThreshold := f.thresholds["disk"]
+
+					// Find the most critical disk
+					if usedPercent > maxDiskUsage {
+						maxDiskUsage = usedPercent
+						criticalMount = mount
+
+						// Set error flag based on thresholds
+						if usedPercent >= diskThreshold.Critical || usedPercent >= diskThreshold.Warning {
+							hasErrors = true
+						}
 					}
+
+					// Format output for this disk
+					diskPercent := usedPercent
+					var diskLine string
+					if diskPercent >= diskThreshold.Critical {
+						diskLine = fmt.Sprintf("    Usage: %.2f%% 🔴 CRITICAL\n", diskPercent)
+					} else if diskPercent >= diskThreshold.Warning {
+						diskLine = fmt.Sprintf("    Usage: %.2f%% 🟠 WARNING\n", diskPercent)
+					} else {
+						diskLine = fmt.Sprintf("    Usage: %.2f%%\n", diskPercent)
+					}
+					alertFormatted.WriteString(diskLine)
 				}
 
 				if total, ok := u["total"].(uint64); ok {
-					formatted.WriteString(fmt.Sprintf("    Total: %.2f GB\n", float64(total)/1024/1024/1024))
+					alertFormatted.WriteString(fmt.Sprintf("    Total: %s\n", f.formatSize(total)))
 				}
 				if free, ok := u["free"].(uint64); ok {
-					formatted.WriteString(fmt.Sprintf("    Free:  %.2f GB\n", float64(free)/1024/1024/1024))
+					alertFormatted.WriteString(fmt.Sprintf("    Free:  %s\n", f.formatSize(free)))
 				}
 			}
+		}
+
+		// Add most critical disk to log line (without status)
+		if maxDiskUsage > 0 {
+			logFormatted.WriteString(fmt.Sprintf("Disk:%s:%.1f%% ",
+				criticalMount, maxDiskUsage))
 		}
 	}
 
 	// Summary
-	formatted.WriteString("\n")
+	alertFormatted.WriteString("\n")
 	if hasErrors {
-		formatted.WriteString("⚠️ Issues detected! Please check the output above.\n")
+		logFormatted.WriteString("Status:WARNING")
+		alertFormatted.WriteString("⚠️ Issues detected! Please check the output above.\n")
 	} else {
-		formatted.WriteString("✅ All systems operational!\n")
+		logFormatted.WriteString("Status:OK")
+		alertFormatted.WriteString("✅ All systems operational!\n")
 	}
 
-	result := formatted.String()
+	// Log the simple one-line format
+	f.logger.Info(logFormatted.String())
 
-	// info ==> shared
-	(*shared)["formatted_output"] = result
+	// Store formatted output in shared context
+	(*shared)["formatted_output"] = alertFormatted.String()
 
-	return result, nil
+	return alertFormatted.String(), nil
 }
 
 func (f *FormatterPlugin) FormatResult(result interface{}) (string, error) {

@@ -15,19 +15,45 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// DefaultThresholds defines default threshold values for checks
+var DefaultThresholds = map[string]float64{
+	"cpu":    90.0,
+	"memory": 90.0,
+	"disk":   90.0,
+}
+
 type HealthCheckPlugin struct {
-	logger *logrus.Logger
-	checks map[string]func() error
-	mu     sync.Mutex
+	logger     *logrus.Logger
+	checks     map[string]func() error
+	thresholds map[string]float64
+	mu         sync.Mutex
 }
 
 func (p *HealthCheckPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	p.logger = logger
 	p.logger.Info("Initializing Health Check Plugin")
 	p.checks = make(map[string]func() error)
+
+	// Initialize thresholds with defaults
+	p.thresholds = make(map[string]float64)
+	for k, v := range DefaultThresholds {
+		p.thresholds[k] = v
+	}
+
+	// Override with config if provided
+	if thresholds, ok := config["thresholds"].(map[string]interface{}); ok {
+		for metricType, value := range thresholds {
+			if threshold, ok := value.(float64); ok {
+				p.thresholds[metricType] = threshold
+				p.logger.Infof("Set %s threshold to %.2f", metricType, threshold)
+			}
+		}
+	}
+
 	p.RegisterCheck("cpu", p.checkCPU)
 	p.RegisterCheck("memory", p.checkMemory)
 	p.RegisterCheck("disk", p.checkDisk)
+
 	return nil
 }
 
@@ -84,32 +110,35 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 	return result, nil
 }
 
-// checkCPU verifies that CPU usage is below the critical threshold
+// checkCPU verifies that CPU usage is below the configured threshold
 func (p *HealthCheckPlugin) checkCPU() error {
+	threshold := p.thresholds["cpu"]
 	percent, err := cpu.Percent(time.Second, false)
 	if err != nil {
 		return fmt.Errorf("error getting CPU usage: %v", err)
 	}
-	if len(percent) > 0 && percent[0] > 90 {
-		return fmt.Errorf("high CPU usage: %.2f%%", percent[0])
+	if len(percent) > 0 && percent[0] > threshold {
+		return fmt.Errorf("high CPU usage: %.2f%% (threshold: %.2f%%)", percent[0], threshold)
 	}
 	return nil
 }
 
-// checkMemory verifies that memory usage is below the critical threshold
+// checkMemory verifies that memory usage is below the configured threshold
 func (p *HealthCheckPlugin) checkMemory() error {
+	threshold := p.thresholds["memory"]
 	v, err := mem.VirtualMemory()
 	if err != nil {
 		return fmt.Errorf("error getting memory info: %v", err)
 	}
-	if v.UsedPercent > 90 {
-		return fmt.Errorf("high memory usage: %.2f%%", v.UsedPercent)
+	if v.UsedPercent > threshold {
+		return fmt.Errorf("high memory usage: %.2f%% (threshold: %.2f%%)", v.UsedPercent, threshold)
 	}
 	return nil
 }
 
-// checkDisk verifies that disk usage is below the critical threshold
+// checkDisk verifies that disk usage is below the configured threshold
 func (p *HealthCheckPlugin) checkDisk() error {
+	threshold := p.thresholds["disk"]
 	parts, err := disk.Partitions(false)
 	if err != nil {
 		return fmt.Errorf("error getting disk info: %v", err)
@@ -119,8 +148,8 @@ func (p *HealthCheckPlugin) checkDisk() error {
 		if err != nil {
 			continue
 		}
-		if usage.UsedPercent > 90 {
-			return fmt.Errorf("high disk usage on %s: %.2f%%", part.Mountpoint, usage.UsedPercent)
+		if usage.UsedPercent > threshold {
+			return fmt.Errorf("high disk usage on %s: %.2f%% (threshold: %.2f%%)", part.Mountpoint, usage.UsedPercent, threshold)
 		}
 	}
 	return nil
@@ -140,8 +169,9 @@ func (p *HealthCheckPlugin) FormatResult(result interface{}) (string, error) {
 
 func NewHealthCheckPlugin(logger *logrus.Logger) pluginconf.Plugin {
 	return &HealthCheckPlugin{
-		logger: logger,
-		checks: make(map[string]func() error),
+		logger:     logger,
+		checks:     make(map[string]func() error),
+		thresholds: make(map[string]float64),
 	}
 }
 
