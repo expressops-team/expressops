@@ -64,7 +64,7 @@ docker-build:
 	@echo "✅ Image built: $(IMAGE_NAME):latest"
 
 # Run Docker container
-docker-run: docker-build
+docker-run:
 	@echo "🚀 Starting container..."
 	@echo "📌 Application available at http://localhost:$(HOST_PORT)"
 	docker run --name $(CONTAINER_NAME) \
@@ -78,13 +78,23 @@ docker-run: docker-build
 		-v $(PWD)/$(CONFIG_PATH):$(CONFIG_MOUNT_PATH) \
 		--rm $(IMAGE_NAME):latest
 
+
+# Run Docker container with build
+docker-run-build: docker-build docker-run
 # Clean Docker resources
 docker-clean:
 	@echo "🧹 Cleaning Docker resources..."
 	-docker stop $(CONTAINER_NAME) 2>/dev/null || true
 	-docker rm $(CONTAINER_NAME) 2>/dev/null || true
 	-docker rmi $(IMAGE_NAME):latest 2>/dev/null || true
+	@echo "🗑 Removing <none> images..."
+	-docker rmi $$(docker images -f "dangling=true" -q) 2>/dev/null || true
 	@echo "✅ Cleanup completed"
+
+# Run Docker container with SRE2 configuration
+docker-run-sre2:
+	$(MAKE) docker-run CONFIG_PATH=docs/samples/config_SRE2.yaml CONFIG_MOUNT_PATH=/app/config.yaml
+
 
 # Help
 help:
@@ -95,7 +105,9 @@ help:
 	@echo "  make run           - Run application locally"
 	@echo "  make docker-build  - Build Docker image"
 	@echo "  make docker-run    - Run container"
-	@echo
+	@echo "  make docker-run-sre2 - Run container with SRE2 configuration"
+	@echo "  make docker-clean  - Clean Docker resources"
+	@echo "================================================"
 	@echo "Configurable variables (current values):"
 	@echo "  IMAGE_NAME       = $(IMAGE_NAME)"
 	@echo "  CONTAINER_NAME   = $(CONTAINER_NAME)"
