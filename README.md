@@ -46,7 +46,7 @@ ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plug
 ```bash
 git clone https://github.com/freepik-company/expressops
 cd expressops
-go build -o expressops main.go
+make build
 ```
 
 
@@ -56,11 +56,6 @@ To build the plugins manually:
 go build -buildmode=plugin -o plugins/slack/slack.so plugins/slack/slack.go
 go build -buildmode=plugin -o plugins/healthcheck/health_check.so plugins/healthcheck/health_check.go
 go build -buildmode=plugin -o plugins/formatters/health_alert_formatter.so plugins/formatters/health_alert_formatter.go
-```
-
-Or use the helper script:
-```bash
-./.plugin_builder/script.sh
 ```
 
 ## 🚀 Usage
@@ -74,13 +69,14 @@ Trigger a flow:
 curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
 ```
 
-## ⚙️ Configuration
+## ⚙️ Configuration example
 ```yaml
 plugins:
   - name: slack-notifier
     path: plugins/slack/slack.so
     type: notification
-    config: {}
+    config:
+      webhook_url: $SLACK_WEBHOOK_URL
 
 flows:
   - name: alert-flow
