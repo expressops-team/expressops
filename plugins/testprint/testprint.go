@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	pluginconf "expressops/internal/plugin/loader" // IMPORTANT: this is the package that defines the Plugin interface
+	pluginconf "expressops/internal/plugin/loader" 
 
 	"github.com/sirupsen/logrus"
 )
@@ -24,12 +24,10 @@ func (p *TestPrintPlugin) Initialize(ctx context.Context, config map[string]inte
 func (p *TestPrintPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
 	p.logger.Info("Request received from: " + request.RemoteAddr + ", User-Agent: " + request.UserAgent())
 
-	// Just return a simple colored message with emoji
-	return fmt.Sprintf("\033[1;32m👋 Hello, I am a test: %s!\033[0m", "test"), nil
+	return fmt.Sprintf("👋 Hello, I am a  %s!", "test"), nil
 }
 
 func (p *TestPrintPlugin) FormatResult(result interface{}) (string, error) {
-	// Just return the result as is without any transformation
 	if str, ok := result.(string); ok {
 		return str, nil
 	}
