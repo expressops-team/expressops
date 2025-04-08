@@ -21,11 +21,7 @@ plugins:
   - name: health-check-plugin
     path: plugins/healthcheck/health_check.so
     type: health
-    config:
-      thresholds:
-        cpu: 90.0
-        memory: 90.0
-        disk: 85.0
+    config: {}
 
   - name: sleep-plugin
     path: plugins/sleep/sleep_plugin.so
@@ -46,17 +42,29 @@ plugins:
   - name: formatter-plugin
     path: plugins/formatters/health_alert_formatter.so
     type: utils
+    config: {}
+    
+  - name: permissions-plugin
+    path: plugins/permissions/permissions.so
+    type: management
     config:
-      thresholds:
-        cpu:
-          warning: 50
-          critical: 80
-        memory:
-          warning: 60
-          critical: 85
-        disk:
-          warning: 80
-          critical: 90
+      base_directory: "/var/data/projects"  # Base directory for projects
+      default_username: "example-user" 
+      default_permissions: "rwx"  
+      default_paths: 
+        - "it-school-2025-2"
+        - "it-school-2025-3"
+        
+  - name: user-creation-plugin
+    path: plugins/usercreation/user_creation.so
+    type: management
+    config:
+      default_username: "example-user"
+      default_groups:
+        - "users"
+        - "developers"
+      default_homedir_base: "/home"
+      default_shell: "/bin/bash"
 
 
 flows:
@@ -71,6 +79,7 @@ flows:
     pipeline:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
+      - pluginRef: slack-notifier
 
   - name: test-context # sleep testing
     description: "Test the context timeout"
@@ -91,3 +100,26 @@ flows:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
       - pluginRef: slack-notifier
+  
+
+# GCP integration
+  - name: create-user
+    description: "Create a user in GCP"
+    pipeline:
+      - pluginRef: user-creation-plugin
+      - pluginRef: slack-notifier
+      
+  - name: set-permissions
+    description: "Change permissions for a specific user on specified paths in GCP"
+    pipeline:
+      - pluginRef: permissions-plugin
+      - pluginRef: slack-notifier
+      
+  - name: user-onboarding
+    description: "Complete onboarding process: create user and set permissions"
+    pipeline:
+      - pluginRef: user-creation-plugin
+      - pluginRef: slack-notifier
+      - pluginRef: permissions-plugin
+      - pluginRef: slack-notifier
+    
