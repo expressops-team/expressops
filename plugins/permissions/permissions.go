@@ -76,7 +76,8 @@ func (p *PermissionsPlugin) Initialize(ctx context.Context, config map[string]in
 func (p *PermissionsPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
 	p.logger.Info("Executing Permissions Plugin")
 
-	// Check feature toggle
+	// temporary message
+	// will use the GCP integration in the future
 	if enablePermissionsFeature == 0 {
 		p.logger.Info("Permissions feature is disabled, returning GCP integration message")
 		message := map[string]interface{}{

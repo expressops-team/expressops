@@ -54,6 +54,17 @@ plugins:
       default_paths: 
         - "it-school-2025-2"
         - "it-school-2025-3"
+        
+  - name: user-creation-plugin
+    path: plugins/usercreation/user_creation.so
+    type: management
+    config:
+      default_username: "example-user"
+      default_groups:
+        - "users"
+        - "developers"
+      default_homedir_base: "/home"
+      default_shell: "/bin/bash"
 
 
 flows:
@@ -89,10 +100,26 @@ flows:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
       - pluginRef: slack-notifier
+  
+
+# GCP integration
+  - name: create-user
+    description: "Create a user in GCP"
+    pipeline:
+      - pluginRef: user-creation-plugin
+      - pluginRef: slack-notifier
       
   - name: set-permissions
-    description: "Change permissions for a specific user on specified paths"
+    description: "Change permissions for a specific user on specified paths in GCP"
     pipeline:
+      - pluginRef: permissions-plugin
+      - pluginRef: slack-notifier
+      
+  - name: user-onboarding
+    description: "Complete onboarding process: create user and set permissions"
+    pipeline:
+      - pluginRef: user-creation-plugin
+      - pluginRef: slack-notifier
       - pluginRef: permissions-plugin
       - pluginRef: slack-notifier
     
