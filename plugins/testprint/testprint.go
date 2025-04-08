@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	pluginconf "expressops/internal/plugin/loader" // defines the Plugin interface
+	pluginconf "expressops/internal/plugin/loader" 
 
 	"github.com/sirupsen/logrus"
 )
