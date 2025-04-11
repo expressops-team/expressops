@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: expressops
-        image: davidnull/expressops:latest
+        image: davidnull/expressops:latest #NO latest, use a specific tag
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
