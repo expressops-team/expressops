@@ -9,12 +9,10 @@ ARG LOG_LEVEL=info
 ARG LOG_FORMAT=text
 ARG CONFIG_PATH=/app/config.yaml
 
-# Install necessary dependencies
 RUN apk add --no-cache git build-base ca-certificates tzdata curl
 
 WORKDIR /app
 
-# Copy go.mod and go.sum first to leverage Docker cache
 COPY go.mod go.sum ./
 RUN go mod download
 
@@ -35,7 +33,6 @@ RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u
       done \
     done
 
-# Verify plugins were built
 RUN find plugins -name "*.so" | sort
 
 # Compile main application
@@ -49,8 +46,7 @@ ENV LOG_LEVEL=${LOG_LEVEL}
 ENV LOG_FORMAT=${LOG_FORMAT}
 ENV CONFIG_PATH=${CONFIG_PATH}
 
-# Expose the server port
 EXPOSE ${SERVER_PORT}
 
-# Command to run the application
+#run the application
 ENTRYPOINT ["sh", "-c", "./expressops -config ${CONFIG_PATH}"]
