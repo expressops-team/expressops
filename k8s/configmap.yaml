@@ -17,10 +17,10 @@ data:
     
     plugins:
       - name: slack-notifier
-        path: /app/plugins/slack/slack.so
+        path: plugins/slack/slack.so
         type: notification
         config:
-          webhook_url: ${SLACK_WEBHOOK_URL}
+          webhook_url: \${SLACK_WEBHOOK_URL}
           
       - name: health-check-plugin
         path: /app/plugins/healthcheck/health_check.so
@@ -28,7 +28,7 @@ data:
         config: {}
           
       - name: permissions-plugin
-        path: /app/plugins/permissions/permissions.so
+        path: plugins/permissions/permissions.so
         type: management
         config:
           base_directory: "/var/data/projects"
@@ -39,7 +39,7 @@ data:
             - "it-school-2025-3"
             
       - name: user-creation-plugin
-        path: /app/plugins/usercreation/user_creation.so
+        path: plugins/usercreation/user_creation.so
         type: management
         config:
           default_username: "example-user"

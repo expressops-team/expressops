@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: expressops
+  labels:
+    app: expressops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: expressops
+  template:
+    metadata:
+      labels:
+        app: expressops
+    spec:
+      containers:
+      - name: expressops
+        image: davidnull/expressops:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: SERVER_PORT
+          value: "8080"
+        - name: SERVER_ADDRESS
+          value: "0.0.0.0"
+        - name: SLACK_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: expressops-secrets
+              key: SLACK_WEBHOOK_URL
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+      volumes:
+      - name: config-volume
+        configMap:
+          name: expressops-config

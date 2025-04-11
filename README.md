@@ -2,7 +2,17 @@
 
 ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plugins. It allows you to define operational workflows (such as health checks, formatting, notifications, and logging) via a simple YAML configuration. Each plugin handles one task and flows chain them together.
 
-## 📚 Table of Contents
+## 📦 Docker Hub
+
+The ExpressOps Docker image is available on Docker Hub at:
+https://hub.docker.com/r/davidnull/expressops
+
+You can pull it with:
+```bash
+docker pull davidnull/expressops:latest
+```
+
+## 📜 Table of Contents
 
 - [Features](#-features)
 - [Requirements](#-requirements)
@@ -73,6 +83,44 @@ Trigger a flow:
 ```bash
 curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
 ```
+
+## 🛥️ Kubernetes Deployment
+
+ExpressOps can be deployed to Kubernetes using the provided Makefile commands:
+
+```bash
+# Connect to Kubernetes (keep this terminal open)
+gcloud compute ssh --zone "europe-west1-d" "it-school-2025-1" --tunnel-through-iap --project "fc-it-school-2025" --ssh-flag "-N -L 6443:127.0.0.1:6443"
+
+# Build, tag and push Docker image to Docker Hub (optional)
+# The deployment is already configured to use the public image davidnull/expressops:latest
+make docker-push
+
+# Set up your secrets (needed for Slack notifications)
+# Option 1: Set SLACK_WEBHOOK_URL in your environment:
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/REAL/TOKEN"
+
+# Option 2: Edit secrets.yaml manually
+make k8s-generate-secrets
+# Then edit k8s/secrets.yaml with your actual webhook URL
+
+# Deploy to Kubernetes
+make k8s-deploy
+
+# Check deployment status
+make k8s-status
+
+# Forward port to access the application
+make k8s-port-forward
+
+# View logs
+make k8s-logs
+
+# Delete deployment
+make k8s-delete
+```
+
+The application will be accessible at http://localhost:8080 after port forwarding.
 
 ## ⚙️ Configuration
 ```yaml
