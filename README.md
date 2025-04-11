@@ -56,7 +56,7 @@ docker pull davidnull/expressops:latest
 ```bash
 git clone https://github.com/freepik-company/expressops
 cd expressops
-go build -o expressops main.go
+make build
 ```
 
 
@@ -66,11 +66,6 @@ To build the plugins manually:
 go build -buildmode=plugin -o plugins/slack/slack.so plugins/slack/slack.go
 go build -buildmode=plugin -o plugins/healthcheck/health_check.so plugins/healthcheck/health_check.go
 go build -buildmode=plugin -o plugins/formatters/health_alert_formatter.so plugins/formatters/health_alert_formatter.go
-```
-
-Or use the helper script:
-```bash
-./.plugin_builder/script.sh
 ```
 
 ## 🚀 Usage
@@ -83,6 +78,7 @@ Trigger a flow:
 ```bash
 curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
 ```
+
 
 ## 🛥️ Kubernetes Deployment
 
@@ -122,13 +118,15 @@ make k8s-delete
 
 The application will be accessible at http://localhost:8080 after port forwarding.
 
-## ⚙️ Configuration
+## ⚙️ Configuration example
+
 ```yaml
 plugins:
   - name: slack-notifier
     path: plugins/slack/slack.so
     type: notification
-    config: {}
+    config:
+      webhook_url: $SLACK_WEBHOOK_URL
 
 flows:
   - name: alert-flow
