@@ -1,6 +1,12 @@
-# docker run -d --name expressops-demo -p 8080:8080 expressops:latest   <-- for testing
+# docker run -d --name expressops-demo -p 8080:8080 expressops:Vx   <-- for testing
 #      make docker-build   //    make docker-run
-# make build-plugins // make run // make clean // make help // make docker-build // make docker-run
+# Common commands:
+#   make build          - Build plugins and app
+#   make run            - Run locally
+#   make docker-build   - Build Docker image (auto-versioned)
+#   make docker-run     - Run Docker container
+#   make docker-clean   - Cleanup Docker
+#   make help           - Show command help
 
 # make run <===
 GREEN = \033[32m
@@ -12,6 +18,7 @@ PRINT = @echo
 
 # Configurable variables (can be overridden with environment variables)
 IMAGE_NAME ?= expressops
+NEW_TAG :=
 CONTAINER_NAME ?= expressops-app
 HOST_PORT ?= 8080
 SERVER_PORT ?= 8080
@@ -50,9 +57,18 @@ run: build
 	@echo "🚀 Starting ExpressOps"
 	./expressops -config $(CONFIG_PATH)
 
-# Build Docker image
+# Auto-versioned images Docker build
 docker-build:
-	@echo "🐳 Building Docker image..."
+	@echo "🐳 Checking existing Docker image versions..."
+	@VERSION=$$(docker images --format "{{.Tag}}" $(IMAGE_NAME) | grep -E '^v[0-9]+$$' | sed 's/v//' | sort -n | tail -n1); \
+	if [ -z "$$VERSION" ]; then \
+		NEXT_VERSION=1; \
+	else \
+		NEXT_VERSION=$$((VERSION + 1)); \
+	fi; \
+	NEW_TAG=v$$NEXT_VERSION; \
+	echo "$$NEW_TAG" > .docker_tag; \
+	echo "📦 Building Docker image with tag: $$NEW_TAG"; \
 	docker build \
 		--build-arg SERVER_PORT=$(SERVER_PORT) \
 		--build-arg SERVER_ADDRESS=$(SERVER_ADDRESS) \
@@ -60,13 +76,15 @@ docker-build:
 		--build-arg LOG_LEVEL=$(LOG_LEVEL) \
 		--build-arg LOG_FORMAT=$(LOG_FORMAT) \
 		--build-arg CONFIG_PATH=$(CONFIG_MOUNT_PATH) \
-		-t $(IMAGE_NAME):latest .
-	@echo "✅ Image built: $(IMAGE_NAME):latest"
+		-t $(IMAGE_NAME):$$NEW_TAG .; \
+	echo "✅ Image built: $(IMAGE_NAME):$$NEW_TAG"
+
 
 # Run Docker container
 docker-run:
-	@echo "🚀 Starting container..."
-	@echo "📌 Application available at http://localhost:$(HOST_PORT)"
+	@NEW_TAG=$$(cat .docker_tag 2>/dev/null || echo "latest"); \
+	echo "🚀 Starting container with tag: $$NEW_TAG"; \
+	@echo "📌 Application available at http://localhost:$(HOST_PORT)"; \
 	docker run --name $(CONTAINER_NAME) \
 		-p $(HOST_PORT):$(SERVER_PORT) \
 		-e SERVER_PORT=$(SERVER_PORT) \
@@ -76,7 +94,9 @@ docker-run:
 		-e LOG_FORMAT=$(LOG_FORMAT) \
 		-e SLACK_WEBHOOK_URL=$(SLACK_WEBHOOK_URL) \
 		-v $(PWD)/$(CONFIG_PATH):$(CONFIG_MOUNT_PATH) \
-		--rm $(IMAGE_NAME):latest
+		--rm $(IMAGE_NAME):$$NEW_TAG
+	@echo "🐳 Running image version: $$NEW_TAG"
+
 
 
 # Run Docker container with build
@@ -87,6 +107,8 @@ docker-clean:
 	-docker stop $(CONTAINER_NAME) 2>/dev/null || true
 	-docker rm $(CONTAINER_NAME) 2>/dev/null || true
 	-docker rmi $(IMAGE_NAME):latest 2>/dev/null || true
+	-rm -f .docker_tag
+	@echo "🗑 Removing unused images..."
 	@echo "🗑 Removing <none> images..."
 	-docker rmi $$(docker images -f "dangling=true" -q) 2>/dev/null || true
 	@echo "✅ Cleanup completed"
