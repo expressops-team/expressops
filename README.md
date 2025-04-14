@@ -5,11 +5,11 @@ ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plug
 ## 📦 Docker Hub
 
 The ExpressOps Docker image is available on Docker Hub at:
-https://hub.docker.com/r/davidnull/expressops
+https://hub.docker.com/r/expressopsfreepik/expressops
 
 You can pull it with:
 ```bash
-docker pull davidnull/expressops:latest
+docker expressopsfreepik/expressops
 ```
 
 ## 📜 Table of Contents
