@@ -10,3 +10,10 @@ logs/*.log
 
 # Log zip files
 logs/*.zip
+
+# Kubernetes secrets
+k8s/secrets.yaml
+
+# Local environment files
+.env
+*.local

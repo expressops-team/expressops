@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: expressops-config
+data:
+  config.yaml: |
+    logging:
+      level: info
+      format: text
+    
+    server:
+      port: 8080
+      address: 0.0.0.0
+      timeoutSeconds: 4
+      http:
+        protocolVersion: 2
+    
+    plugins:
+      - name: slack-notifier
+        path: plugins/slack/slack.so
+        type: notification
+        config:
+          webhook_url: \${SLACK_WEBHOOK_URL}
+          
+      - name: health-check-plugin
+        path: /app/plugins/healthcheck/health_check.so
+        type: health
+        config: {}
+          
+      - name: permissions-plugin
+        path: plugins/permissions/permissions.so
+        type: management
+        config:
+          base_directory: "/var/data/projects"
+          default_username: "example-user" 
+          default_permissions: "rwx"  
+          default_paths: 
+            - "it-school-2025-2"
+            - "it-school-2025-3"
+            
+      - name: user-creation-plugin
+        path: plugins/usercreation/user_creation.so
+        type: management
+        config:
+          default_username: "example-user"
+          default_groups:
+            - "users"
+            - "developers"
+    
+    flows:
+      - name: create-user
+        description: "Create a user in GCP" 
+        pipeline:
+          - pluginRef: user-creation-plugin
+          - pluginRef: slack-notifier
+          
+      - name: set-permissions
+        description: "Change permissions for a specific user on specified paths in GCP"
+        pipeline:
+          - pluginRef: permissions-plugin
+          - pluginRef: slack-notifier

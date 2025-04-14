@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: expressops
+spec:
+  selector:
+    app: expressops
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http
+  type: NodePort
