@@ -9,7 +9,7 @@ https://hub.docker.com/r/expressopsfreepik/expressops
 
 You can pull it with:
 ```bash
-docker expressopsfreepik/expressops
+docker pull expressopsfreepik/expressops
 ```
 
 ## 📜 Table of Contents
