@@ -79,6 +79,16 @@ Trigger a flow:
 curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
 ```
 
+### Environment Variables
+
+ExpressOps supports the following environment variables for configuration:
+
+- `SERVER_PORT`: Override the HTTP server port (default: 8080)
+- `SERVER_ADDRESS`: Override the HTTP server bind address (default: 0.0.0.0)
+- `TIMEOUT_SECONDS`: Override the flow execution timeout in seconds (default: 4)
+- `LOG_LEVEL`: Set logging level (info, debug, warn, error)
+- `LOG_FORMAT`: Set logging format (text, json)
+- `SLACK_WEBHOOK_URL`: Required for Slack notifications
 
 ## 🛥️ Kubernetes Deployment
 
