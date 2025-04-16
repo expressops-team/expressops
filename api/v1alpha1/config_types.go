@@ -17,9 +17,9 @@ type LoggingConfig struct {
 
 // server section
 type ServerConfig struct {
-	Port       int        `yaml:"port"`
-	Address    string     `yaml:"address"`
-	TimeoutSec int        `yaml:"timeoutSeconds"`
+	Port       int        `yaml:"port" default:"8080"`
+	Address    string     `yaml:"address" default:"0.0.0.0"`
+	TimeoutSec int        `yaml:"timeoutSeconds" default:"4"`
 	HTTP       HTTPConfig `yaml:"http"`
 }
 

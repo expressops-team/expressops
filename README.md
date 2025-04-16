@@ -5,12 +5,11 @@ ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plug
 ## 📦 Docker Hub
 
 The ExpressOps Docker image is available on Docker Hub at:
-[**expressopsfreepik/expressops**](https://hub.docker.com/r/expressopsfreepik/expressops)
+https://hub.docker.com/r/davidnull/expressops
 
 You can pull it with:
 ```bash
-docker pull expressopsfreepik/expressops:v1
-
+docker pull davidnull/expressops:latest
 ```
 
 ## 📜 Table of Contents
@@ -79,6 +78,58 @@ Trigger a flow:
 ```bash
 curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
 ```
+
+### Environment Variables
+
+ExpressOps supports the following environment variables for configuration:
+
+- `SERVER_PORT`: Override the HTTP server port (default: 8080)
+- `SERVER_ADDRESS`: Override the HTTP server bind address (default: 0.0.0.0)
+- `TIMEOUT_SECONDS`: Override the flow execution timeout in seconds (default: 4)
+- `LOG_LEVEL`: Set logging level (info, debug, warn, error)
+- `LOG_FORMAT`: Set logging format (text, json)
+- `SLACK_WEBHOOK_URL`: Required for Slack notifications
+
+## 🛥️ Kubernetes Deployment
+
+ExpressOps can be deployed to Kubernetes using the provided Makefile commands:
+
+```bash
+# Connect to Kubernetes (keep this terminal open)
+gcloud compute ssh --zone "europe-west1-d" "it-school-2025-1" --tunnel-through-iap --project "fc-it-school-2025" --ssh-flag "-N -L 6443:127.0.0.1:6443"
+
+# Build, tag and push Docker image to Docker Hub (optional)
+# The deployment is already configured to use the public image davidnull/expressops:latest
+make docker-push
+
+# Set up your secrets (needed for Slack notifications)
+# Option 1: Set SLACK_WEBHOOK_URL in your environment:
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/REAL/TOKEN"
+
+# Option 2: Edit secrets.yaml manually
+make k8s-generate-secrets
+# Then edit k8s/secrets.yaml with your actual webhook URL
+
+# Deploy to Kubernetes
+make k8s-deploy
+
+# Check deployment status
+make k8s-status
+
+# Forward port to access the application
+make k8s-port-forward
+
+# View logs
+make k8s-logs
+
+# Delete deployment
+make k8s-delete
+```
+
+The application will be accessible at http://localhost:8080 after port forwarding.
+
+## ⚙️ Configuration example
+
 
 ```yaml
 plugins:

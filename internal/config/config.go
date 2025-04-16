@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect" // use tags to set default values in config_types.go
 	"strconv"
 
 	"expressops/api/v1alpha1"
@@ -45,6 +46,9 @@ func LoadConfig(ctx context.Context, path string, logger *logrus.Logger) (*v1alp
 		return nil, fmt.Errorf("error unmarshaling YAML: %w", err)
 	}
 
+	// Apply defaults from struct tags
+	applyDefaults(&cfg, logger)
+
 	// Sobrescribir con variables de entorno, si existen
 	ApplyEnvironmentOverrides(&cfg, logger)
 
@@ -54,15 +58,55 @@ func LoadConfig(ctx context.Context, path string, logger *logrus.Logger) (*v1alp
 	for i := range cfg.Plugins {
 		pluginCfg := &cfg.Plugins[i]
 
+		// Skip if plugin name is empty (commented out in config)
+		if pluginCfg.Name == "" {
+			logger.Debug("Skipping commented out plugin entry")
+			continue
+		}
+
 		logger.Debugf("Loading plugin code: %s (Path: %s)", pluginCfg.Name, pluginCfg.Path)
 		if err := pluginManager.LoadPlugin(ctx, pluginCfg.Path, pluginCfg.Name, pluginCfg.Config, logger); err != nil {
-			return nil, fmt.Errorf("error loading plugin '%s' from '%s': %w", pluginCfg.Name, pluginCfg.Path, err)
+			// more precise error message
+			return nil, fmt.Errorf("error loading plugin '%s' from '%s': %w\n"+
+				"Please check:\n"+
+				"- The plugin file exists\n"+
+				"- The plugin was built for the correct architecture\n"+
+				"- You have the necessary permissions to access the file",
+				pluginCfg.Name, pluginCfg.Path, err)
 		}
 		logger.Infof("Plugin '%s' processed successfully.", pluginCfg.Name)
 	}
 
 	logger.Info("All plugins processed. Final configuration ready.")
 	return &cfg, nil
+}
+
+// applyDefaults applies default values from struct tags if not set
+func applyDefaults(cfg *v1alpha1.Config, logger *logrus.Logger) {
+	// Apply server defaults if not set
+	serverType := reflect.TypeOf(cfg.Server)
+	serverValue := reflect.ValueOf(&cfg.Server).Elem()
+
+	for i := 0; i < serverType.NumField(); i++ {
+		field := serverType.Field(i)
+		defaultValue := field.Tag.Get("default")
+		if defaultValue == "" {
+			continue
+		}
+
+		fieldValue := serverValue.Field(i)
+
+		// Only apply default if field is zero value
+		if fieldValue.Kind() == reflect.Int && fieldValue.Int() == 0 {
+			if intValue, err := strconv.Atoi(defaultValue); err == nil {
+				fieldValue.SetInt(int64(intValue))
+				logger.Debugf("Applied default value for %s: %s", field.Name, defaultValue)
+			}
+		} else if fieldValue.Kind() == reflect.String && fieldValue.String() == "" {
+			fieldValue.SetString(defaultValue)
+			logger.Debugf("Applied default value for %s: %s", field.Name, defaultValue)
+		}
+	}
 }
 
 // ApplyEnvironmentOverrides sobrescribe la configuración con variables de entorno
