@@ -130,6 +130,7 @@ The application will be accessible at http://localhost:8080 after port forwardin
 
 ## ⚙️ Configuration example
 
+
 ```yaml
 plugins:
   - name: slack-notifier
