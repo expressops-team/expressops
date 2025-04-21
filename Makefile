@@ -30,8 +30,6 @@ SLACK_WEBHOOK_URL ?=
 CONFIG_PATH ?= docs/samples/config.yaml
 CONFIG_MOUNT_PATH ?= /app/config.yaml
 
-.PHONY: build run docker-build docker-run docker-clean help
-
 # Build plugins and application locally
 build:
 	@echo "Cleaning previous plugins..."
@@ -79,7 +77,6 @@ docker-build:
 		-t $(IMAGE_NAME):$$NEW_TAG .; \
 	echo "✅ Image built: $(IMAGE_NAME):$$NEW_TAG"
 
-
 # Run Docker container
 docker-run:
 	@NEW_TAG=$$(cat .docker_tag 2>/dev/null || echo "latest"); \
@@ -96,7 +93,6 @@ docker-run:
 		-v $(PWD)/$(CONFIG_PATH):$(CONFIG_MOUNT_PATH) \
 		--rm $(IMAGE_NAME):$$NEW_TAG
 	@echo "🐳 Running image version: $$NEW_TAG"
-
 
 
 # Run Docker container with build
@@ -127,10 +123,12 @@ help:
 	@echo "  make build         - Build plugins and application"
 	@echo "  make run           - Run application locally"
 	@echo "  make docker-build  - Build Docker image"
+	@echo "  make docker-push   - Build, tag and push Docker image to Docker Hub"
 	@echo "  make docker-run    - Run container"
 	@echo "  make docker-run-sre2 - Run container with SRE2 configuration"
 	@echo "  make docker-clean  - Clean Docker resources"
 	@echo "================================================"
+
 	@echo "Configurable variables (current values):"
 	@echo "  IMAGE_NAME       = $(IMAGE_NAME)"
 	@echo "  CONTAINER_NAME   = $(CONTAINER_NAME)"

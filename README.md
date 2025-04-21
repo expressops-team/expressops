@@ -2,7 +2,17 @@
 
 ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plugins. It allows you to define operational workflows (such as health checks, formatting, notifications, and logging) via a simple YAML configuration. Each plugin handles one task and flows chain them together.
 
-## 📚 Table of Contents
+## 📦 Docker Hub
+
+The ExpressOps Docker image is available on Docker Hub at:
+https://hub.docker.com/r/davidnull/expressops
+
+You can pull it with:
+```bash
+docker pull davidnull/expressops:latest
+```
+
+## 📜 Table of Contents
 
 - [Features](#-features)
 - [Requirements](#-requirements)
@@ -69,7 +79,6 @@ Trigger a flow:
 curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
 ```
 
-## ⚙️ Configuration example
 ```yaml
 plugins:
   - name: slack-notifier
