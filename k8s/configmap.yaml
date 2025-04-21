@@ -2,6 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: expressops-config
+#some example flows
 data:
   config.yaml: |
     logging:
@@ -26,6 +27,16 @@ data:
         path: /app/plugins/healthcheck/health_check.so
         type: health
         config: {}
+      
+      - name: test-print-plugin
+        path: plugins/testprint/testprint.so
+        type: test
+        config: {}
+      
+      - name: flow-lister-plugin
+        path: plugins/flowlister/flow_lister.so
+        type: utils
+        config: {}
           
       - name: permissions-plugin
         path: plugins/permissions/permissions.so
@@ -48,6 +59,12 @@ data:
             - "developers"
     
     flows:
+      - name: all-flows
+        description: "List all available flows in the system"
+        customHandler: "Lists all available flows with their plugins and descriptions"
+        pipeline:
+          - pluginRef: flow-lister-plugin
+
       - name: create-user
         description: "Create a user in GCP" 
         pipeline:
@@ -58,4 +75,40 @@ data:
         description: "Change permissions for a specific user on specified paths in GCP"
         pipeline:
           - pluginRef: permissions-plugin
+          - pluginRef: slack-notifier
+
+      - name: health-status
+        description: "Check system health status"
+        customHandler: "Collects system health information"
+        pipeline:
+          - pluginRef: health-check-plugin
+          - pluginRef: test-print-plugin
+          
+      - name: alert-health
+        description: "Check health and send notification"
+        customHandler: "Health monitoring with Slack notification"
+        pipeline:
+          - pluginRef: health-check-plugin
+          - pluginRef: slack-notifier
+          
+      - name: full-user-onboarding
+        description: "Complete user onboarding process"
+        customHandler: "Creates a user and sets appropriate permissions"
+        pipeline:
+          - pluginRef: user-creation-plugin
+          - pluginRef: permissions-plugin
+          - pluginRef: slack-notifier
+          
+      - name: debug-test
+        description: "Simple test flow for debugging"
+        customHandler: "Prints test output for debugging purposes"
+        pipeline:
+          - pluginRef: test-print-plugin
+          
+      - name: health-and-list
+        description: "Check health and list available flows"
+        customHandler: "Combines health check with flow discovery"
+        pipeline:
+          - pluginRef: health-check-plugin
+          - pluginRef: flow-lister-plugin
           - pluginRef: slack-notifier

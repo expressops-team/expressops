@@ -102,13 +102,10 @@ gcloud compute ssh --zone "europe-west1-d" "it-school-2025-1" --tunnel-through-i
 # The deployment is already configured to use the public image davidnull/expressops:latest
 make docker-push
 
-# Set up your secrets (needed for Slack notifications)
-# Option 1: Set SLACK_WEBHOOK_URL in your environment:
+# IMPORTANT: You MUST set the SLACK_WEBHOOK_URL environment variable before deployment
+# This is required for the Slack notifications to work properly
+# While we're implementing the External Secrets Operator, this manual step is necessary
 export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/REAL/TOKEN"
-
-# Option 2: Edit secrets.yaml manually
-make k8s-generate-secrets
-# Then edit k8s/secrets.yaml with your actual webhook URL
 
 # Deploy to Kubernetes
 make k8s-deploy
@@ -161,7 +158,7 @@ This flow performs:
 curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
 ```
 
-## 🔍 Flow Discovery, very usefull!
+## 🔍 Flow Discovery
 
 ExpressOps provides a built-in flow to discover all available flows in the system:
 
@@ -169,7 +166,19 @@ ExpressOps provides a built-in flow to discover all available flows in the syste
 curl "http://localhost:8080/flow?flowName=all-flows"
 ```
 
-This will return a formatted list of all flows with their descriptions and plugins.
+This will return a formatted list of all flows with their descriptions and plugins. The `all-flows` output is:
+
+- Automatically displayed in full without truncation
+- Formatted with each flow appearing on separate log lines in Kubernetes logs for better readability
+- A great way to explore available flows when you're first getting started
+
+When running in Kubernetes, you can view the formatted output with:
+
+```bash
+make k8s-port-forward  # In terminal 1
+curl "http://localhost:8080/flow?flowName=all-flows"  # In terminal 2
+make k8s-logs  # In terminal 3 to see the nicely formatted logs
+```
 
 ## 🤝 Contributing
 

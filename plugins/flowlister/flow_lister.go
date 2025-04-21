@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 
 	"expressops/api/v1alpha1"
 	pluginconf "expressops/internal/plugin/loader"
@@ -41,8 +42,9 @@ func (p *FlowListerPlugin) Execute(ctx context.Context, request *http.Request, s
 
 	// Create a result object with the list of flows
 	result := map[string]interface{}{
-		"count": len(flows),
-		"flows": []map[string]interface{}{},
+		"count":    len(flows),
+		"flows":    []map[string]interface{}{},
+		"flowList": []string{}, // New field for separate log lines
 	}
 
 	// Get a sorted list of flow names for consistent output
@@ -54,6 +56,13 @@ func (p *FlowListerPlugin) Execute(ctx context.Context, request *http.Request, s
 
 	// Create the flow list
 	var flowList []map[string]interface{}
+	var logLines []string // Store each flow as a separate log line
+
+	// Add header to log lines
+	logLines = append(logLines, fmt.Sprintf("Available Flows (%d):", len(flows)))
+	logLines = append(logLines, "=====================")
+	logLines = append(logLines, "") // Empty line
+
 	for _, name := range flowNames {
 		flow := flows[name]
 		flowInfo := map[string]interface{}{
@@ -73,14 +82,36 @@ func (p *FlowListerPlugin) Execute(ctx context.Context, request *http.Request, s
 		flowInfo["plugins"] = plugins
 
 		flowList = append(flowList, flowInfo)
+
+		// Create a separate log line for this flow
+		flowLine := fmt.Sprintf("📋 %s", name)
+		logLines = append(logLines, flowLine)
+
+		if flow.CustomHandler != "" {
+			descLine := fmt.Sprintf("   Description: %s", flow.CustomHandler)
+			logLines = append(logLines, descLine)
+		}
+
+		pluginsLine := fmt.Sprintf("   Plugins (%d): ", len(plugins))
+
+		for i, plugin := range plugins {
+			if i > 0 {
+				pluginsLine += " → "
+			}
+			pluginsLine += plugin
+		}
+
+		logLines = append(logLines, pluginsLine)
+		logLines = append(logLines, "") // Empty line between flows
 	}
 
 	result["flows"] = flowList
+	result["flowList"] = logLines
 
 	return result, nil
 }
 
-// Format the result as a complete list
+// Format the result for separate log lines
 func (p *FlowListerPlugin) FormatResult(result interface{}) (string, error) {
 	if result == nil {
 		return "No flow information available", nil
@@ -91,37 +122,14 @@ func (p *FlowListerPlugin) FormatResult(result interface{}) (string, error) {
 		return "", fmt.Errorf("unexpected result format")
 	}
 
-	output := fmt.Sprintf("Available Flows (%d):\n", data["count"])
-	output += "=====================\n\n"
-
-	flows, ok := data["flows"].([]map[string]interface{})
+	// Get the list of log lines
+	logLines, ok := data["flowList"].([]string)
 	if !ok {
-		return output + "No flows found", nil
+		return "Could not format flow list", nil
 	}
 
-	for _, flow := range flows {
-		output += fmt.Sprintf("📋 %s\n", flow["name"])
-
-		if desc, ok := flow["description"].(string); ok && desc != "" {
-			output += fmt.Sprintf("   Description: %s\n", desc)
-		}
-
-		output += fmt.Sprintf("   Plugins (%d): ", flow["plugin_count"])
-
-		plugins, ok := flow["plugins"].([]string)
-		if ok {
-			for i, plugin := range plugins {
-				if i > 0 {
-					output += " → "
-				}
-				output += plugin
-			}
-		}
-
-		output += "\n\n"
-	}
-
-	return output, nil
+	// Use special separator that will be recognized by the server
+	return "__MULTILINE_LOG__" + strings.Join(logLines, "__MULTILINE_LOG__"), nil
 }
 
 // important to export the plugin, same interface as the other plugins

@@ -24,7 +24,7 @@ CONFIG_PATH ?= docs/samples/config.yaml
 CONFIG_MOUNT_PATH ?= /app/config.yaml
 K8S_NAMESPACE ?= default
 
-.PHONY: build run docker-build docker-push docker-run docker-clean help k8s-deploy k8s-status k8s-logs k8s-delete k8s-port-forward k8s-generate-secrets
+.PHONY: build run docker-build docker-push docker-run docker-clean help k8s-deploy k8s-status k8s-logs k8s-delete k8s-port-forward
 
 # Build plugins and application locally
 build:
@@ -123,7 +123,6 @@ help:
 	@echo "  make k8s-logs      - View Kubernetes logs"
 	@echo "  make k8s-port-forward - Port forward to access the application"
 	@echo "  make k8s-delete    - Delete Kubernetes deployment"
-	@echo "  make k8s-generate-secrets - Generate secrets file from template"
 	@echo
 	@echo "================================================"
 
@@ -141,32 +140,22 @@ help:
 	@echo "  CONFIG_MOUNT_PATH = $(CONFIG_MOUNT_PATH)"
 	@echo "  K8S_NAMESPACE    = $(K8S_NAMESPACE)"
 
-# Generate secrets file from template
-# THIS WILL BE DELETED SOON
-k8s-generate-secrets:
-	@if [ ! -f k8s/secrets.yaml ]; then \
-		echo "⚠️ secrets.yaml does not exist, creating from example..."; \
-		cp k8s/secrets.example.yaml k8s/secrets.yaml; \
-		echo "✅ k8s/secrets.yaml created. Edit it with the actual values."; \
-	else \
-		echo "✅ k8s/secrets.yaml already exists."; \
-	fi
-	@if [ -z "$(SLACK_WEBHOOK_URL)" ]; then \
-		echo "⚠️ SLACK_WEBHOOK_URL is not set in environment variables."; \
-		echo "   Edit k8s/secrets.yaml manually or configure SLACK_WEBHOOK_URL."; \
-	else \
-		echo "✅ Updating SLACK_WEBHOOK_URL in k8s/secrets.yaml..."; \
-		sed -i "s|https://hooks.slack.com/services/.*|$(SLACK_WEBHOOK_URL)\"|" k8s/secrets.yaml; \
-	fi
-
 # Kubernetes Deployment
 # Before deploying, make sure to:
-# 1. Set the SLACK_WEBHOOK_URL in the Makefile or environment (optional)
+# 1. Set the SLACK_WEBHOOK_URL environment variable (required):
+#    export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/REAL/TOKEN"
 # 2. Connect to Kubernetes with the SSH tunnel:
 #    gcloud compute ssh --zone "europe-west1-d" "it-school-2025-1" --tunnel-through-iap --project "fc-it-school-2025" --ssh-flag "-N -L 6443:127.0.0.1:6443"
 # 3. Build and push the image to Docker Hub (optional):
 #    make docker-push
-k8s-deploy: k8s-generate-secrets
+k8s-deploy:
+	@if [ -z "$(SLACK_WEBHOOK_URL)" ]; then \
+		echo "⚠️ WARNING: SLACK_WEBHOOK_URL is not set in environment variables."; \
+		echo "   Slack notifications will not work properly."; \
+		echo "   Please set it with: export SLACK_WEBHOOK_URL=\"https://hooks.slack.com/services/YOUR/REAL/TOKEN\""; \
+		echo "   Continuing deployment in 5 seconds..."; \
+		sleep 5; \
+	fi
 	@echo "🔄 Deploying ExpressOps to Kubernetes..."
 	@echo "📦 Applying Kubernetes resources..."
 	kubectl apply -f k8s/configmap.yaml
