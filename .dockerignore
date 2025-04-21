@@ -3,6 +3,7 @@
 *.out
 *.test
 *.so
+# ⬇️ to reduce the size of the image 
 plugins/**/*.so
 
 # Git metadata
@@ -24,8 +25,7 @@ plugins/**/*.so
 .vs/
 *.idea/
 
-
-# Docs and assets (not required at runtime)
+# Docs and assets 
 README.md
 LICENSE
 

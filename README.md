@@ -9,7 +9,7 @@ https://hub.docker.com/r/davidnull/expressops
 
 You can pull it with:
 ```bash
-docker pull davidnull/expressops:latest
+docker pull davidnull/expressops:1.0.0
 ```
 
 ## 📜 Table of Contents
@@ -98,13 +98,17 @@ ExpressOps can be deployed to Kubernetes using the provided Makefile commands:
 # Connect to Kubernetes (keep this terminal open)
 gcloud compute ssh --zone "europe-west1-d" "it-school-2025-1" --tunnel-through-iap --project "fc-it-school-2025" --ssh-flag "-N -L 6443:127.0.0.1:6443"
 
+# Install External Secrets Operator (first time setup)
+make k8s-install-eso
+
 # Build, tag and push Docker image to Docker Hub (optional)
-# The deployment is already configured to use the public image davidnull/expressops:latest
+# The deployment is already configured to use davidnull/expressops:1.0.0
+# You can change the version by setting the VERSION variable:
+# VERSION=1.0.1 make docker-push
 make docker-push
 
-# IMPORTANT: You MUST set the SLACK_WEBHOOK_URL environment variable before deployment
-# This is required for the Slack notifications to work properly
-# While we're implementing the External Secrets Operator, this manual step is necessary
+# OPTIONAL: Set SLACK_WEBHOOK_URL environment variable before deployment
+# If not set, a fake webhook URL will be used for development
 export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/REAL/TOKEN"
 
 # Deploy to Kubernetes
@@ -124,6 +128,34 @@ make k8s-delete
 ```
 
 The application will be accessible at http://localhost:8080 after port forwarding.
+
+### Secrets Management (€0 Cost)
+
+ExpressOps uses External Secrets Operator with a Fake provider for managing secrets in development environments. This approach allows you to:
+
+1. Use the same secrets management pattern as in production 
+2. Not depend on cloud provider APIs (no need to pay)
+3. Easily switch to a real secrets provider when needed
+
+#### How It Works
+
+- `k8s/secrets/fake-secretstore.yaml`: Defines a SecretStore using the Fake provider, which stores secrets directly in the manifest.
+- `k8s/secrets/slack-externalsecret.yaml`: Defines an ExternalSecret that references the Fake SecretStore to create a Kubernetes Secret named `expressops-secrets`.
+
+The Fake provider is used for development and testing environments where:
+- You don't want to activate or pay (€0) for cloud provider secret management services
+- You want a simple solution for local development
+- You want to maintain the same External Secrets structure as in production
+
+#### For Production
+
+In a production environment, you would replace the Fake provider with a real secret management solution like:
+- Google Secret Manager (€)
+- AWS Secrets Manager (€)
+- HashiCorp Vault (€)
+- Or other supported providers
+
+Then update the SecretStore configuration accordingly.
 
 ## ⚙️ Configuration example
 

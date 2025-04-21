@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
       - name: expressops
-        image: davidnull/expressops:latest #NO latest, use a specific tag
-        imagePullPolicy: Always
+        image: davidnull/expressops:1.0.0 
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
           name: http
@@ -26,6 +26,8 @@ spec:
           value: "8080"
         - name: SERVER_ADDRESS
           value: "0.0.0.0"
+        - name: PLUGINS_PATH
+          value: "plugins"
         - name: SLACK_WEBHOOK_URL
           valueFrom:
             secretKeyRef:

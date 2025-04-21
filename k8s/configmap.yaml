@@ -21,13 +21,23 @@ data:
         path: plugins/slack/slack.so
         type: notification
         config:
-          webhook_url: \${SLACK_WEBHOOK_URL}
+          webhook_url: ${SLACK_WEBHOOK_URL}
           
       - name: health-check-plugin
-        path: /app/plugins/healthcheck/health_check.so
+        path: plugins/healthcheck/health_check.so
         type: health
         config: {}
       
+      - name: formatter-plugin
+        path: plugins/formatters/health_alert_formatter.so
+        type: utils
+        config: {}
+        
+      - name: kube-health-plugin
+        path: plugins/kubehealth/kube_health.so
+        type: k8s
+        config: {}
+        
       - name: test-print-plugin
         path: plugins/testprint/testprint.so
         type: test
@@ -65,39 +75,46 @@ data:
         pipeline:
           - pluginRef: flow-lister-plugin
 
+
       - name: create-user
         description: "Create a user in GCP" 
         pipeline:
           - pluginRef: user-creation-plugin
+          - pluginRef: formatter-plugin
           - pluginRef: slack-notifier
           
       - name: set-permissions
         description: "Change permissions for a specific user on specified paths in GCP"
         pipeline:
           - pluginRef: permissions-plugin
+          - pluginRef: formatter-plugin
           - pluginRef: slack-notifier
-
-      - name: health-status
-        description: "Check system health status"
-        customHandler: "Collects system health information"
-        pipeline:
-          - pluginRef: health-check-plugin
-          - pluginRef: test-print-plugin
-          
-      - name: alert-health
-        description: "Check health and send notification"
-        customHandler: "Health monitoring with Slack notification"
-        pipeline:
-          - pluginRef: health-check-plugin
-          - pluginRef: slack-notifier
-          
+      
       - name: full-user-onboarding
         description: "Complete user onboarding process"
         customHandler: "Creates a user and sets appropriate permissions"
         pipeline:
           - pluginRef: user-creation-plugin
           - pluginRef: permissions-plugin
+          - pluginRef: formatter-plugin
           - pluginRef: slack-notifier
+
+
+      - name: health-status-no-format
+        description: "Check system health status"
+        customHandler: "Collects system health information"
+        pipeline:
+          - pluginRef: health-check-plugin
+          - pluginRef: test-print-plugin
+
+      - name: alert-health
+        description: "Check health and send notification"
+        customHandler: "Health monitoring with Slack notification"
+        pipeline:
+          - pluginRef: health-check-plugin
+          - pluginRef: formatter-plugin
+          - pluginRef: slack-notifier
+          
           
       - name: debug-test
         description: "Simple test flow for debugging"
@@ -105,10 +122,20 @@ data:
         pipeline:
           - pluginRef: test-print-plugin
           
-      - name: health-and-list
-        description: "Check health and list available flows"
-        customHandler: "Combines health check with flow discovery"
+              
+      - name: kube-notify
+        description: "Monitor Kubernetes and notify on Slack"
+        customHandler: "Monitors Kubernetes pods and sends alerts via Slack"
+        pipeline:
+          - pluginRef: kube-health-plugin
+          - pluginRef: formatter-plugin
+          - pluginRef: slack-notifier
+          
+      - name: full-monitoring
+        description: "Complete monitoring of system and Kubernetes"
+        customHandler: "Combines system health check and Kubernetes monitoring"
         pipeline:
           - pluginRef: health-check-plugin
-          - pluginRef: flow-lister-plugin
+          - pluginRef: kube-health-plugin
+          - pluginRef: formatter-plugin
           - pluginRef: slack-notifier

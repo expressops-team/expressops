@@ -29,10 +29,10 @@ plugins:
     config: 
       duration_seconds: ${SLEEP_DURATION:-10}  # Sleep duration in seconds
  
-  - #name: kube-health-plugin
-    #path: plugins/kubehealth/kube_health.so
-    #type: k8s
-    #config: {}
+  #- name: kube-health-plugin                         <=== if is not executed in k8s, commented
+  #  path: plugins/kubehealth/kube_health.so
+  #  type: k8s
+  #  config: {}
 
   - name: test-print-plugin
     path: plugins/testprint/testprint.so
