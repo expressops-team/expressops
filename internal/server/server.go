@@ -84,7 +84,16 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 		paramsRaw := r.URL.Query().Get("params")
 		additionalParams := parseParams(paramsRaw)
 
-		results := executeFlow(ctx, flow, additionalParams, r, logger)
+		// Check if full output is requested
+		// ONLY the flowlister plugin can use this, the only exception
+		fullOutput := false
+		if r.URL.Query().Get("full_output") == "true" {
+			fullOutput = true
+			additionalParams["full_output"] = true
+			logger.Info("Full output mode enabled")
+		}
+
+		results := executeFlow(ctx, flow, additionalParams, r, logger, fullOutput)
 
 		w.Header().Set("Content-Type", "application/json")
 
@@ -125,13 +134,16 @@ func parseParams(paramsRaw string) map[string]interface{} {
 }
 
 // step by step execution of the flow
-func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, r *http.Request, logger *logrus.Logger) []interface{} {
+func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, r *http.Request, logger *logrus.Logger, fullOutput bool) []interface{} {
 	var results []interface{}
 	shared := make(map[string]interface{})
 
 	for k, v := range additionalParams {
 		shared[k] = v //necessary for the new parameter "shared"
 	}
+
+	// Add flow registry to shared context
+	shared["flow_registry"] = flowRegistry
 
 	var lastResult interface{}
 	for _, step := range flow.Pipeline {
@@ -194,8 +206,10 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 		if step.PluginRef == "formatter-plugin" {
 			logger.Infof("Result from %s: [long output, check the slack channel ;D]", step.PluginRef)
 		} else {
-			if len(formattedResult) > 100 {
+			// Check if full output is requested or output is short enough
+			if !fullOutput && len(formattedResult) > 100 {
 				logger.Infof("Result from %s: %s...", step.PluginRef, formattedResult[:100])
+				logger.Infof("Use '?full_output=true' for complete output at the end of your call ;)")
 			} else {
 				logger.Infof("Result from %s: %s", step.PluginRef, formattedResult)
 			}

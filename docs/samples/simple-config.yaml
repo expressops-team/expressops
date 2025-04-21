@@ -1,0 +1,40 @@
+logging:
+  level: debug
+  format: text
+
+server:
+  port: 8080
+  address: 0.0.0.0
+  timeoutSeconds: 4
+  http:
+    protocolVersion: 2
+
+plugins:
+  - name: test-print-plugin
+    path: plugins/testprint/testprint.so
+    type: test
+    config: {}
+    
+  - name: flow-lister-plugin
+    path: plugins/flowlister/flow_lister.so
+    type: utils
+    config: {}
+
+flows:
+  - name: all-flows
+    description: "List all available flows in the system"
+    customHandler: "Lists all available flows with their plugins and descriptions"
+    pipeline:
+      - pluginRef: flow-lister-plugin
+
+  - name: hello-world
+    description: "A simple hello world flow"
+    customHandler: "Simple hello world test"
+    pipeline:
+      - pluginRef: test-print-plugin
+      
+  - name: test-flow
+    description: "Another test flow"
+    customHandler: "Another test flow"
+    pipeline:
+      - pluginRef: test-print-plugin 

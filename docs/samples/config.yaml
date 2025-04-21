@@ -44,6 +44,11 @@ plugins:
     type: utils
     config: {}
     
+  - name: flow-lister-plugin
+    path: plugins/flowlister/flow_lister.so
+    type: utils
+    config: {}
+    
   - name: permissions-plugin
     path: plugins/permissions/permissions.so
     type: management
@@ -68,6 +73,12 @@ plugins:
 
 
 flows:
+  - name: all-flows
+    description: "List all available flows in the system"
+    customHandler: "Lists all available flows with their plugins and descriptions"
+    pipeline:
+      - pluginRef: flow-lister-plugin
+
   - name: incident-flow
     description: "Notify the team when an incident occurs" #rn only for testing
     pipeline:

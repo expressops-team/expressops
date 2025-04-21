@@ -161,6 +161,16 @@ This flow performs:
 curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
 ```
 
+## 🔍 Flow Discovery, very usefull!
+
+ExpressOps provides a built-in flow to discover all available flows in the system:
+
+```bash
+curl "http://localhost:8080/flow?flowName=all-flows"
+```
+
+This will return a formatted list of all flows with their descriptions and plugins.
+
 ## 🤝 Contributing
 
 Contributions are welcome! Feel free to open an issue, fork the repo, or submit a pull request.

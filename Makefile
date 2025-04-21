@@ -127,7 +127,7 @@ help:
 	@echo
 	@echo "================================================"
 
-	@echo "Configurable variables (current values):"
+	@echo "Configurable variables (with our current values):"
 	@echo "  IMAGE_NAME       = $(IMAGE_NAME)"
 	@echo "  CONTAINER_NAME   = $(CONTAINER_NAME)"
 	@echo "  HOST_PORT        = $(HOST_PORT)"
@@ -142,6 +142,7 @@ help:
 	@echo "  K8S_NAMESPACE    = $(K8S_NAMESPACE)"
 
 # Generate secrets file from template
+# THIS WILL BE DELETED SOON
 k8s-generate-secrets:
 	@if [ ! -f k8s/secrets.yaml ]; then \
 		echo "⚠️ secrets.yaml does not exist, creating from example..."; \
