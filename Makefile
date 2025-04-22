@@ -13,7 +13,7 @@ PRINT = @echo
 
 # IMAGE REPOSITORY WILL BE CHANGED TO expressopsfreepik/expressops IN THE FUTURE
 IMAGE_REPOSITORY ?= davidnull/expressops
-IMAGE_TAG ?= 1.0.0
+IMAGE_TAG ?= 1.0.0 # TODO: vx to make it dynamic
 PLUGINS_PATH ?= plugins
 
 CONTAINER_NAME ?= expressops-app
