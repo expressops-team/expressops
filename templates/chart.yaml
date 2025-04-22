@@ -1,0 +1,12 @@
+name: expressops
+version: 1.0.0
+description: A Helm chart for ExpressOps
+
+dependencies:
+  - name: expressops
+    repository: file://../
+    version: 1.0.0
+    condition: expressops.enabled
+type: application
+home: https://github.com/freepik-company/expressops
+icon: https://raw.githubusercontent.com/freepik-company/expressops/docs

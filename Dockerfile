@@ -1,14 +1,6 @@
 # Stage 1: Build
 FROM golang:1.24.2-alpine3.21 AS builder
 
-# Build arguments
-ARG SERVER_PORT=8080
-ARG SERVER_ADDRESS=0.0.0.0
-ARG TIMEOUT_SECONDS=4
-ARG LOG_LEVEL=info
-ARG LOG_FORMAT=text
-ARG CONFIG_PATH=/app/config.yaml
-
 # Install build dependencies
 RUN apk add --no-cache git build-base ca-certificates
 
@@ -53,24 +45,11 @@ COPY --from=builder /build/plugins ./plugins
 # Copy required config
 COPY docs/samples/config.yaml /app/config.yaml
 
-# Environment variables
-ARG SERVER_PORT=8080
-ARG SERVER_ADDRESS=0.0.0.0
-ARG TIMEOUT_SECONDS=4
-ARG LOG_LEVEL=info
-ARG LOG_FORMAT=text
-ARG CONFIG_PATH=/app/config.yaml
-ARG PLUGINS_PATH=plugins
+# Environment variables with direct values <=== given in the config.yaml file
 
-ENV SERVER_PORT=${SERVER_PORT}
-ENV SERVER_ADDRESS=${SERVER_ADDRESS}
-ENV TIMEOUT_SECONDS=${TIMEOUT_SECONDS}
-ENV LOG_LEVEL=${LOG_LEVEL}
-ENV LOG_FORMAT=${LOG_FORMAT}
-ENV CONFIG_PATH=${CONFIG_PATH}
-ENV PLUGINS_PATH=${PLUGINS_PATH}
 
-EXPOSE ${SERVER_PORT}
+# Expose port 8080 for server
+EXPOSE 8080
 
 # Run as non-root for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup

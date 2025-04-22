@@ -176,6 +176,7 @@ k8s-deploy:
 	@echo "🔄 Deploying ExpressOps to Kubernetes..."
 	@echo "📦 Applying Kubernetes resources..."
 	kubectl apply -f k8s/configmap.yaml
+	kubectl apply -f k8s/expressops-env-config.yaml 
 	kubectl apply -f k8s/deployment.yaml
 	kubectl apply -f k8s/secrets/fake-secretstore.yaml
 	kubectl apply -f k8s/secrets/slack-externalsecret.yaml
@@ -226,6 +227,7 @@ k8s-delete:
 	kubectl delete -f k8s/secrets/slack-externalsecret.yaml --ignore-not-found
 	kubectl delete -f k8s/secrets/fake-secretstore.yaml --ignore-not-found				
 	kubectl delete -f k8s/configmap.yaml --ignore-not-found
+	kubectl delete -f k8s/expressops-env-config.yaml --ignore-not-found
 	@echo "✅ ExpressOps deleted from Kubernetes"
 
 .DEFAULT_GOAL := help
