@@ -11,7 +11,7 @@ BOLD = \033[1m
 RESET = \033[0m
 PRINT = @echo 
 
-# Configurable variables (can be overridden with environment variables)
+# IMAGE REPOSITORY WILL BE CHANGED TO expressopsfreepik/expressops IN THE FUTURE
 IMAGE_REPOSITORY ?= davidnull/expressops
 IMAGE_TAG ?= 1.0.0
 PLUGINS_PATH ?= plugins
