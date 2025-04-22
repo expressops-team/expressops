@@ -29,10 +29,10 @@ plugins:
     config: 
       duration_seconds: ${SLEEP_DURATION:-10}  # Sleep duration in seconds
  
-  - #name: kube-health-plugin
-    #path: plugins/kubehealth/kube_health.so
-    #type: k8s
-    #config: {}
+  #- name: kube-health-plugin                         <=== if is not executed in k8s, commented
+  #  path: plugins/kubehealth/kube_health.so
+  #  type: k8s
+  #  config: {}
 
   - name: test-print-plugin
     path: plugins/testprint/testprint.so
@@ -41,6 +41,11 @@ plugins:
 
   - name: formatter-plugin
     path: plugins/formatters/health_alert_formatter.so
+    type: utils
+    config: {}
+    
+  - name: flow-lister-plugin
+    path: plugins/flowlister/flow_lister.so
     type: utils
     config: {}
     
@@ -68,6 +73,12 @@ plugins:
 
 
 flows:
+  - name: all-flows
+    description: "List all available flows in the system"
+    customHandler: "Lists all available flows with their plugins and descriptions"
+    pipeline:
+      - pluginRef: flow-lister-plugin
+
   - name: incident-flow
     description: "Notify the team when an incident occurs" #rn only for testing
     pipeline:

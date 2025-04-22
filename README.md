@@ -1,20 +1,20 @@
-## ExpressOps 🚀
+## ExpressOps  <img src="docs/img/LOGO_EXPRESSOPS.png" alt="ExpressOps Logo" align="right" width="150" style="margin-top: 20px;">
 
-ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plugins. It allows you to define operational workflows (such as health checks, formatting, notifications, and logging) via a simple YAML configuration. Each plugin handles one task and flows chain them together.
+> 🚨 <span style="color:red">**Note: Currently under active development**</span> - API and features may change without notice
+
+ExpressOps: A lightweight flow orchestrator that:
+- Loads plugins dynamically
+- Chains plugins into workflows via YAML config
+- Each plugin = one task (health checks, formatting, notifications, etc.)
 
 ## 📦 Docker Hub
 
 The ExpressOps Docker image is available on Docker Hub at:
 https://hub.docker.com/r/davidnull/expressops
 
+> *Note: Currently only for testing. Will move to **expressopsfreepik/expressops** in the future*
+
 You can pull it with:
-```bash
-docker pull davidnull/expressops:latest
-```
-
-## 📜 Table of Contents
-
-- [Features](#-features)
 - [Requirements](#-requirements)
 - [Installation](#-installation)
 - [Usage](#-usage)
@@ -98,17 +98,18 @@ ExpressOps can be deployed to Kubernetes using the provided Makefile commands:
 # Connect to Kubernetes (keep this terminal open)
 gcloud compute ssh --zone "europe-west1-d" "it-school-2025-1" --tunnel-through-iap --project "fc-it-school-2025" --ssh-flag "-N -L 6443:127.0.0.1:6443"
 
+# Install External Secrets Operator (first time setup)
+make k8s-install-eso
+
 # Build, tag and push Docker image to Docker Hub (optional)
-# The deployment is already configured to use the public image davidnull/expressops:latest
+# The deployment is already configured to use davidnull/expressops:1.0.0
+# You can change the version by setting the VERSION variable:
+# VERSION=1.0.1 make docker-push
 make docker-push
 
-# Set up your secrets (needed for Slack notifications)
-# Option 1: Set SLACK_WEBHOOK_URL in your environment:
+# OPTIONAL: Set SLACK_WEBHOOK_URL environment variable before deployment
+# If not set, a fake webhook URL will be used for development
 export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/REAL/TOKEN"
-
-# Option 2: Edit secrets.yaml manually
-make k8s-generate-secrets
-# Then edit k8s/secrets.yaml with your actual webhook URL
 
 # Deploy to Kubernetes
 make k8s-deploy
@@ -127,6 +128,34 @@ make k8s-delete
 ```
 
 The application will be accessible at http://localhost:8080 after port forwarding.
+
+### Secrets Management (€0 Cost)
+
+ExpressOps uses External Secrets Operator with a Fake provider for managing secrets in development environments. This approach allows you to:
+
+1. Use the same secrets management pattern as in production 
+2. Not depend on cloud provider APIs (no need to pay)
+3. Easily switch to a real secrets provider when needed
+
+#### How It Works
+
+- `k8s/secrets/fake-secretstore.yaml`: Defines a SecretStore using the Fake provider, which stores secrets directly in the manifest.
+- `k8s/secrets/slack-externalsecret.yaml`: Defines an ExternalSecret that references the Fake SecretStore to create a Kubernetes Secret named `expressops-secrets`.
+
+The Fake provider is used for development and testing environments where:
+- You don't want to activate or pay (€0) for cloud provider secret management services
+- You want a simple solution for local development
+- You want to maintain the same External Secrets structure as in production
+
+#### For Production
+
+In a production environment, you would replace the Fake provider with a real secret management solution like:
+- Google Secret Manager (€)
+- AWS Secrets Manager (€)
+- HashiCorp Vault (€)
+- Or other supported providers
+
+Then update the SecretStore configuration accordingly.
 
 ## ⚙️ Configuration example
 
@@ -162,6 +191,28 @@ This flow performs:
 curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
 ```
 
+## 🔍 Flow Discovery
+
+ExpressOps provides a built-in flow to discover all available flows in the system:
+
+```bash
+curl "http://localhost:8080/flow?flowName=all-flows"
+```
+
+This will return a formatted list of all flows with their descriptions and plugins. The `all-flows` output is:
+
+- Automatically displayed in full without truncation
+- Formatted with each flow appearing on separate log lines in Kubernetes logs for better readability
+- A great way to explore available flows when you're first getting started
+
+When running in Kubernetes, you can view the formatted output with:
+
+```bash
+make k8s-port-forward  # In terminal 1
+curl "http://localhost:8080/flow?flowName=all-flows"  # In terminal 2
+make k8s-logs  # In terminal 3 to see the nicely formatted logs
+```
+
 ## 🤝 Contributing
 
 Contributions are welcome! Feel free to open an issue, fork the repo, or submit a pull request.
@@ -187,4 +238,5 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 Thanks to all contributors and plugin authors who made this modular system possible.
 
 
-Happy hacking ✨
+
+Hope you like ExpressOps and consider contributing! 🌟

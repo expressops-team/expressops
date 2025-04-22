@@ -12,8 +12,14 @@ logs/*.log
 logs/*.zip
 
 # Kubernetes secrets
-k8s/secrets.yaml
+# k8s/secrets.yaml DOES NOT EXIST, IT IS GENERATED FROM k8s/secrets/fake-secretstore.yaml
 
 # Local environment files
 .env
 *.local
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo

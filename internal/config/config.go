@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"reflect" // use tags to set default values in config_types.go
+	"reflect" // used for setting default values via struct tags
 	"strconv"
 
 	"expressops/api/v1alpha1"
 	pluginManager "expressops/internal/plugin/loader"
 
-	// We import the LoadPlugin and GetPlugin functions from the pluginManager package
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
@@ -29,7 +28,7 @@ func InitializeLogger() *logrus.Logger {
 	return logger
 }
 
-// Load the configuration from YAML
+// LoadConfig loads the configuration from a YAML file
 func LoadConfig(ctx context.Context, path string, logger *logrus.Logger) (*v1alpha1.Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -39,8 +38,7 @@ func LoadConfig(ctx context.Context, path string, logger *logrus.Logger) (*v1alp
 	// Expand environment variables in the config file
 	expandedData := os.ExpandEnv(string(data))
 
-	// declares a variable of type Config
-	// with the yaml package("gopkg.in/yaml.v3"), we unmarshal the data into the cfg variable
+	// Unmarshal YAML data into Config struct
 	var cfg v1alpha1.Config
 	if err := yaml.Unmarshal([]byte(expandedData), &cfg); err != nil {
 		return nil, fmt.Errorf("error unmarshaling YAML: %w", err)
@@ -49,7 +47,7 @@ func LoadConfig(ctx context.Context, path string, logger *logrus.Logger) (*v1alp
 	// Apply defaults from struct tags
 	applyDefaults(&cfg, logger)
 
-	// Sobrescribir con variables de entorno, si existen
+	// Override with environment variables if they exist
 	ApplyEnvironmentOverrides(&cfg, logger)
 
 	logger.Info("Base configuration loaded. Processing plugins...")
@@ -66,7 +64,7 @@ func LoadConfig(ctx context.Context, path string, logger *logrus.Logger) (*v1alp
 
 		logger.Debugf("Loading plugin code: %s (Path: %s)", pluginCfg.Name, pluginCfg.Path)
 		if err := pluginManager.LoadPlugin(ctx, pluginCfg.Path, pluginCfg.Name, pluginCfg.Config, logger); err != nil {
-			// more precise error message
+			// Detailed error message
 			return nil, fmt.Errorf("error loading plugin '%s' from '%s': %w\n"+
 				"Please check:\n"+
 				"- The plugin file exists\n"+
@@ -109,44 +107,45 @@ func applyDefaults(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	}
 }
 
-// ApplyEnvironmentOverrides sobrescribe la configuración con variables de entorno
+// ApplyEnvironmentOverrides overrides configuration with environment variables
 func ApplyEnvironmentOverrides(cfg *v1alpha1.Config, logger *logrus.Logger) {
-	// Configuración del servidor
+	// Server configuration
 	if portStr := os.Getenv("SERVER_PORT"); portStr != "" {
 		if port, err := strconv.Atoi(portStr); err == nil {
 			cfg.Server.Port = port
-			logger.Infof("SERVER_PORT configurado desde la variable de entorno: %d", port)
+			logger.Infof("SERVER_PORT set from environment variable: %d", port)
 		} else {
-			logger.Warnf("Variable SERVER_PORT inválida: %s", portStr)
+			logger.Warnf("Invalid SERVER_PORT value: %s", portStr)
 		}
 	}
 
 	if address := os.Getenv("SERVER_ADDRESS"); address != "" {
 		cfg.Server.Address = address
-		logger.Infof("SERVER_ADDRESS configurado desde la variable de entorno: %s", address)
+		logger.Infof("SERVER_ADDRESS set from environment variable: %s", address)
 	}
 
 	if timeoutStr := os.Getenv("TIMEOUT_SECONDS"); timeoutStr != "" {
 		if timeout, err := strconv.Atoi(timeoutStr); err == nil {
 			cfg.Server.TimeoutSec = timeout
-			logger.Infof("TIMEOUT_SECONDS configurado desde la variable de entorno: %d", timeout)
+			logger.Infof("TIMEOUT_SECONDS set from environment variable: %d", timeout)
 		} else {
-			logger.Warnf("Variable TIMEOUT_SECONDS inválida: %s", timeoutStr)
+			logger.Warnf("Invalid TIMEOUT_SECONDS value: %s", timeoutStr)
 		}
 	}
 
-	// Configuración de logging
+	// Logging configuration
 	if level := os.Getenv("LOG_LEVEL"); level != "" {
 		cfg.Logging.Level = level
-		logger.Infof("LOG_LEVEL configurado desde la variable de entorno: %s", level)
+		logger.Infof("LOG_LEVEL set from environment variable: %s", level)
 	}
 
 	if format := os.Getenv("LOG_FORMAT"); format != "" {
 		cfg.Logging.Format = format
-		logger.Infof("LOG_FORMAT configurado desde la variable de entorno: %s", format)
+		logger.Infof("LOG_FORMAT set from environment variable: %s", format)
 	}
 }
 
+// ConfigureLogger configures the logger based on the configuration settings
 func ConfigureLogger(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	// Configure based on config
 	var formatter logrus.Formatter
@@ -170,5 +169,5 @@ func ConfigureLogger(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	}
 
 	logger.SetLevel(logLevel)
-	logger.Infof("Logger configurado con format=%s y level=%s", cfg.Logging.Format, logLevel)
+	logger.Infof("Logger configured with format=%s and level=%s", cfg.Logging.Format, logLevel)
 }

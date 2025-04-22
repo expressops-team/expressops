@@ -84,7 +84,13 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 		paramsRaw := r.URL.Query().Get("params")
 		additionalParams := parseParams(paramsRaw)
 
-		results := executeFlow(ctx, flow, additionalParams, r, logger)
+		// Only check if this is the all-flows flow
+		isAllFlowsFlow := flowName == "all-flows"
+		if isAllFlowsFlow {
+			logger.Info("all-flows detected - showing complete output")
+		}
+
+		results := executeFlow(ctx, flow, additionalParams, r, logger, isAllFlowsFlow)
 
 		w.Header().Set("Content-Type", "application/json")
 
@@ -125,13 +131,16 @@ func parseParams(paramsRaw string) map[string]interface{} {
 }
 
 // step by step execution of the flow
-func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, r *http.Request, logger *logrus.Logger) []interface{} {
+func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[string]interface{}, r *http.Request, logger *logrus.Logger, isAllFlowsFlow bool) []interface{} {
 	var results []interface{}
 	shared := make(map[string]interface{})
 
 	for k, v := range additionalParams {
 		shared[k] = v //necessary for the new parameter "shared"
 	}
+
+	// Add flow registry to shared context
+	shared["flow_registry"] = flowRegistry
 
 	var lastResult interface{}
 	for _, step := range flow.Pipeline {
@@ -193,8 +202,19 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 		results = append(results, result)
 		if step.PluginRef == "formatter-plugin" {
 			logger.Infof("Result from %s: [long output, check the slack channel ;D]", step.PluginRef)
+		} else if strings.HasPrefix(formattedResult, "__MULTILINE_LOG__") {
+			// Handle multi-line logging specially (for flow-lister-plugin)
+			logLines := strings.Split(formattedResult, "__MULTILINE_LOG__")
+			logger.Infof("Result from %s (multi-line output):", step.PluginRef)
+			for _, line := range logLines {
+				if line == "" {
+					continue
+				}
+				logger.Info(line)
+			}
 		} else {
-			if len(formattedResult) > 100 {
+			// Show full output for all-flows flow, truncate others if they're too long
+			if !isAllFlowsFlow && len(formattedResult) > 100 {
 				logger.Infof("Result from %s: %s...", step.PluginRef, formattedResult[:100])
 			} else {
 				logger.Infof("Result from %s: %s", step.PluginRef, formattedResult)

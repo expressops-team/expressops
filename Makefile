@@ -1,24 +1,21 @@
-# docker run -d --name expressops-demo -p 8080:8080 expressops:Vx   <-- for testing
+# docker run -d --name expressops-demo -p 8080:8080 expressops:1.0.0  <-- for testing
 #      make docker-build   //    make docker-run
-# Common commands:
-#   make build          - Build plugins and app
-#   make run            - Run locally
-#   make docker-build   - Build Docker image (auto-versioned)
-#   make docker-run     - Run Docker container
-#   make docker-clean   - Cleanup Docker
-#   make help           - Show command help
+# make build-plugins // make run // make clean // make help // make docker-build // make docker-run
 
 # make run <===
 GREEN = \033[32m
 RED = \033[31m
 BLUE = \033[34m
 YELLOW = \033[33m
+BOLD = \033[1m
 RESET = \033[0m
 PRINT = @echo 
 
-# Configurable variables (can be overridden with environment variables)
-IMAGE_NAME ?= expressops
-NEW_TAG :=
+# IMAGE REPOSITORY WILL BE CHANGED TO expressopsfreepik/expressops IN THE FUTURE
+IMAGE_REPOSITORY ?= davidnull/expressops
+IMAGE_TAG ?= 1.0.0 # TODO: vx to make it dynamic
+PLUGINS_PATH ?= plugins
+
 CONTAINER_NAME ?= expressops-app
 HOST_PORT ?= 8080
 SERVER_PORT ?= 8080
@@ -29,6 +26,9 @@ LOG_FORMAT ?= text
 SLACK_WEBHOOK_URL ?= 
 CONFIG_PATH ?= docs/samples/config.yaml
 CONFIG_MOUNT_PATH ?= /app/config.yaml
+K8S_NAMESPACE ?= default
+
+.PHONY: build run docker-build docker-push docker-run docker-clean help k8s-deploy k8s-status k8s-logs k8s-delete k8s-port-forward k8s-install-eso helm-install helm-upgrade helm-uninstall helm-template helm-package
 
 # Build plugins and application locally
 build:
@@ -55,18 +55,9 @@ run: build
 	@echo "🚀 Starting ExpressOps"
 	./expressops -config $(CONFIG_PATH)
 
-# Auto-versioned images Docker build
+# Build Docker image
 docker-build:
-	@echo "🐳 Checking existing Docker image versions..."
-	@VERSION=$$(docker images --format "{{.Tag}}" $(IMAGE_NAME) | grep -E '^v[0-9]+$$' | sed 's/v//' | sort -n | tail -n1); \
-	if [ -z "$$VERSION" ]; then \
-		NEXT_VERSION=1; \
-	else \
-		NEXT_VERSION=$$((VERSION + 1)); \
-	fi; \
-	NEW_TAG=v$$NEXT_VERSION; \
-	echo "$$NEW_TAG" > .docker_tag; \
-	echo "📦 Building Docker image with tag: $$NEW_TAG"; \
+	@echo "🐳 Building Docker image..."
 	docker build \
 		--build-arg SERVER_PORT=$(SERVER_PORT) \
 		--build-arg SERVER_ADDRESS=$(SERVER_ADDRESS) \
@@ -74,14 +65,23 @@ docker-build:
 		--build-arg LOG_LEVEL=$(LOG_LEVEL) \
 		--build-arg LOG_FORMAT=$(LOG_FORMAT) \
 		--build-arg CONFIG_PATH=$(CONFIG_MOUNT_PATH) \
-		-t $(IMAGE_NAME):$$NEW_TAG .; \
-	echo "✅ Image built: $(IMAGE_NAME):$$NEW_TAG"
+		-t $(IMAGE_REPOSITORY):$(IMAGE_TAG) .
+	@echo "✅ Image built: $(IMAGE_REPOSITORY):$(IMAGE_TAG)"
+	@echo "🏷️ Tagging image for Docker Hub..."
+	docker tag $(IMAGE_REPOSITORY):$(IMAGE_TAG) davidnull/expressops:$(IMAGE_TAG)
+	@echo "✅ Image tagged: davidnull/expressops:$(IMAGE_TAG)"
+
+# Push Docker image to Docker Hub
+docker-push: docker-build
+	@echo "⬆️ Pushing image to Docker Hub..."
+	docker login
+	docker push davidnull/expressops:$(IMAGE_TAG)
+	@echo "✅ Image pushed to Docker Hub"
 
 # Run Docker container
 docker-run:
-	@NEW_TAG=$$(cat .docker_tag 2>/dev/null || echo "latest"); \
-	echo "🚀 Starting container with tag: $$NEW_TAG"; \
-	@echo "📌 Application available at http://localhost:$(HOST_PORT)"; \
+	@echo "🚀 Starting container..."
+	@echo "📌 Application available at http://localhost:$(HOST_PORT)"
 	docker run --name $(CONTAINER_NAME) \
 		-p $(HOST_PORT):$(SERVER_PORT) \
 		-e SERVER_PORT=$(SERVER_PORT) \
@@ -91,9 +91,7 @@ docker-run:
 		-e LOG_FORMAT=$(LOG_FORMAT) \
 		-e SLACK_WEBHOOK_URL=$(SLACK_WEBHOOK_URL) \
 		-v $(PWD)/$(CONFIG_PATH):$(CONFIG_MOUNT_PATH) \
-		--rm $(IMAGE_NAME):$$NEW_TAG
-	@echo "🐳 Running image version: $$NEW_TAG"
-
+		--rm $(IMAGE_REPOSITORY):$(IMAGE_TAG)
 
 # Run Docker container with build
 docker-run-build: docker-build docker-run
@@ -103,43 +101,165 @@ docker-clean:
 	@echo "🧹 Cleaning Docker resources..."
 	-docker stop $(CONTAINER_NAME) 2>/dev/null || true
 	-docker rm $(CONTAINER_NAME) 2>/dev/null || true
-	-docker rmi $(IMAGE_NAME):latest 2>/dev/null || true
-	-rm -f .docker_tag
-	@echo "🗑 Removing unused images..."
+	-docker rmi $(IMAGE_REPOSITORY):$(IMAGE_TAG) 2>/dev/null || true
 	@echo "🗑 Removing <none> images..."
 	-docker rmi $$(docker images -f "dangling=true" -q) 2>/dev/null || true
 	@echo "✅ Cleanup completed"
 
-# Run Docker container with SRE2 configuration
-docker-run-sre2:
-	$(MAKE) docker-run CONFIG_PATH=docs/samples/config_SRE2.yaml CONFIG_MOUNT_PATH=/app/config.yaml
-
-
-# Help
+# how this works
 help:
-	@echo "Available commands:"
-	@echo "================================================"
-	@echo "  make help          - Show this help"
-	@echo "  make build         - Build plugins and application"
-	@echo "  make run           - Run application locally"
-	@echo "  make docker-build  - Build Docker image"
-	@echo "  make docker-push   - Build, tag and push Docker image to Docker Hub"
-	@echo "  make docker-run    - Run container"
-	@echo "  make docker-run-sre2 - Run container with SRE2 configuration"
-	@echo "  make docker-clean  - Clean Docker resources"
-	@echo "================================================"
+	@echo
+	@echo "$(YELLOW)=================================================================================$(RESET)"
+	@echo "$(YELLOW)===================$(BOLD)$(BLUE)IMPORTANT READ THE COMMENTS IN THE CODE$(RESET)$(YELLOW)=======================$(RESET)"
+	@echo "$(YELLOW)=================================================================================$(RESET)"
+	@echo
+	@echo "$(BLUE)Available commands:$(RESET)"
+	@echo "$(GREEN)  make help          $(RESET)- Show this help"
+	@echo "$(GREEN)  make build         $(RESET)- Build plugins and application"
+	@echo "$(GREEN)  make run           $(RESET)- Run application locally"
+	@echo "$(GREEN)  make docker-build  $(RESET)- Build Docker image"
+	@echo "$(GREEN)  make docker-push   $(RESET)- Build, tag and push Docker image to Docker Hub"
+	@echo "$(GREEN)  make docker-run    $(RESET)- Run container"
 
-	@echo "Configurable variables (current values):"
-	@echo "  IMAGE_NAME       = $(IMAGE_NAME)"
-	@echo "  CONTAINER_NAME   = $(CONTAINER_NAME)"
-	@echo "  HOST_PORT        = $(HOST_PORT)"
-	@echo "  SERVER_PORT      = $(SERVER_PORT)"
-	@echo "  SERVER_ADDRESS   = $(SERVER_ADDRESS)"
-	@echo "  TIMEOUT_SECONDS  = $(TIMEOUT_SECONDS)"
-	@echo "  LOG_LEVEL        = $(LOG_LEVEL)"
-	@echo "  LOG_FORMAT       = $(LOG_FORMAT)"
-	@echo "  SLACK_WEBHOOK_URL = $(SLACK_WEBHOOK_URL)"
-	@echo "  CONFIG_PATH      = $(CONFIG_PATH)"
-	@echo "  CONFIG_MOUNT_PATH = $(CONFIG_MOUNT_PATH)"
+	@echo "$(GREEN)  make k8s-install-eso $(RED)- Required before first deployment$(RESET)"
+	@echo "$(GREEN)  make k8s-deploy    $(RESET)- Deploy to Kubernetes"
+	@echo "$(GREEN)  make k8s-status    $(RESET)- Check Kubernetes deployment status"
+	@echo "$(GREEN)  make k8s-logs      $(RESET)- View Kubernetes logs"
+	@echo "$(GREEN)  make k8s-port-forward $(RESET)- Port forward to access the application"
+	@echo "$(GREEN)  make k8s-delete    $(RESET)- Delete Kubernetes deployment"
+	
+	@echo "$(GREEN)  make helm-install  $(RESET)- Install ExpressOps using Helm chart"
+	@echo "$(GREEN)  make helm-upgrade  $(RESET)- Upgrade existing Helm deployment"
+	@echo "$(GREEN)  make helm-uninstall$(RESET)- Uninstall Helm deployment"
+	@echo "$(GREEN)  make helm-template $(RESET)- View Helm templates without installing"
+	@echo "$(GREEN)  make helm-package  $(RESET)- Package Helm chart into a .tgz file"
+	@echo
+	@echo "$(YELLOW)=================================================================================$(RESET)"
+	@echo
+	@echo "$(BLUE)Configurable variables (with our current values):$(RESET)"
+	@echo "$(GREEN)  IMAGE_REPOSITORY $(RESET)= $(IMAGE_REPOSITORY)"
+	@echo "$(GREEN)  IMAGE_TAG        $(RESET)= $(IMAGE_TAG)"
+	@echo "$(GREEN)  PLUGINS_PATH     $(RESET)= $(PLUGINS_PATH)"
+	@echo "$(GREEN)  CONTAINER_NAME   $(RESET)= $(CONTAINER_NAME)"
+	@echo "$(GREEN)  HOST_PORT        $(RESET)= $(HOST_PORT)"
+	@echo "$(GREEN)  SERVER_PORT      $(RESET)= $(SERVER_PORT)"
+	@echo "$(GREEN)  SERVER_ADDRESS   $(RESET)= $(SERVER_ADDRESS)"
+	@echo "$(GREEN)  TIMEOUT_SECONDS  $(RESET)= $(TIMEOUT_SECONDS)"
+	@echo "$(GREEN)  LOG_LEVEL        $(RESET)= $(LOG_LEVEL)"
+	@echo "$(GREEN)  LOG_FORMAT       $(RESET)= $(LOG_FORMAT)"
+	@echo "$(GREEN)  SLACK_WEBHOOK_URL $(RESET)= $(SLACK_WEBHOOK_URL)..."
+	@echo "$(GREEN)  CONFIG_PATH      $(RESET)= $(CONFIG_PATH)"
+	@echo "$(GREEN)  CONFIG_MOUNT_PATH $(RESET)= $(CONFIG_MOUNT_PATH)"
+	@echo "$(GREEN)  K8S_NAMESPACE    $(RESET)= $(K8S_NAMESPACE)"
+
+# Install External Secrets Operator
+# Before deploying:
+# 1. Set the SLACK_WEBHOOK_URL environment variable (required):
+#    export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/REAL/TOKEN"
+# - In case there was one before, you can delete it with:
+# ==>  	kubectl delete secret expressops-secrets
+k8s-install-eso:
+	@echo "🔄 Installing External Secrets Operator..."
+	@helm repo add external-secrets https://charts.external-secrets.io
+	@helm repo update
+	@helm install external-secrets external-secrets/external-secrets \
+		--namespace external-secrets \
+		--create-namespace \
+		--set installCRDs=true
+	@echo "✅ External Secrets Operator installed"
+	@echo "⏳ Wait for operator to be ready..."
+	@kubectl wait --for=condition=available --timeout=90s deployment/external-secrets -n external-secrets || echo "⚠️ Timeout waiting for ESO to be ready"
+
+# Kubernetes Deployment
+# Before deploying:
+# 1. Set the SLACK_WEBHOOK_URL environment variable (required):
+#    export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/REAL/TOKEN"
+# 2. Connect to Kubernetes with the SSH tunnel:
+#    gcloud compute ssh --zone "europe-west1-d" "it-school-2025-1" --tunnel-through-iap --project "fc-it-school-2025" --ssh-flag "-N -L 6443:127.0.0.1:6443"
+# 3. Build and push the image to Docker Hub (optional):
+#    make docker-push
+k8s-deploy:
+	@echo "🔄 Deploying ExpressOps to Kubernetes..."
+	@echo "📦 Applying Kubernetes resources..."
+	kubectl apply -f k8s/configmap.yaml
+	kubectl apply -f k8s/expressops-env-config.yaml 
+	kubectl apply -f k8s/deployment.yaml
+	kubectl apply -f k8s/secrets/fake-secretstore.yaml
+	kubectl apply -f k8s/secrets/slack-externalsecret.yaml
+	kubectl apply -f k8s/service.yaml
+	@echo "⏳ Waiting for External Secret to sync (15s)..." #to give time for the secret to be created
+	@sleep 15
+	@if kubectl get secret expressops-secrets >/dev/null 2>&1; then \
+		echo "✅ Secret 'expressops-secrets' created successfully"; \
+	else \
+		echo "⚠️ Secret 'expressops-secrets' not created yet. You may need to install External Secrets Operator."; \
+		echo "   Run: make k8s-install-eso"; \
+	fi
+	@echo "✅ ExpressOps deployed to Kubernetes"
+	@echo "🔍 Verify status with: make k8s-status"
+	@echo "🌐 Access the application with: make k8s-port-forward"
+
+k8s-status:
+	@echo "🔍 Checking ExpressOps deployment status:"
+	@kubectl get pods -l app=expressops -n $(K8S_NAMESPACE)
+	@echo "\n🌐 Service status:"
+	@kubectl get svc expressops -n $(K8S_NAMESPACE)
+	@echo "\n📊 Deployment status:"
+	@kubectl get deployment expressops -n $(K8S_NAMESPACE)
+
+k8s-logs:
+	@echo "📃 ExpressOps logs:"
+	@POD=$$(kubectl get pods -l app=expressops -n $(K8S_NAMESPACE) -o jsonpath="{.items[0].metadata.name}"); \
+	if [ -n "$$POD" ]; then \
+		kubectl logs $$POD -n $(K8S_NAMESPACE) --tail=100; \
+	else \
+		echo "❌ No ExpressOps pods found"; \
+	fi
+
+k8s-port-forward:
+	@echo "🔄 Setting up port forwarding for ExpressOps service..."
+	@echo "🌐 Access the application at http://localhost:$(HOST_PORT)"
+	@POD=$$(kubectl get pods -l app=expressops -n $(K8S_NAMESPACE) -o jsonpath="{.items[0].metadata.name}"); \
+	if [ -n "$$POD" ]; then \
+		kubectl port-forward svc/expressops $(HOST_PORT):80 -n $(K8S_NAMESPACE); \
+	else \
+		echo "❌ No ExpressOps pods found"; \
+	fi
+
+k8s-delete:
+	@echo "🗑️ Deleting ExpressOps from Kubernetes..."
+	kubectl delete -f k8s/service.yaml --ignore-not-found
+	kubectl delete -f k8s/deployment.yaml --ignore-not-found
+	kubectl delete -f k8s/secrets/slack-externalsecret.yaml --ignore-not-found
+	kubectl delete -f k8s/secrets/fake-secretstore.yaml --ignore-not-found				
+	kubectl delete -f k8s/configmap.yaml --ignore-not-found
+	kubectl delete -f k8s/expressops-env-config.yaml --ignore-not-found
+	@echo "✅ ExpressOps deleted from Kubernetes"
+
+# Helm Commands
+helm-install:
+	@echo "🚀 Instalando ExpressOps con Helm..."
+	@echo "$(BLUE)Desplegando en namespace: $(K8S_NAMESPACE)$(RESET)"
+	helm install expressops ./helm --namespace $(K8S_NAMESPACE)
+	@echo "✅ Helm chart instalado correctamente"
+
+helm-upgrade:
+	@echo "🔄 Actualizando ExpressOps con Helm..."
+	helm upgrade expressops ./helm --namespace $(K8S_NAMESPACE)
+	@echo "✅ Helm chart actualizado correctamente"
+
+helm-uninstall:
+	@echo "🗑️ Desinstalando ExpressOps de Helm..."
+	helm uninstall expressops --namespace $(K8S_NAMESPACE)
+	@echo "✅ Helm chart desinstalado correctamente"
+
+helm-template:
+	@echo "👀 Visualizando plantillas renderizadas..."
+	helm template expressops ./helm --namespace $(K8S_NAMESPACE)
+
+helm-package:
+	@echo "📦 Empaquetando Helm chart..."
+	helm package ./helm
+	@echo "✅ Chart empaquetado. Listo para distribuir."
 
 .DEFAULT_GOAL := help
