@@ -5,6 +5,7 @@ metadata:
   labels:
     {{- include "expressops.labels" . | nindent 4 }}
 data:
+#AGAIN CANT USE VARIABLES HERE, SO WE NEED TO USE EXTERNAL SECRETS
   config.yaml: |
     logging:
       level: {{ .Values.config.logging.level }}
@@ -22,7 +23,7 @@ data:
         path: plugins/slack/slack.so
         type: notification
         config:
-          webhook_url: ${SLACK_WEBHOOK_URL}
+          webhook_url: "https://hooks.slack.com/services/DUMMY/URL/12345"
           
       - name: health-check-plugin
         path: plugins/healthcheck/health_check.so

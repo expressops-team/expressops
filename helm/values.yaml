@@ -55,12 +55,6 @@ env:
   SERVER_ADDRESS: "0.0.0.0"
   PLUGINS_PATH: "plugins"
 
-slackWebhook:
-  enabled: true
-  # If using external secrets operator, leave this empty
-  # If not using external secrets operator, set this to your webhook URL
-  url: ""
-
 config:
   # Configure key application settings
   logging:
