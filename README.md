@@ -159,6 +159,7 @@ Then update the SecretStore configuration accordingly.
 
 ## ⚙️ Configuration example
 
+
 ```yaml
 plugins:
   - name: slack-notifier
@@ -235,6 +236,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ## 🙏 Acknowledgements
 
 Thanks to all contributors and plugin authors who made this modular system possible.
+
 
 
 Hope you like ExpressOps and consider contributing! 🌟
