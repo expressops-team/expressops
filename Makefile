@@ -28,7 +28,7 @@ CONFIG_PATH ?= docs/samples/config.yaml
 CONFIG_MOUNT_PATH ?= /app/config.yaml
 K8S_NAMESPACE ?= default
 
-.PHONY: build run docker-build docker-push docker-run docker-clean help k8s-deploy k8s-status k8s-logs k8s-delete k8s-port-forward k8s-install-eso
+.PHONY: build run docker-build docker-push docker-run docker-clean help k8s-deploy k8s-status k8s-logs k8s-delete k8s-port-forward k8s-install-eso helm-install helm-upgrade helm-uninstall helm-template helm-package
 
 # Build plugins and application locally
 build:
@@ -127,6 +127,12 @@ help:
 	@echo "$(GREEN)  make k8s-logs      $(RESET)- View Kubernetes logs"
 	@echo "$(GREEN)  make k8s-port-forward $(RESET)- Port forward to access the application"
 	@echo "$(GREEN)  make k8s-delete    $(RESET)- Delete Kubernetes deployment"
+	
+	@echo "$(GREEN)  make helm-install  $(RESET)- Install ExpressOps using Helm chart"
+	@echo "$(GREEN)  make helm-upgrade  $(RESET)- Upgrade existing Helm deployment"
+	@echo "$(GREEN)  make helm-uninstall$(RESET)- Uninstall Helm deployment"
+	@echo "$(GREEN)  make helm-template $(RESET)- View Helm templates without installing"
+	@echo "$(GREEN)  make helm-package  $(RESET)- Package Helm chart into a .tgz file"
 	@echo
 	@echo "$(YELLOW)=================================================================================$(RESET)"
 	@echo
@@ -229,5 +235,31 @@ k8s-delete:
 	kubectl delete -f k8s/configmap.yaml --ignore-not-found
 	kubectl delete -f k8s/expressops-env-config.yaml --ignore-not-found
 	@echo "✅ ExpressOps deleted from Kubernetes"
+
+# Helm Commands
+helm-install:
+	@echo "🚀 Instalando ExpressOps con Helm..."
+	@echo "$(BLUE)Desplegando en namespace: $(K8S_NAMESPACE)$(RESET)"
+	helm install expressops ./helm --namespace $(K8S_NAMESPACE)
+	@echo "✅ Helm chart instalado correctamente"
+
+helm-upgrade:
+	@echo "🔄 Actualizando ExpressOps con Helm..."
+	helm upgrade expressops ./helm --namespace $(K8S_NAMESPACE)
+	@echo "✅ Helm chart actualizado correctamente"
+
+helm-uninstall:
+	@echo "🗑️ Desinstalando ExpressOps de Helm..."
+	helm uninstall expressops --namespace $(K8S_NAMESPACE)
+	@echo "✅ Helm chart desinstalado correctamente"
+
+helm-template:
+	@echo "👀 Visualizando plantillas renderizadas..."
+	helm template expressops ./helm --namespace $(K8S_NAMESPACE)
+
+helm-package:
+	@echo "📦 Empaquetando Helm chart..."
+	helm package ./helm
+	@echo "✅ Chart empaquetado. Listo para distribuir."
 
 .DEFAULT_GOAL := help

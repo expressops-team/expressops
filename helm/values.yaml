@@ -1,0 +1,70 @@
+# Default values for expressops.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: davidnull/expressops
+  tag: 1.0.0
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: false
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 8080
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+env:
+  SERVER_PORT: "8080"
+  SERVER_ADDRESS: "0.0.0.0"
+  PLUGINS_PATH: "plugins"
+
+slackWebhook:
+  enabled: true
+  # If using external secrets operator, leave this empty
+  # If not using external secrets operator, set this to your webhook URL
+  url: ""
+
+config:
+  # Configure key application settings
+  logging:
+    level: info
+    format: text
+  server:
+    timeoutSeconds: 4 

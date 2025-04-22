@@ -1,0 +1,20 @@
+apiVersion: v2
+name: expressops
+description: A Helm chart for ExpressOps API
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+icon: file://../docs/img/LOGO_EXPRESSOPS.png
+keywords:
+  - expressops
+  - api
+  - operations
+  - automation
+maintainers:
+  - name: ExpressOps Team
+    members:
+      - name: DavidNull
+        url: https://github.com/davidnull
+      - name: Ignacio Padron
+        url: https://github.com/ignaciopadron
+
