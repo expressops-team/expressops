@@ -1,20 +1,20 @@
-## ExpressOps 🚀 <img src="docs/img/LOGO_EXPRESSOPS.png" alt="ExpressOps Logo" align="right" width="150">
+## ExpressOps  <img src="docs/img/LOGO_EXPRESSOPS.png" alt="ExpressOps Logo" align="right" width="150" style="margin-top: 20px;">
 
-ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plugins. It allows you to define operational workflows (such as health checks, formatting, notifications, and logging) via a simple YAML configuration. Each plugin handles one task and flows chain them together.
+> 🚨 <span style="color:red">**Note: Currently under active development**</span> - API and features may change without notice
+
+ExpressOps: A lightweight flow orchestrator that:
+- Loads plugins dynamically
+- Chains plugins into workflows via YAML config
+- Each plugin = one task (health checks, formatting, notifications, etc.)
 
 ## 📦 Docker Hub
 
 The ExpressOps Docker image is available on Docker Hub at:
 https://hub.docker.com/r/davidnull/expressops
 
+> *Note: Currently only for testing. Will move to **expressopsfreepik/expressops** in the future*
+
 You can pull it with:
-```bash
-docker pull davidnull/expressops:1.0.0
-```
-
-## 📜 Table of Contents
-
-- [Features](#-features)
 - [Requirements](#-requirements)
 - [Installation](#-installation)
 - [Usage](#-usage)
@@ -237,4 +237,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 Thanks to all contributors and plugin authors who made this modular system possible.
 
 
-Happy hacking ✨
+Hope you like ExpressOps and consider contributing! 🌟
