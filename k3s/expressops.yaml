@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: expressops
-        image: ciberegaliz/expressops:latest
+        image: expressopsfreepik/expressops:v2
         ports:
         - containerPort: 8080
         resources:
@@ -30,7 +30,11 @@ spec:
         - secretRef:
             name: slack-webhook-secret
         - configMapRef:
-            name: expressops-env    
+            name: expressops-env
+
+# args: sobreescribe el CMD del Dockerfile y pasa "/app/config.yaml" como argumento
+# al ENTRYPOINT del Dockerfile
+        args: ["/app/config.yaml"]
 
         volumeMounts:
         - name: config-volume
