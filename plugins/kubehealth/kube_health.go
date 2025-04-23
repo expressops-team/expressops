@@ -5,236 +5,211 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
+	"os/exec"
 	"strings"
 	"time"
 
 	pluginconf "expressops/internal/plugin/loader"
 
 	"github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 type KubeHealthPlugin struct {
 	logger *logrus.Logger
+	config map[string]interface{}
 }
 
-// Initialize sets up the plugin with logger and configuration
+// Initialize sets up the plugin
 func (p *KubeHealthPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	p.logger = logger
+	p.config = config
 	p.logger.Info("Initializing KubeHealth Plugin")
 	return nil
 }
 
-// Execute connects to Kubernetes and retrieves pod status information
+// Execute runs kubectl and formats the output
 func (p *KubeHealthPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
+	p.logger.Info("Checking Kubernetes pods")
+
+	// Get namespace from config or use default
 	namespace := "default"
-	if ns, ok := (*shared)["namespace"].(string); ok {
+	if ns, ok := p.config["namespace"].(string); ok && ns != "" {
 		namespace = ns
 	}
 
-	// Try to get real Kubernetes data
-	results, err := p.getKubernetesData(ctx, namespace)
-	if err != nil {
-		p.logger.Warnf("Could not get Kubernetes data: %v", err)
-		p.logger.Info("Falling back to simulated data")
+	// Run kubectl command
+	cmd := exec.Command("kubectl", "get", "pods", "-n", namespace)
+	output, err := cmd.CombinedOutput()
 
-		// Generate simulated data instead
-		results = p.generateSimulatedData()
+	// Handle command errors
+	if err != nil {
+		errMsg := fmt.Sprintf("*Kubernetes Error*\n\n```\n%v\n```", err)
+		(*shared)["message"] = errMsg
+		(*shared)["severity"] = "critical"
+		return nil, nil
 	}
 
-	// Store data in various formats to maximize compatibility
-	// 1. As return value (for plugins that check previous_result)
-	// 2. In shared context under kube_health_results
-	// 3. Also put a string summary directly in message
+	// Parse output into pod data
+	pods := parsePodOutput(string(output))
 
-	// Count problem pods for summary
-	problemPods := 0
-	for _, pod := range results {
-		if pod["emoji"] != "✅" {
-			problemPods++
+	// Handle empty results
+	if len(pods) == 0 {
+		warnMsg := fmt.Sprintf("*No pods found in namespace '%s'*", namespace)
+		(*shared)["message"] = warnMsg
+		(*shared)["severity"] = "warning"
+		return pods, nil
+	}
+
+	// Count problem pods
+	problemCount := 0
+	for _, pod := range pods {
+		if pod["status"] != "Running" {
+			problemCount++
 		}
 	}
 
-	// Create summary
-	summary := fmt.Sprintf("Kubernetes Health Check: %d pods total, %d with issues", len(results), problemPods)
+	// Format message for Slack
+	message := formatSlackMessage(namespace, pods, problemCount)
 
-	// Store data in shared context for formatter
-	(*shared)["kube_health_results"] = results
-	(*shared)["kube_health_summary"] = summary
-	(*shared)["previous_result"] = results // Make sure it's passed to the next plugin
+	// Set shared data for Slack plugin
+	(*shared)["message"] = message
+	(*shared)["kube_health_results"] = pods
 
-	// Set a basic message in case formatter fails
-	var basicMsg strings.Builder
-	basicMsg.WriteString("Kubernetes Pod Status:\n\n")
-	for _, pod := range results {
-		basicMsg.WriteString(fmt.Sprintf("  %s: %s %s\n", pod["name"], pod["status"], pod["emoji"]))
-	}
-	(*shared)["message"] = basicMsg.String()
-
-	// Set severity based on problem pods
+	// Set severity based on problem count
 	severity := "info"
-	if problemPods > 0 {
+	if problemCount > 0 {
 		severity = "warning"
+	}
+	if problemCount > 2 {
+		severity = "critical"
 	}
 	(*shared)["severity"] = severity
 
-	// Return formatted results for console output
-	return results, nil
+	return pods, nil
 }
 
-// getKubernetesData attempts to get real data from a K8s cluster
-func (p *KubeHealthPlugin) getKubernetesData(ctx context.Context, namespace string) ([]map[string]string, error) {
-	// Check if we're running in a Kubernetes cluster
-	if _, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount/token"); err == nil {
-		p.logger.Info("Running inside Kubernetes, using in-cluster config")
-		// Would use in-cluster config, but not implementing that for now
+// Parse kubectl output into structured pod data
+func parsePodOutput(output string) []map[string]string {
+	lines := strings.Split(output, "\n")
+	if len(lines) < 2 {
+		return []map[string]string{}
 	}
 
-	// Try different kubeconfig locations
-	var kubeconfigPaths = []string{
-		"/home/dcela_freepik_com/.kube/config", // User-specified path
-		"/home/dcela/.kube/config",             // Local user path
-		clientcmd.RecommendedHomeFile,          // Default path (~/.kube/config)
+	var pods []map[string]string
+
+	for i := 1; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+
+		name := fields[0]
+		ready := fields[1]
+		status := fields[2]
+
+		age := ""
+		restarts := "0"
+		if len(fields) > 4 {
+			restarts = fields[3]
+			age = fields[4]
+		}
+
+		emoji := "✅"
+		if status != "Running" {
+			emoji = "❌"
+		} else if !strings.HasPrefix(ready, "1/1") {
+			emoji = "⚠️"
+			status = "Running (Not Ready)"
+		}
+
+		pods = append(pods, map[string]string{
+			"name":     name,
+			"status":   status,
+			"age":      age,
+			"ready":    ready,
+			"restarts": restarts,
+			"emoji":    emoji,
+		})
 	}
 
-	var config clientcmd.ClientConfig
+	return pods
+}
 
-	// Try each path
-	for _, path := range kubeconfigPaths {
-		p.logger.Infof("Trying kubeconfig at: %s", path)
-		if _, err := os.Stat(path); err == nil {
-			// Found a kubeconfig file
-			p.logger.Infof("Found kubeconfig at: %s", path)
+// Format a nice Slack message with the pod status
+func formatSlackMessage(namespace string, pods []map[string]string, problemCount int) string {
+	var msg strings.Builder
 
-			// Try to load it
-			configLoadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: path}
-			configOverrides := &clientcmd.ConfigOverrides{}
+	msg.WriteString(fmt.Sprintf("*Kubernetes Pods in `%s`* - %s\n\n",
+		namespace, time.Now().Format("2006-01-02 15:04:05")))
 
-			kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-				configLoadingRules, configOverrides)
+	running := []map[string]string{}
+	problem := []map[string]string{}
 
-			config = kubeConfig
-			break
+	for _, pod := range pods {
+		if pod["status"] == "Running" {
+			running = append(running, pod)
+		} else {
+			problem = append(problem, pod)
 		}
 	}
 
-	// If no config found, return error
-	if config == nil {
-		return nil, fmt.Errorf("no valid kubeconfig found in any of the tried locations")
-	}
+	if len(problem) > 0 {
+		msg.WriteString("🔴 *Problem Pods:*\n")
+		for _, pod := range problem {
+			msg.WriteString(fmt.Sprintf("• `%s` - %s %s",
+				pod["name"], pod["status"], pod["emoji"]))
 
-	// Get REST config
-	restConfig, err := config.ClientConfig()
-	if err != nil {
-		return nil, fmt.Errorf("error creating REST config: %v", err)
-	}
-
-	// Create clientset
-	clientset, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error creating k8s client: %v", err)
-	}
-
-	// List pods
-	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("error listing pods: %v", err)
-	}
-
-	results := make([]map[string]string, 0)
-
-	for _, pod := range pods.Items {
-		status := string(pod.Status.Phase)
-		statusEmoji := "✅"
-
-		if pod.Status.Phase != v1.PodRunning && pod.Status.Phase != v1.PodSucceeded {
-			statusEmoji = "⚠️"
-		}
-
-		if pod.Status.Phase == v1.PodRunning {
-			for _, c := range pod.Status.ContainerStatuses {
-				if c.State.Waiting != nil && c.State.Waiting.Reason == "CrashLoopBackOff" {
-					status = "CrashLoopBackOff"
-					statusEmoji = "❌"
-					break
-				}
+			if pod["restarts"] != "0" {
+				msg.WriteString(fmt.Sprintf(" (Restarts: %s)", pod["restarts"]))
 			}
+			msg.WriteString("\n")
 		}
-
-		results = append(results, map[string]string{
-			"name":   pod.Name,
-			"status": status,
-			"emoji":  statusEmoji,
-		})
+		msg.WriteString("\n")
 	}
 
-	return results, nil
+	if len(running) > 0 {
+		msg.WriteString("🟢 *Healthy Pods:*\n")
+		for _, pod := range running {
+			msg.WriteString(fmt.Sprintf("• `%s` %s\n", pod["name"], pod["emoji"]))
+		}
+		msg.WriteString("\n")
+	}
+
+	// Add summary
+	totalPods := len(pods)
+	msg.WriteString(fmt.Sprintf("*Summary:* %d total pods, %d with issues\n",
+		totalPods, problemCount))
+
+	if problemCount > 0 {
+		msg.WriteString("\n⚠️ *Action needed!* Check problematic pods.")
+	} else {
+		msg.WriteString("\n✅ *All pods are healthy!*")
+	}
+
+	return msg.String()
 }
 
-// generateSimulatedData creates simulated pod data when we're not in a cluster
-func (p *KubeHealthPlugin) generateSimulatedData() []map[string]string {
-	p.logger.Info("Generating simulated Kubernetes data")
-
-	// Get current timestamp for pod names to make them look realistic
-	timestamp := time.Now().Format("20060102-150405")
-
-	// Create some fake pods with various states
-	results := []map[string]string{
-		{
-			"name":   fmt.Sprintf("expressops-%s", timestamp),
-			"status": "Running",
-			"emoji":  "✅",
-		},
-		{
-			"name":   fmt.Sprintf("nginx-deployment-86dcb47867-%s", timestamp[:6]),
-			"status": "Running",
-			"emoji":  "✅",
-		},
-		{
-			"name":   fmt.Sprintf("db-statefulset-0-%s", timestamp[:4]),
-			"status": "Running",
-			"emoji":  "✅",
-		},
-	}
-
-	// Add a problem pod if the current second is even (to randomly show issues)
-	if time.Now().Second()%2 == 0 {
-		results = append(results, map[string]string{
-			"name":   fmt.Sprintf("problematic-pod-%s", timestamp[:8]),
-			"status": "CrashLoopBackOff",
-			"emoji":  "❌",
-		})
-	}
-
-	return results
-}
-
-// FormatResult creates a human-readable representation of pod statuses
 func (p *KubeHealthPlugin) FormatResult(result interface{}) (string, error) {
 	pods, ok := result.([]map[string]string)
-	if !ok {
-		return "", fmt.Errorf("unexpected result type")
+	if !ok || len(pods) == 0 {
+		return "No pods found", nil
 	}
 
 	var sb strings.Builder
 	sb.WriteString("Kubernetes Pod Status:\n\n")
+
 	for _, pod := range pods {
-		emoji := pod["emoji"]
-		line := fmt.Sprintf("  %s: %s %s\n", pod["name"], pod["status"], emoji)
-		sb.WriteString(line)
+		sb.WriteString(fmt.Sprintf("%s: %s %s\n",
+			pod["name"], pod["status"], pod["emoji"]))
 	}
+
 	return sb.String(), nil
 }
 
-// NewKubeHealthPlugin creates a new instance of the KubeHealth plugin
-func NewKubeHealthPlugin(logger *logrus.Logger) pluginconf.Plugin {
-	return &KubeHealthPlugin{
-		logger: logger,
-	}
-}
-
-var PluginInstance = NewKubeHealthPlugin(logrus.New())
+// exporting
+var PluginInstance pluginconf.Plugin = &KubeHealthPlugin{}

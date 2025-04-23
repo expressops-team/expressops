@@ -30,6 +30,7 @@ type FormatterPlugin struct {
 	config     map[string]interface{}
 }
 
+// Initialize sets up the plugin
 func (f *FormatterPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	f.logger = logger
 	f.config = config
@@ -85,50 +86,42 @@ func (f *FormatterPlugin) formatSize(value uint64) string {
 	return fmt.Sprintf("%.2f GB", float64(value)/1024/1024/1024)
 }
 
+// Execute formats health data for display and notification
 func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
 	f.logger.Info("Formatting health check results")
 
-	// Always set a default message
-	defaultMessage := "Health check formatting completed"
+	// Always start with a default message in case something fails
+	defaultMessage := "Health status check completed"
 	(*shared)["message"] = defaultMessage
 
-	// First check for previous plugin results directly
-	if prev, ok := (*shared)["previous_result"]; ok && prev != nil {
-		f.logger.Infof("Received previous result of type: %T", prev)
-
-		// Handle map[string]string format that kubehealth might provide
-		if podResults, ok := prev.([]map[string]string); ok {
-			f.logger.Info("Detected pod results format, processing as Kubernetes data")
-			return f.formatKubernetesHealth(podResults, shared)
-		}
+	// First check for direct messages to pass through
+	if msg, ok := (*shared)["message"].(string); ok && msg != "" && msg != defaultMessage {
+		f.logger.Info("Using existing message from previous plugin")
+		// The message is already set, no need to format anything
+		return msg, nil
 	}
 
 	// Check for Kubernetes health data
 	if kubeResults, ok := (*shared)["kube_health_results"].([]map[string]string); ok {
-		f.logger.Info("Processing Kubernetes health data from shared context")
+		f.logger.Info("Processing Kubernetes health data")
 		return f.formatKubernetesHealth(kubeResults, shared)
 	}
 
-	// Try parsing input from shared map
-	var input map[string]interface{}
+	// Check for previous result as Kubernetes data
+	if prev, ok := (*shared)["previous_result"]; ok {
+		f.logger.Info("Checking previous result")
 
-	// Try several sources for input data
-	if inputData, ok := (*shared)["_input"].(map[string]interface{}); ok {
-		input = inputData
-	} else if inputData, ok := (*shared)["input"].(map[string]interface{}); ok {
-		input = inputData
-	} else if inputData, ok := (*shared)["previous_result"].(map[string]interface{}); ok {
-		input = inputData
-	} else {
-		// Create a basic message if no data found
-		message := "No valid input data found. Creating default message."
-		f.logger.Info(message)
-		(*shared)["message"] = message
-		return message, nil
+		// Handle pod data format
+		if podResults, ok := prev.([]map[string]string); ok {
+			f.logger.Info("Processing pod results from previous plugin")
+			return f.formatKubernetesHealth(podResults, shared)
+		}
 	}
 
-	// Process the input data
-	return f.formatHealthData(input, shared)
+	// Fallback to a simple message if nothing else worked
+	message := "Health check completed successfully"
+	(*shared)["message"] = message
+	return message, nil
 }
 
 // formatHealthData formats general health check data
@@ -317,13 +310,14 @@ func (f *FormatterPlugin) formatKubernetesHealth(kubeResults []map[string]string
 	for _, pod := range kubeResults {
 		status := pod["status"]
 		emoji := pod["emoji"]
+		name := pod["name"]
 
 		if emoji != "✅" {
 			hasIssues = true
 			problemPods++
 		}
 
-		sb.WriteString(fmt.Sprintf("  %s: %s %s\n", pod["name"], status, emoji))
+		sb.WriteString(fmt.Sprintf("  %s: %s %s\n", name, status, emoji))
 	}
 
 	// Add summary
@@ -352,6 +346,7 @@ func (f *FormatterPlugin) formatKubernetesHealth(kubeResults []map[string]string
 	return message, nil
 }
 
+// FormatResult returns a simple string representation
 func (f *FormatterPlugin) FormatResult(result interface{}) (string, error) {
 	if result == nil {
 		return "No result to format", nil
@@ -364,11 +359,5 @@ func (f *FormatterPlugin) FormatResult(result interface{}) (string, error) {
 	return fmt.Sprintf("%v", result), nil
 }
 
-func NewFormatterPlugin(logger *logrus.Logger) pluginconf.Plugin {
-	return &FormatterPlugin{
-		logger:     logger,
-		thresholds: make(map[string]ThresholdLevels),
-	}
-}
-
-var PluginInstance = NewFormatterPlugin(logrus.New())
+// Export the plugin instance
+var PluginInstance pluginconf.Plugin = &FormatterPlugin{}

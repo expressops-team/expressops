@@ -36,7 +36,8 @@ data:
       - name: kube-health-plugin
         path: plugins/kubehealth/kube_health.so
         type: k8s
-        config: {}
+        config:
+          namespace: "default"
         
       - name: test-print-plugin
         path: plugins/testprint/testprint.so
@@ -128,8 +129,8 @@ data:
         customHandler: "Monitors Kubernetes pods and sends alerts via Slack"
         pipeline:
           - pluginRef: kube-health-plugin
-          - pluginRef: formatter-plugin
           - pluginRef: slack-notifier
+          
           
       - name: full-monitoring
         description: "Complete monitoring of system and Kubernetes"

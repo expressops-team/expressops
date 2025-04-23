@@ -201,17 +201,23 @@ k8s-deploy:
 
 k8s-status:
 	@echo "🔍 Checking ExpressOps deployment status:"
-	@kubectl get pods -l app=expressops -n $(K8S_NAMESPACE)
+	@echo "\n📊 Pods status:"
+	@POD_NAME=$$(kubectl get pods -n $(K8S_NAMESPACE) | grep "^expressops-" | awk '{print $$1}' | head -1); \
+	if [ -n "$$POD_NAME" ]; then \
+		kubectl get pod $$POD_NAME -n $(K8S_NAMESPACE); \
+		echo "\n📋 Pod logs:"; \
+		kubectl logs $$POD_NAME -n $(K8S_NAMESPACE) --tail=10; \
+	else \
+		echo "❌ No ExpressOps pods found"; \
+	fi
 	@echo "\n🌐 Service status:"
 	@kubectl get svc expressops -n $(K8S_NAMESPACE)
-	@echo "\n📊 Deployment status:"
-	@kubectl get deployment expressops -n $(K8S_NAMESPACE)
 
 k8s-logs:
 	@echo "📃 ExpressOps logs:"
-	@POD=$$(kubectl get pods -l app=expressops -n $(K8S_NAMESPACE) -o jsonpath="{.items[0].metadata.name}"); \
-	if [ -n "$$POD" ]; then \
-		kubectl logs $$POD -n $(K8S_NAMESPACE) --tail=100; \
+	@POD_NAME=$$(kubectl get pods -n $(K8S_NAMESPACE) | grep "^expressops-" | awk '{print $$1}' | head -1); \
+	if [ -n "$$POD_NAME" ]; then \
+		kubectl logs $$POD_NAME -n $(K8S_NAMESPACE) --tail=100; \
 	else \
 		echo "❌ No ExpressOps pods found"; \
 	fi
@@ -219,9 +225,10 @@ k8s-logs:
 k8s-port-forward:
 	@echo "🔄 Setting up port forwarding for ExpressOps service..."
 	@echo "🌐 Access the application at http://localhost:$(HOST_PORT)"
-	@POD=$$(kubectl get pods -l app=expressops -n $(K8S_NAMESPACE) -o jsonpath="{.items[0].metadata.name}"); \
-	if [ -n "$$POD" ]; then \
-		kubectl port-forward svc/expressops $(HOST_PORT):80 -n $(K8S_NAMESPACE); \
+	@POD_NAME=$$(kubectl get pods -n $(K8S_NAMESPACE) | grep "^expressops-" | awk '{print $$1}' | head -1); \
+	if [ -n "$$POD_NAME" ]; then \
+		echo "🔌 Forwarding to pod: $$POD_NAME"; \
+		kubectl port-forward pod/$$POD_NAME $(HOST_PORT):$(SERVER_PORT) -n $(K8S_NAMESPACE); \
 	else \
 		echo "❌ No ExpressOps pods found"; \
 	fi

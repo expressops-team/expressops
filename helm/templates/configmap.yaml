@@ -126,7 +126,6 @@ data:
         customHandler: "Monitors Kubernetes pods and sends alerts via Slack"
         pipeline:
           - pluginRef: kube-health-plugin
-          - pluginRef: formatter-plugin
           - pluginRef: slack-notifier
           
       - name: full-monitoring
