@@ -23,7 +23,7 @@ data:
         path: plugins/slack/slack.so
         type: notification
         config:
-          webhook_url: "https://hooks.slack.com/services/DUMMY/URL/12345"
+          webhook_url: "https://hooks.slack.com/services/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"
           
       - name: health-check-plugin
         path: plugins/healthcheck/health_check.so

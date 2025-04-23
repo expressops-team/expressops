@@ -88,12 +88,51 @@ func (f *FormatterPlugin) formatSize(value uint64) string {
 func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
 	f.logger.Info("Formatting health check results")
 
-	input, ok := (*shared)["_input"].(map[string]interface{})
-	if !ok {
-		f.logger.Error("No valid _input received")
-		return "", fmt.Errorf("no valid _input received")
+	// Always set a default message
+	defaultMessage := "Health check formatting completed"
+	(*shared)["message"] = defaultMessage
+
+	// First check for previous plugin results directly
+	if prev, ok := (*shared)["previous_result"]; ok && prev != nil {
+		f.logger.Infof("Received previous result of type: %T", prev)
+
+		// Handle map[string]string format that kubehealth might provide
+		if podResults, ok := prev.([]map[string]string); ok {
+			f.logger.Info("Detected pod results format, processing as Kubernetes data")
+			return f.formatKubernetesHealth(podResults, shared)
+		}
 	}
 
+	// Check for Kubernetes health data
+	if kubeResults, ok := (*shared)["kube_health_results"].([]map[string]string); ok {
+		f.logger.Info("Processing Kubernetes health data from shared context")
+		return f.formatKubernetesHealth(kubeResults, shared)
+	}
+
+	// Try parsing input from shared map
+	var input map[string]interface{}
+
+	// Try several sources for input data
+	if inputData, ok := (*shared)["_input"].(map[string]interface{}); ok {
+		input = inputData
+	} else if inputData, ok := (*shared)["input"].(map[string]interface{}); ok {
+		input = inputData
+	} else if inputData, ok := (*shared)["previous_result"].(map[string]interface{}); ok {
+		input = inputData
+	} else {
+		// Create a basic message if no data found
+		message := "No valid input data found. Creating default message."
+		f.logger.Info(message)
+		(*shared)["message"] = message
+		return message, nil
+	}
+
+	// Process the input data
+	return f.formatHealthData(input, shared)
+}
+
+// formatHealthData formats general health check data
+func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared *map[string]any) (interface{}, error) {
 	// Simple log format (single line)
 	var logFormatted strings.Builder
 	logFormatted.WriteString("Health check: ")
@@ -103,35 +142,34 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 	// Clean output ;)
 	alertFormatted.WriteString("\n✨ Health Status Report ✨\n\n")
 
-	status, ok := input["health_status"].(map[string]string)
-	if !ok {
-		f.logger.Error("Result without health_status field")
-		return "", fmt.Errorf("health check result must contain a health_status field")
-	}
-
 	hasErrors := false
 
-	// Process health status checks
-	checksOK := true
-	alertFormatted.WriteString("🔍 Health Checks:\n")
-	for k, v := range status {
-		if v == "OK" {
-			alertFormatted.WriteString(fmt.Sprintf("  %s: ✅ OK\n", k))
-		} else {
-			checksOK = false
-			hasErrors = true
-			alertFormatted.WriteString(fmt.Sprintf("  %s: ❌ %s\n", k, v))
+	// Process health status checks if available
+	if status, ok := input["health_status"].(map[string]string); ok {
+		checksOK := true
+		alertFormatted.WriteString("🔍 Health Checks:\n")
+		for k, v := range status {
+			if v == "OK" {
+				alertFormatted.WriteString(fmt.Sprintf("  %s: ✅ OK\n", k))
+			} else {
+				checksOK = false
+				hasErrors = true
+				alertFormatted.WriteString(fmt.Sprintf("  %s: ❌ %s\n", k, v))
+			}
 		}
-	}
 
-	// Add checks status to log
-	if checksOK {
-		logFormatted.WriteString("Checks:OK ")
+		// Add checks status to log
+		if checksOK {
+			logFormatted.WriteString("Checks:OK ")
+		} else {
+			logFormatted.WriteString("Checks:FAIL ")
+		}
+
+		alertFormatted.WriteString("\n")
 	} else {
-		logFormatted.WriteString("Checks:FAIL ")
+		// No health status, just show a message
+		alertFormatted.WriteString("🔍 Health Checks: No check data available\n\n")
 	}
-
-	alertFormatted.WriteString("\n")
 
 	// CPU info
 	if cpuInfo, ok := input["cpu"].(map[string]interface{}); ok {
@@ -251,20 +289,86 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 		alertFormatted.WriteString("✅ All systems operational!\n")
 	}
 
-	// Log the simple one-line format
-	f.logger.Info(logFormatted.String())
+	// Set message in shared context for slack notification
+	message := alertFormatted.String()
+	(*shared)["message"] = message
 
-	// Store formatted output in shared context
-	(*shared)["formatted_output"] = alertFormatted.String()
+	// Set severity based on errors
+	if hasErrors {
+		(*shared)["severity"] = "warning"
+	} else {
+		(*shared)["severity"] = "info"
+	}
 
-	return alertFormatted.String(), nil
+	return message, nil
+}
+
+// formatKubernetesHealth formats Kubernetes health check results
+func (f *FormatterPlugin) formatKubernetesHealth(kubeResults []map[string]string, shared *map[string]any) (interface{}, error) {
+	var sb strings.Builder
+	hasIssues := false
+	totalPods := len(kubeResults)
+	problemPods := 0
+
+	sb.WriteString("\n🚢 Kubernetes Health Report 🚢\n\n")
+	sb.WriteString("Pod Status:\n")
+
+	// Count issues and format each pod
+	for _, pod := range kubeResults {
+		status := pod["status"]
+		emoji := pod["emoji"]
+
+		if emoji != "✅" {
+			hasIssues = true
+			problemPods++
+		}
+
+		sb.WriteString(fmt.Sprintf("  %s: %s %s\n", pod["name"], status, emoji))
+	}
+
+	// Add summary
+	sb.WriteString("\nSummary:\n")
+	sb.WriteString(fmt.Sprintf("  Total pods: %d\n", totalPods))
+	sb.WriteString(fmt.Sprintf("  Healthy pods: %d\n", totalPods-problemPods))
+
+	if problemPods > 0 {
+		sb.WriteString(fmt.Sprintf("  Problem pods: %d 🔴\n", problemPods))
+		sb.WriteString("\n⚠️ Issues detected! Please check your Kubernetes cluster.\n")
+	} else {
+		sb.WriteString("\n✅ All pods are healthy!\n")
+	}
+
+	// Store in shared context for slack notification
+	message := sb.String()
+	(*shared)["message"] = message
+
+	// Make sure severity is set
+	if hasIssues {
+		(*shared)["severity"] = "warning"
+	} else {
+		(*shared)["severity"] = "info"
+	}
+
+	return message, nil
 }
 
 func (f *FormatterPlugin) FormatResult(result interface{}) (string, error) {
-	if msg, ok := result.(string); ok {
-		return msg, nil
+	if result == nil {
+		return "No result to format", nil
 	}
-	return "", fmt.Errorf("unexpected result type: %T", result)
+
+	if str, ok := result.(string); ok {
+		return str, nil
+	}
+
+	return fmt.Sprintf("%v", result), nil
 }
 
-var PluginInstance pluginconf.Plugin = &FormatterPlugin{}
+func NewFormatterPlugin(logger *logrus.Logger) pluginconf.Plugin {
+	return &FormatterPlugin{
+		logger:     logger,
+		thresholds: make(map[string]ThresholdLevels),
+	}
+}
+
+var PluginInstance = NewFormatterPlugin(logrus.New())
