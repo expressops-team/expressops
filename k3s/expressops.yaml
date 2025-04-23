@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: expressops-deployment
+  name: expressops
   namespace: expressops-dev
 spec:
   replicas: 2
@@ -26,14 +26,11 @@ spec:
             cpu: "100m"
             memory: "128Mi"
 
-        env:
-        - name: SLACK_WEBHOOK_URL
-          valueFrom:
-            secretKeyRef:
-              name: slack-webhook-secret
-              key: SLACK_WEBHOOK_URL
-        - name: SLEEP_DURATION
-          value: "10"
+        envFrom:
+        - secretRef:
+            name: slack-webhook-secret
+        - configMapRef:
+            name: expressops-env    
 
         volumeMounts:
         - name: config-volume
@@ -65,13 +62,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: expressops-service
+  name: expressops
   namespace: expressops-dev
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: expressops
   ports:
   - port: 80
     targetPort: 8080
-    nodePort: 30081  # 30080 lo tiene el service nginx

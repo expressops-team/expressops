@@ -1,18 +1,12 @@
-FROM golang:1.24.2-alpine3.21 
-#NOT FROM alpine:3.21 directly because it's not supported by the plugin
+# Build stage
+FROM golang:1.24.2-alpine3.21 as builder
 
-# Build arguments
-ARG SERVER_PORT=8080
-ARG SERVER_ADDRESS=0.0.0.0
-ARG TIMEOUT_SECONDS=4
-ARG LOG_LEVEL=info
-ARG LOG_FORMAT=text
-ARG CONFIG_PATH=/app/config.yaml
-
+# Install necessary build tools
 RUN apk add --no-cache git build-base ca-certificates tzdata curl
 
 WORKDIR /app
 
+# Copy dependencies first to leverage Docker cache
 COPY go.mod go.sum ./
 RUN go mod download
 
@@ -38,15 +32,22 @@ RUN find plugins -name "*.so" | sort
 # Compile main application
 RUN go build -o expressops ./cmd
 
-# Set environment variables from build args
-ENV SERVER_PORT=${SERVER_PORT}
-ENV SERVER_ADDRESS=${SERVER_ADDRESS}
-ENV TIMEOUT_SECONDS=${TIMEOUT_SECONDS}
-ENV LOG_LEVEL=${LOG_LEVEL}
-ENV LOG_FORMAT=${LOG_FORMAT}
-ENV CONFIG_PATH=${CONFIG_PATH}
+# Runtime stage - using distroless
+FROM gcr.io/distroless/base-debian12
 
-EXPOSE ${SERVER_PORT}
+# Copy the compiled application and plugins from the builder stage
+WORKDIR /app
+COPY --from=builder /app/expressops /app/
+COPY --from=builder /app/plugins /app/plugins/
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
-#run the application
-ENTRYPOINT ["sh", "-c", "./expressops -config ${CONFIG_PATH}"]
+# Default configuration path - can be overridden at runtime
+ENV CONFIG_PATH=/app/config.yaml
+
+# Expose port 8080 - this is just documentation, actual port is set via Kubernetes
+EXPOSE 8080
+
+# Run the application
+ENTRYPOINT ["/app/expressops", "-config"]
+CMD ["/app/config.yaml"]
