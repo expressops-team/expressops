@@ -27,6 +27,10 @@ RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u
       done \
     done
 
+# Create a plugins directory with only .so files, preserving the structure
+RUN mkdir -p /build/plugins_bin && \
+    find plugins -name "*.so" -exec bash -c 'mkdir -p /build/plugins_bin/$(dirname {#} | sed "s|^plugins/||") && cp {#} /build/plugins_bin/$(dirname {#} | sed "s|^plugins/||")/' \; -exec echo "Copied {}" \;
+
 # Build main app with optimizations
 RUN go build -ldflags="-s -w" -o expressops ./cmd
 
@@ -35,9 +39,11 @@ FROM gcr.io/distroless/base-debian11
 
 WORKDIR /app
 
-# Copy binaries and plugins from build stage
+# Copy only the expressops binary
 COPY --from=builder /build/expressops .
-COPY --from=builder /build/plugins ./plugins
+
+# Copy the directory structure with .so files
+COPY --from=builder /build/plugins_bin /app/plugins
 
 # Copy required config
 COPY docs/samples/config.yaml /app/config.yaml
@@ -50,4 +56,4 @@ EXPOSE 8080
 # User is already non-root in distroless (not like in alpine)
 
 ENTRYPOINT ["/app/expressops", "-config", "/app/config.yaml"]
-# now 174MB instead of 162MB but more secure ;D
+# Optimized image with only .so files and preserved directory structure
