@@ -5,7 +5,7 @@ metadata:
   labels:
     {{- include "expressops.labels" . | nindent 4 }}
 data:
-#AGAIN CANT USE VARIABLES HERE, SO WE NEED TO USE EXTERNAL SECRETS
+#AGAIN CANT USE VARIABLES HERE, SO WE NEED TO USE EXTERNAL SECRETS  <== DONE
   config.yaml: |
     logging:
       level: {{ .Values.config.logging.level }}
