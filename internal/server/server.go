@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"expressops/api/v1alpha1"
@@ -136,92 +137,227 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 	shared := make(map[string]interface{})
 
 	for k, v := range additionalParams {
-		shared[k] = v //necessary for the new parameter "shared"
+		shared[k] = v //necessary for the "new" parameter "shared"
 	}
 
 	// Add flow registry to shared context
 	shared["flow_registry"] = flowRegistry
 
 	var lastResult interface{}
-	for _, step := range flow.Pipeline {
-		// Skip commented plugins
-		if step.PluginRef == "" {
+	var i int = 0
+
+	for i < len(flow.Pipeline) {
+		currentStep := flow.Pipeline[i]
+		i++
+
+		// Skip commented plugins 			==> WILL BE REMOVED IN THE FUTURE <==
+		if currentStep.PluginRef == "" {
 			continue
 		}
 
-		plugin, err := pluginManager.GetPlugin(step.PluginRef)
-		if err != nil {
-			logger.Errorf("Plugin not found: %s - %v", step.PluginRef, err)
-			results = append(results, map[string]interface{}{
-				"plugin": step.PluginRef,
-				"error":  fmt.Sprintf("Plugin not found: %v", err),
-			})
-			continue
-		}
+		// Check if we need to run this step in parallel with the next ones
+		var parallelSteps []v1alpha1.Step
+		parallelSteps = append(parallelSteps, currentStep)
 
-		for k, v := range step.Parameters {
-			shared[k] = v
-		}
-
-		shared["previous_result"] = lastResult
-
-		shared["_input"] = lastResult
-
-		logger.Infof("Executing plugin: %s", step.PluginRef)
-		res, err := plugin.Execute(ctx, r, &shared)
-		if err != nil {
-			logger.Errorf("Error executing plugin: %s - %v", step.PluginRef, err)
-			results = append(results, map[string]interface{}{
-				"plugin": step.PluginRef,
-				"error":  fmt.Sprintf("Error: %v", err),
-			})
-			continue
-		}
-
-		var formattedResult string
-		if res != nil {
-			var fmtErr error
-			formattedResult, fmtErr = plugin.FormatResult(res)
-			if fmtErr != nil {
-				logger.Warnf("Error formatting result from %s: %v", step.PluginRef, fmtErr)
-				formattedResult = fmt.Sprintf("%v", res)
+		// Collect consecutive parallel steps
+		for i < len(flow.Pipeline) && flow.Pipeline[i].Parallel {
+			if flow.Pipeline[i].PluginRef != "" { // Skip commented plugins
+				parallelSteps = append(parallelSteps, flow.Pipeline[i])
 			}
+			i++
 		}
 
-		// Add result to results array
-		result := map[string]interface{}{
-			"plugin": step.PluginRef,
-			"result": res,
-		}
+		// If we have multiple steps to execute in parallel
+		if len(parallelSteps) > 1 {
+			logger.Infof("Running %d plugins in parallel", len(parallelSteps))
 
-		// Only add formatted_result if it exists
-		if formattedResult != "" {
-			result["formatted_result"] = formattedResult
-		}
+			var wg sync.WaitGroup
+			var mu sync.Mutex
+			parallelResults := make([]interface{}, len(parallelSteps))
 
-		results = append(results, result)
-		if step.PluginRef == "formatter-plugin" {
-			logger.Infof("Result from %s: [long output, check the slack channel ;D]", step.PluginRef)
-		} else if strings.HasPrefix(formattedResult, "__MULTILINE_LOG__") {
-			// Handle multi-line logging specially (for flow-lister-plugin)
-			logLines := strings.Split(formattedResult, "__MULTILINE_LOG__")
-			logger.Infof("Result from %s (multi-line output):", step.PluginRef)
-			for _, line := range logLines {
-				if line == "" {
-					continue
+			parallelShared := make([]map[string]interface{}, len(parallelSteps))
+			for j := range parallelSteps {
+				parallelShared[j] = make(map[string]interface{})
+				for k, v := range shared {
+					parallelShared[j][k] = v
 				}
-				logger.Info(line)
+
+				// Add step parameters to shared context
+				for k, v := range parallelSteps[j].Parameters {
+					parallelShared[j][k] = v
+				}
+
+				parallelShared[j]["previous_result"] = lastResult
+				parallelShared[j]["_input"] = lastResult
+			}
+
+			// Execute each plugin in parallel
+			for j, step := range parallelSteps {
+				wg.Add(1)
+				go func(idx int, s v1alpha1.Step, pShared map[string]interface{}) {
+					defer wg.Done()
+
+					plugin, err := pluginManager.GetPlugin(s.PluginRef)
+					if err != nil {
+						logger.Errorf("Plugin not found: %s - %v", s.PluginRef, err)
+						mu.Lock()
+						parallelResults[idx] = map[string]interface{}{
+							"plugin": s.PluginRef,
+							"error":  fmt.Sprintf("Plugin not found: %v", err),
+						}
+						mu.Unlock()
+						return
+					}
+
+					logger.Infof("Executing plugin (parallel): %s", s.PluginRef)
+					res, err := plugin.Execute(ctx, r, &pShared)
+					if err != nil {
+						logger.Errorf("Error executing plugin: %s - %v", s.PluginRef, err)
+						mu.Lock()
+						parallelResults[idx] = map[string]interface{}{
+							"plugin": s.PluginRef,
+							"error":  fmt.Sprintf("Error: %v", err),
+						}
+						mu.Unlock()
+						return
+					}
+
+					var formattedResult string
+					if res != nil {
+						var fmtErr error
+						formattedResult, fmtErr = plugin.FormatResult(res)
+						if fmtErr != nil {
+							logger.Warnf("Error formatting result from %s: %v", s.PluginRef, fmtErr)
+							formattedResult = fmt.Sprintf("%v", res)
+						}
+					}
+
+					mu.Lock()
+					result := map[string]interface{}{
+						"plugin": s.PluginRef,
+						"result": res,
+					}
+
+					if formattedResult != "" {
+						result["formatted_result"] = formattedResult
+					}
+
+					parallelResults[idx] = result
+					mu.Unlock()
+
+					// Log the result
+					if s.PluginRef == "formatter-plugin" {
+						logger.Infof("Result from %s (parallel): [long output, check the slack channel]", s.PluginRef)
+					} else if strings.HasPrefix(formattedResult, "__MULTILINE_LOG__") {
+						logLines := strings.Split(formattedResult, "__MULTILINE_LOG__")
+						logger.Infof("Result from %s (parallel, multi-line output):", s.PluginRef)
+						for _, line := range logLines {
+							if line == "" {
+								continue
+							}
+							logger.Info(line)
+						}
+					} else {
+						if !isAllFlowsFlow && len(formattedResult) > 100 {
+							logger.Infof("Result from %s (parallel): %s...", s.PluginRef, formattedResult[:100])
+						} else {
+							logger.Infof("Result from %s (parallel): %s", s.PluginRef, formattedResult)
+						}
+					}
+				}(j, step, parallelShared[j])
+			}
+
+			// Wait for all parallel steps to complete
+			wg.Wait()
+
+			for _, result := range parallelResults {
+				if result != nil {
+					results = append(results, result)
+
+					// Get the last non-error result to use as input for next plugin
+					if res, ok := result.(map[string]interface{}); ok {
+						if _, hasError := res["error"]; !hasError {
+							if pluginResult, exists := res["result"]; exists {
+								lastResult = pluginResult
+							}
+						}
+					}
+				}
 			}
 		} else {
-			// Show full output for all-flows flow, truncate others if they're too long
-			if !isAllFlowsFlow && len(formattedResult) > 100 {
-				logger.Infof("Result from %s: %s...", step.PluginRef, formattedResult[:100])
-			} else {
-				logger.Infof("Result from %s: %s", step.PluginRef, formattedResult)
+			// if run 1 plugin normally (no parallelization)
+			plugin, err := pluginManager.GetPlugin(currentStep.PluginRef)
+			if err != nil {
+				logger.Errorf("Plugin not found: %s - %v", currentStep.PluginRef, err)
+				results = append(results, map[string]interface{}{
+					"plugin": currentStep.PluginRef,
+					"error":  fmt.Sprintf("Plugin not found: %v", err),
+				})
+				continue
 			}
-		}
 
-		lastResult = res
+			for k, v := range currentStep.Parameters {
+				shared[k] = v
+			}
+
+			shared["previous_result"] = lastResult
+			shared["_input"] = lastResult
+
+			logger.Infof("Executing plugin: %s", currentStep.PluginRef)
+			res, err := plugin.Execute(ctx, r, &shared)
+			if err != nil {
+				logger.Errorf("Error executing plugin: %s - %v", currentStep.PluginRef, err)
+				results = append(results, map[string]interface{}{
+					"plugin": currentStep.PluginRef,
+					"error":  fmt.Sprintf("Error: %v", err),
+				})
+				continue
+			}
+
+			var formattedResult string
+			if res != nil {
+				var fmtErr error
+				formattedResult, fmtErr = plugin.FormatResult(res)
+				if fmtErr != nil {
+					logger.Warnf("Error formatting result from %s: %v", currentStep.PluginRef, fmtErr)
+					formattedResult = fmt.Sprintf("%v", res)
+				}
+			}
+
+			result := map[string]interface{}{
+				"plugin": currentStep.PluginRef,
+				"result": res,
+			}
+
+			// Only add formatted_result if it exists
+			if formattedResult != "" {
+				result["formatted_result"] = formattedResult
+			}
+
+			results = append(results, result)
+			if currentStep.PluginRef == "formatter-plugin" {
+				logger.Infof("Result from %s: [long output, check the slack channel ;D]", currentStep.PluginRef)
+			} else if strings.HasPrefix(formattedResult, "__MULTILINE_LOG__") {
+				// Handle multi-line logging
+				logLines := strings.Split(formattedResult, "__MULTILINE_LOG__")
+				logger.Infof("Result from %s (multi-line output):", currentStep.PluginRef)
+				for _, line := range logLines {
+					if line == "" {
+						continue
+					}
+					logger.Info(line)
+				}
+			} else {
+				// Show full output for [all-flows] flow, truncate others if they're too long
+				if !isAllFlowsFlow && len(formattedResult) > 100 {
+					logger.Infof("Result from %s: %s...", currentStep.PluginRef, formattedResult[:100])
+				} else {
+					logger.Infof("Result from %s: %s", currentStep.PluginRef, formattedResult)
+				}
+			}
+
+			lastResult = res
+		}
 	}
 
 	return results
