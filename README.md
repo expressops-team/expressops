@@ -15,10 +15,18 @@ https://hub.docker.com/r/davidnull/expressops
 > *Note: Currently only for testing. Will move to **expressopsfreepik/expressops** in the future*
 
 You can pull it with:
+```bash
+docker pull davidnull/expressops:1.0.0
+```
+
+## 📑 Table of Contents
+
 - [Requirements](#-requirements)
 - [Installation](#-installation)
 - [Usage](#-usage)
+- [Getting Help](#-getting-help)
 - [Configuration](#-configuration)
+- [Secret Management](#-secret-management)
 - [Example Flow](#-example-flow-dr-house)
 - [Contributing](#-contributing)
 - [License](#-license)
@@ -48,7 +56,9 @@ You can pull it with:
 
 > 🐧 ExpressOps runs on Linux (due to the Go plugin system).
 - Golang 1.20+
-
+- Docker (for containerized deployment)
+- Kubernetes (for production deployment)
+- External Secrets Operator (for secret management)
 
 
 ## 🔧 Installation
@@ -59,9 +69,7 @@ cd expressops
 make build
 ```
 
-
 To build the plugins manually:
-
 ```bash
 go build -buildmode=plugin -o plugins/slack/slack.so plugins/slack/slack.go
 go build -buildmode=plugin -o plugins/healthcheck/health_check.so plugins/healthcheck/health_check.go
@@ -90,6 +98,91 @@ ExpressOps supports the following environment variables for configuration:
 - `LOG_FORMAT`: Set logging format (text, json)
 - `SLACK_WEBHOOK_URL`: Required for Slack notifications
 
+## 🔍 Getting Help
+
+The Makefile includes a comprehensive help system with information about available commands and configuration options.
+
+```bash
+make help
+```
+
+This will display all available commands, their purposes, and configuration variables:
+
+![Make Help Command](docs/img/help.png)
+
+**IMPORTANT:** The help command is your best source of information about deployment options and required environment variables.
+
+## 🗝️ Secret Management
+
+ExpressOps uses External Secrets Operator with a ClusterSecretStore for managing secrets:
+
+### How Secrets Work in ExpressOps
+
+1. **ClusterSecretStore**: Stores the webhook URL at the cluster level
+   ```yaml
+   apiVersion: external-secrets.io/v1beta1
+   kind: ClusterSecretStore
+   metadata:
+     name: expressops-fake-secretstore
+   spec:
+     provider:
+       fake:
+         data:
+           - key: slack/webhook
+             value:
+               webhook_url: "https://hooks.slack.com/services/..."
+   ```
+
+2. **ExternalSecret**: Creates Kubernetes secrets from the ClusterSecretStore
+   ```yaml
+   apiVersion: external-secrets.io/v1beta1
+   kind: ExternalSecret
+   metadata:
+     name: expressops-slack-external-secret
+   spec:
+     secretStoreRef:
+       name: expressops-fake-secretstore
+       kind: ClusterSecretStore
+     target:
+       name: expressops-slack-secret
+       creationPolicy: Owner
+     data:
+       - secretKey: SLACK_WEBHOOK_URL
+         remoteRef:
+           key: slack/webhook
+           property: webhook_url
+   ```
+
+3. **Deployment**: References the created Kubernetes secret
+   ```yaml
+   env:
+     - name: SLACK_WEBHOOK_URL
+       valueFrom:
+         secretKeyRef:
+           name: expressops-slack-secret
+           key: SLACK_WEBHOOK_URL
+   ```
+
+### Deploying with Secrets
+
+The recommended way to deploy with secrets is using one of these commands:
+
+```bash
+# Set your Slack webhook URL as an environment variable
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/TOKEN/HERE"
+
+# Deploy with Helm (recommended)
+make helm-install-with-secrets
+
+# Or deploy with kubectl
+make k8s-deploy-with-clustersecretstore
+```
+
+This approach keeps your secrets secure by:
+- Not storing them in Git
+- Only passing them at deployment time
+- Storing them securely in Kubernetes
+
 ## 🛥️ Kubernetes Deployment
 
 ExpressOps can be deployed to Kubernetes using the provided Makefile commands:
@@ -107,12 +200,11 @@ make k8s-install-eso
 # VERSION=1.0.1 make docker-push
 make docker-push
 
-# OPTIONAL: Set SLACK_WEBHOOK_URL environment variable before deployment
-# If not set, a fake webhook URL will be used for development
+# Set SLACK_WEBHOOK_URL environment variable before deployment (required)
 export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/REAL/TOKEN"
 
-# Deploy to Kubernetes
-make k8s-deploy
+# Deploy to Kubernetes with secrets
+make k8s-deploy-with-clustersecretstore
 
 # Check deployment status
 make k8s-status
@@ -129,36 +221,7 @@ make k8s-delete
 
 The application will be accessible at http://localhost:8080 after port forwarding.
 
-### Secrets Management (€0 Cost)
-
-ExpressOps uses External Secrets Operator with a Fake provider for managing secrets in development environments. This approach allows you to:
-
-1. Use the same secrets management pattern as in production 
-2. Not depend on cloud provider APIs (no need to pay)
-3. Easily switch to a real secrets provider when needed
-
-#### How It Works
-
-- `k8s/secrets/fake-secretstore.yaml`: Defines a SecretStore using the Fake provider, which stores secrets directly in the manifest.
-- `k8s/secrets/slack-externalsecret.yaml`: Defines an ExternalSecret that references the Fake SecretStore to create a Kubernetes Secret named `expressops-secrets`.
-
-The Fake provider is used for development and testing environments where:
-- You don't want to activate or pay (€0) for cloud provider secret management services
-- You want a simple solution for local development
-- You want to maintain the same External Secrets structure as in production
-
-#### For Production
-
-In a production environment, you would replace the Fake provider with a real secret management solution like:
-- Google Secret Manager (€)
-- AWS Secrets Manager (€)
-- HashiCorp Vault (€)
-- Or other supported providers
-
-Then update the SecretStore configuration accordingly.
-
 ## ⚙️ Configuration example
-
 
 ```yaml
 plugins:
@@ -176,15 +239,12 @@ flows:
       - pluginRef: slack-notifier
 ```
 
-
 ## 🧪 Example Flow: dr-house
 
 This flow performs:
 
 1. System health check
-
 2. Formats the result
-
 3. Prints a test message
 
 ```bash
