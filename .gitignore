@@ -13,6 +13,7 @@ logs/*.zip
 
 # Kubernetes secrets
 k8s/secrets/fake-clustersecretstore.yaml  # Contains sensitive webhook URLs
+k8s/secrets/slack-externalsecret.yaml
 
 
 # Local environment files
