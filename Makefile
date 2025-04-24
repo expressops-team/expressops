@@ -28,7 +28,7 @@ CONFIG_PATH ?= docs/samples/config.yaml
 CONFIG_MOUNT_PATH ?= /app/config.yaml
 K8S_NAMESPACE ?= default
 
-.PHONY: build run docker-build docker-push docker-run docker-clean help k8s-deploy k8s-status k8s-logs k8s-delete k8s-port-forward k8s-install-eso helm-install helm-upgrade helm-uninstall helm-template helm-package
+.PHONY: build run docker-build docker-push docker-run docker-clean help k8s-deploy k8s-status k8s-logs k8s-delete k8s-port-forward k8s-install-eso helm-install helm-upgrade helm-uninstall helm-template helm-package k8s-apply-fake-clustersecretstore k8s-apply-externalsecret k8s-setup-fake-secrets k8s-verify-secrets helm-install-with-secrets k8s-deploy-with-clustersecretstore
 
 # Build plugins and application locally
 build:
@@ -113,6 +113,11 @@ help:
 	@echo "$(YELLOW)===================$(BOLD)$(BLUE)IMPORTANT READ THE COMMENTS IN THE CODE$(RESET)$(YELLOW)=======================$(RESET)"
 	@echo "$(YELLOW)=================================================================================$(RESET)"
 	@echo
+	@echo "$(YELLOW)=============================$(BOLD)$(BLUE)MOST USEFUL COMMANDS$(RESET)$(YELLOW)================================$(RESET)"
+	@echo "$(GREEN)$(BOLD)  make helm-install-with-secrets $(RESET)- Install ExpressOps with ClusterSecretStore"
+	@echo "$(GREEN)$(BOLD)  make k8s-deploy-with-clustersecretstore $(RESET)- Deploy ExpressOps with ClusterSecretStore"
+	@echo "$(YELLOW)=================================================================================$(RESET)"
+	@echo
 	@echo "$(BLUE)Available commands:$(RESET)"
 	@echo "$(GREEN)  make help          $(RESET)- Show this help"
 	@echo "$(GREEN)  make build         $(RESET)- Build plugins and application"
@@ -133,6 +138,7 @@ help:
 	@echo "$(GREEN)  make helm-uninstall$(RESET)- Uninstall Helm deployment"
 	@echo "$(GREEN)  make helm-template $(RESET)- View Helm templates without installing"
 	@echo "$(GREEN)  make helm-package  $(RESET)- Package Helm chart into a .tgz file"
+
 	@echo
 	@echo "$(YELLOW)=================================================================================$(RESET)"
 	@echo
@@ -147,7 +153,7 @@ help:
 	@echo "$(GREEN)  TIMEOUT_SECONDS  $(RESET)= $(TIMEOUT_SECONDS)"
 	@echo "$(GREEN)  LOG_LEVEL        $(RESET)= $(LOG_LEVEL)"
 	@echo "$(GREEN)  LOG_FORMAT       $(RESET)= $(LOG_FORMAT)"
-	@echo "$(GREEN)  SLACK_WEBHOOK_URL $(RESET)= $(SLACK_WEBHOOK_URL)..."
+	@echo "$(GREEN)  SLACK_WEBHOOK_URL $(RESET)= ..."
 	@echo "$(GREEN)  CONFIG_PATH      $(RESET)= $(CONFIG_PATH)"
 	@echo "$(GREEN)  CONFIG_MOUNT_PATH $(RESET)= $(CONFIG_MOUNT_PATH)"
 	@echo "$(GREEN)  K8S_NAMESPACE    $(RESET)= $(K8S_NAMESPACE)"
@@ -169,6 +175,40 @@ k8s-install-eso:
 	@echo "✅ External Secrets Operator installed"
 	@echo "⏳ Wait for operator to be ready..."
 	@kubectl wait --for=condition=available --timeout=90s deployment/external-secrets -n external-secrets || echo "⚠️ Timeout waiting for ESO to be ready"
+
+# Helm install usando ClusterSecretStore
+helm-install-with-secrets:
+	@if [ -z "$(SLACK_WEBHOOK_URL)" ]; then \
+		echo "$(RED)Error: SLACK_WEBHOOK_URL environment variable is required$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)🚀 Instalando ExpressOps con Helm usando ClusterSecretStore...$(RESET)"
+	@echo "$(BLUE)Desplegando en namespace: $(K8S_NAMESPACE)$(RESET)"
+	helm upgrade --install expressops ./helm \
+		--namespace $(K8S_NAMESPACE) \
+		--set clusterSecretStore.webhookUrl="$(SLACK_WEBHOOK_URL)"
+	@echo "$(GREEN)✅ ExpressOps instalado correctamente con secretos$(RESET)"
+	@echo "$(YELLOW)Para acceder a la aplicación:$(RESET) make k8s-port-forward"
+
+# Usar ClusterSecretStore en deploy normal (no Helm)
+k8s-deploy-with-clustersecretstore:
+	@if [ -z "$(SLACK_WEBHOOK_URL)" ]; then \
+		echo "$(RED)Error: SLACK_WEBHOOK_URL environment variable is required$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)🔄 Preparando ClusterSecretStore con webhook URL...$(RESET)"
+	@sed -e "s|YOUR_SLACK_WEBHOOK_URL_HERE|$(SLACK_WEBHOOK_URL)|g" \
+		k8s/secrets/template-clustersecretstore.yaml > k8s/secrets/fake-clustersecretstore.yaml
+	
+	@echo "$(BLUE)🔄 Desplegando ExpressOps a Kubernetes...$(RESET)"
+	kubectl apply -f k8s/configmap.yaml
+	kubectl apply -f k8s/expressops-env-config.yaml 
+	kubectl apply -f k8s/deployment.yaml
+	kubectl apply -f k8s/secrets/fake-clustersecretstore.yaml
+	kubectl apply -f k8s/secrets/slack-externalsecret.yaml
+	kubectl apply -f k8s/service.yaml
+	@echo "$(GREEN)✅ ExpressOps desplegado con ClusterSecretStore$(RESET)"
+	@echo "$(YELLOW)Para acceder a la aplicación:$(RESET) make k8s-port-forward"
 
 # Kubernetes Deployment
 # Before deploying:
@@ -268,5 +308,26 @@ helm-package:
 	@echo "📦 Empaquetando Helm chart..."
 	helm package ./helm
 	@echo "✅ Chart empaquetado. Listo para distribuir."
+
+# Secret Management Targets
+k8s-apply-fake-clustersecretstore:
+	kubectl apply -f k8s/secrets/fake-clustersecretstore.yaml
+	@echo "Fake ClusterSecretStore applied"
+
+k8s-apply-externalsecret:
+	kubectl apply -f k8s/secrets/slack-externalsecret.yaml
+	@echo "ExternalSecret applied"
+
+k8s-setup-fake-secrets: k8s-apply-fake-clustersecretstore k8s-apply-externalsecret
+	@echo "Fake secret management setup complete"
+	@echo "Wait a moment for the ExternalSecret to create the actual Kubernetes secret"
+	sleep 5
+	kubectl get secret expressops-slack-secret
+
+# Verify secrets are working
+k8s-verify-secrets:
+	@echo "Verifying that the secret was created:"
+	kubectl get secret expressops-slack-secret
+	@echo "Little Reminder: The secret's content is controlled by the External Secrets Operator ;D"
 
 .DEFAULT_GOAL := help

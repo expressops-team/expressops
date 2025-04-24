@@ -12,7 +12,9 @@ logs/*.log
 logs/*.zip
 
 # Kubernetes secrets
-# k8s/secrets.yaml DOES NOT EXIST, IT IS GENERATED FROM k8s/secrets/fake-secretstore.yaml
+k8s/secrets/slack-secret.yaml
+k8s/secrets/fake-clustersecretstore.yaml  # Contains sensitive webhook URLs
+
 
 # Local environment files
 .env
