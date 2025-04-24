@@ -13,6 +13,26 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+# Liveness Probe Configuration
+livenessProbe:
+  enabled: true
+  path: /flow?flowName=all-flows
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+# Readiness Probe Configuration
+readinessProbe:
+  enabled: true
+  path: /flow?flowName=health-status-no-format
+  initialDelaySeconds: 10
+  periodSeconds: 20
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
 serviceAccount:
   # Specifies whether a service account should be created
   create: false
@@ -20,22 +40,14 @@ serviceAccount:
   # If not set and create is true, a name is generated using the fullname template
   name: ""
 
-podSecurityContext: {}
-  # fsGroup: 2000
-
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+#podSecurityContext: {}
+#securityContext: {}
 
 service:
   type: NodePort
   port: 80
   targetPort: 8080
-
+# = rama_nacho?
 resources:
   limits:
     cpu: 100m
@@ -74,9 +86,5 @@ externalSecrets:
     key: "slack/webhook"
     property: "webhook_url"
     
-# ClusterSecretStore configuration
 clusterSecretStore:
   enabled: true
-  # webhookUrl: "https://hooks.slack.com/services/YOUR_WEBHOOK_URL"
-  # IMPORTANT: Do not include the actual value here, pass it using --set
-  # Usage: helm install expressops ./helm --set clusterSecretStore.webhookUrl="https://hooks.slack.com/..."
