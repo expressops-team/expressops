@@ -26,3 +26,5 @@ Terraform/*
 .vscode/
 *.swp
 *.swo
+# Google service account key
+key.json
