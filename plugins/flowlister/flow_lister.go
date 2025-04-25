@@ -47,7 +47,6 @@ func (p *FlowListerPlugin) Execute(ctx context.Context, request *http.Request, s
 		"flowList": []string{}, // New field for separate log lines
 	}
 
-	// Get a sorted list of flow names for consistent output
 	var flowNames []string
 	for name := range flows {
 		flowNames = append(flowNames, name)
@@ -58,8 +57,7 @@ func (p *FlowListerPlugin) Execute(ctx context.Context, request *http.Request, s
 	var flowList []map[string]interface{}
 	var logLines []string // Store each flow as a separate log line
 
-	// Add header to log lines
-	logLines = append(logLines, fmt.Sprintf("Available Flows (%d):", len(flows)))
+	logLines = append(logLines, fmt.Sprintf("Available Flows (%d):", len(flows))) //header
 	logLines = append(logLines, "=====================")
 	logLines = append(logLines, "") // Empty line
 
@@ -72,7 +70,6 @@ func (p *FlowListerPlugin) Execute(ctx context.Context, request *http.Request, s
 			"plugins":      []string{},
 		}
 
-		// Add the list of plugins in this flow
 		var plugins []string
 		for _, step := range flow.Pipeline {
 			if step.PluginRef != "" {
@@ -83,7 +80,6 @@ func (p *FlowListerPlugin) Execute(ctx context.Context, request *http.Request, s
 
 		flowList = append(flowList, flowInfo)
 
-		// Create a separate log line for this flow
 		flowLine := fmt.Sprintf("📋 %s", name)
 		logLines = append(logLines, flowLine)
 

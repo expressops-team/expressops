@@ -75,7 +75,7 @@ func (p *KubeHealthPlugin) Execute(ctx context.Context, request *http.Request, s
 	(*shared)["message"] = message
 	(*shared)["kube_health_results"] = pods
 
-	// Set severity based on problem count
+	// Set severity based on ==> problem count <==
 	severity := "info"
 	if problemCount > 0 {
 		severity = "warning"
@@ -140,7 +140,7 @@ func parsePodOutput(output string) []map[string]string {
 	return pods
 }
 
-// Format a nice Slack message with the pod status
+// Format a nice;) Slack message with the pod status
 func formatSlackMessage(namespace string, pods []map[string]string, problemCount int) string {
 	var msg strings.Builder
 
