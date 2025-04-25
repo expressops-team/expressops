@@ -1,4 +1,3 @@
-
 replicaCount: 1
 
 image:
@@ -65,11 +64,19 @@ externalSecrets:
   enabled: true
   refreshInterval: "1h"
   secretStore:
-    name: "expressops-fake-secretstore"
+    name: "expressops-external-secrets"
     kind: "ClusterSecretStore"
   remoteRef:
-    key: "slack/webhook"
-    property: "webhook_url"
+    key: "projects/88527591198/secrets/slack-webhook"
+    version: "latest"
     
+# Google Cloud Secret Manager configuration
+gcpSecretManager:
+  enabled: true
+  projectID: "fc-it-school-2025"
+  serviceAccount: "expressops-external-secrets@fc-it-school-2025.iam.gserviceaccount.com"
+  # Service account credentials should be provided during deployment
+  serviceAccountKey: ""
+
 clusterSecretStore:
   enabled: true
