@@ -23,13 +23,13 @@ SERVER_ADDRESS ?= 0.0.0.0
 TIMEOUT_SECONDS ?= 4
 LOG_LEVEL ?= info	
 LOG_FORMAT ?= text
-SLACK_WEBHOOK_URL ?= 
+SLACK_WEBHOOK_URL ?= external-secret-webhook
 CONFIG_PATH ?= docs/samples/config.yaml
 CONFIG_MOUNT_PATH ?= /app/config.yaml
 K8S_NAMESPACE ?= default
-GCP_SA_KEY_FILE ?= 
+GCP_SA_KEY_FILE ?= key.json
 
-.PHONY: build run docker-build docker-push docker-run docker-clean help k8s-deploy k8s-status k8s-logs k8s-delete k8s-port-forward k8s-install-eso helm-install helm-upgrade helm-uninstall helm-template helm-package k8s-apply-fake-clustersecretstore k8s-apply-externalsecret k8s-setup-fake-secrets k8s-verify-secrets helm-install-with-secrets k8s-deploy-with-clustersecretstore k8s-deploy-with-gcp-secretstore helm-install-with-gcp-secrets
+.PHONY: build run docker-build docker-push docker-run docker-clean help k8s-deploy k8s-status k8s-logs k8s-delete k8s-port-forward k8s-install-eso helm-install helm-upgrade helm-uninstall helm-template helm-package k8s-apply-gcp-secretstore k8s-apply-externalsecret k8s-setup-gcp-secrets k8s-verify-secrets helm-install-with-secrets k8s-deploy-with-clustersecretstore k8s-deploy-with-gcp-secretstore helm-install-with-gcp-secrets setup-with-gcp-credentials
 
 # Build plugins and application locally
 build:
@@ -115,10 +115,12 @@ help:
 	@echo "$(YELLOW)=================================================================================$(RESET)"
 	@echo
 	@echo "$(YELLOW)=============================$(BOLD)$(BLUE)MOST USEFUL COMMANDS$(RESET)$(YELLOW)================================$(RESET)"
-	@echo "$(GREEN)$(BOLD)  make helm-install-with-secrets $(RESET)- Install ExpressOps with ClusterSecretStore"
-	@echo "$(GREEN)$(BOLD)  make k8s-deploy-with-clustersecretstore $(RESET)- Deploy ExpressOps with ClusterSecretStore"
-	@echo "$(GREEN)$(BOLD)  make k8s-deploy-with-gcp-secretstore $(RESET)- Deploy ExpressOps with GCP Secret Manager"
-	@echo "$(GREEN)$(BOLD)  make helm-install-with-gcp-secrets $(RESET)- Install ExpressOps with GCP Secret Manager via Helm"
+	@echo "$(GREEN)$(BOLD)  make setup-with-gcp-credentials $(RESET)- Set up complete environment with GCP credentials"
+	@echo "$(GREEN)$(BOLD)  make helm-install-with-secrets $(RESET)- Install ExpressOps with ClusterSecretStore <== OUTDATED"
+	@echo "$(GREEN)$(BOLD)  make k8s-deploy-with-clustersecretstore $(RESET)- Deploy ExpressOps with ClusterSecretStore <== OUTDATED"
+	@echo "$(GREEN)$(BOLD)  make k8s-deploy-with-gcp-secretstore $(RESET)- Deploy ExpressOps with GCP Secret Manager <== USE BETTER WITH HELM"
+	@echo "$(YELLOW)=================================================================================$(RESET)"
+	@echo "$(RED)$(BOLD)  make helm-install-with-gcp-secrets $(RESET)- Install ExpressOps with GCP Secret Manager via Helm"
 	@echo "$(YELLOW)=================================================================================$(RESET)"
 	@echo
 	@echo "$(BLUE)Available commands:$(RESET)"
@@ -156,11 +158,11 @@ help:
 	@echo "$(GREEN)  TIMEOUT_SECONDS  $(RESET)= $(TIMEOUT_SECONDS)"
 	@echo "$(GREEN)  LOG_LEVEL        $(RESET)= $(LOG_LEVEL)"
 	@echo "$(GREEN)  LOG_FORMAT       $(RESET)= $(LOG_FORMAT)"
-	@echo "$(GREEN)  SLACK_WEBHOOK_URL $(RESET)= ..."
+	@echo "$(GREEN)  SLACK_WEBHOOK_URL $(RESET)= $(SLACK_WEBHOOK_URL)"
 	@echo "$(GREEN)  CONFIG_PATH      $(RESET)= $(CONFIG_PATH)"
 	@echo "$(GREEN)  CONFIG_MOUNT_PATH $(RESET)= $(CONFIG_MOUNT_PATH)"
 	@echo "$(GREEN)  K8S_NAMESPACE    $(RESET)= $(K8S_NAMESPACE)"
-	@echo "$(GREEN)  GCP_SA_KEY_FILE  $(RESET)= $(GCP_SA_KEY_FILE) (Path to service account key json file)"
+	@echo "$(GREEN)  GCP_SA_KEY_FILE  $(RESET)= $(GCP_SA_KEY_FILE)"
 	@echo
 	@echo "$(YELLOW)=================================================================================$(RESET)"
 	@echo "$(YELLOW)=======================$(BOLD)$(BLUE)GOOGLE CLOUD SECRET MANAGER$(RESET)$(YELLOW)=========================$(RESET)"
@@ -206,16 +208,12 @@ k8s-deploy-with-clustersecretstore:
 		echo "$(RED)Error: SLACK_WEBHOOK_URL environment variable is required$(RESET)"; \
 		exit 1; \
 	fi
-	@echo "$(BLUE)🔄 Preparando ClusterSecretStore con webhook URL...$(RESET)"
-	@sed -e "s|YOUR_SLACK_WEBHOOK_URL_HERE|$(SLACK_WEBHOOK_URL)|g" \
-		k8s/secrets/template-clustersecretstore.yaml > k8s/secrets/fake-clustersecretstore.yaml
-	
-	@echo "$(BLUE)🔄 Desplegando ExpressOps a Kubernetes...$(RESET)"
+	@echo "$(BLUE)🔄 Preparando y desplegando ExpressOps a Kubernetes...$(RESET)"
 	kubectl apply -f k8s/configmap.yaml
 	kubectl apply -f k8s/expressops-env-config.yaml 
 	kubectl apply -f k8s/deployment.yaml
-	kubectl apply -f k8s/secrets/fake-clustersecretstore.yaml
-	kubectl apply -f k8s/secrets/slack-externalsecret.yaml
+	kubectl apply -f k8s/secrets/gcp-clustersecretstore.yaml
+	kubectl apply -f k8s/secrets/expressops-externalsecret.yaml
 	kubectl apply -f k8s/service.yaml
 	@echo "$(GREEN)✅ ExpressOps desplegado con ClusterSecretStore$(RESET)"
 	@echo "$(YELLOW)Para acceder a la aplicación:$(RESET) make k8s-port-forward"
@@ -224,8 +222,8 @@ k8s-deploy-with-clustersecretstore:
 k8s-deploy-with-gcp-secretstore:
 	@echo "$(BLUE)🔄 Deploying ExpressOps with GCP Secret Manager...$(RESET)"
 	@if [ ! -f "$(GCP_SA_KEY_FILE)" ]; then \
-		echo "$(RED)Error: GCP_SA_KEY_FILE environment variable must point to a service account key file$(RESET)"; \
-		echo "Example usage: GCP_SA_KEY_FILE=/path/to/service-account.json make k8s-deploy-with-gcp-secretstore"; \
+		echo "$(RED)Error: Service account key file $(GCP_SA_KEY_FILE) not found$(RESET)"; \
+		echo "Please ensure key.json is present in the project root directory"; \
 		exit 1; \
 	fi
 	
@@ -247,8 +245,8 @@ k8s-deploy-with-gcp-secretstore:
 helm-install-with-gcp-secrets:
 	@echo "$(BLUE)🚀 Installing ExpressOps with Helm using GCP Secret Manager...$(RESET)"
 	@if [ ! -f "$(GCP_SA_KEY_FILE)" ]; then \
-		echo "$(RED)Error: GCP_SA_KEY_FILE environment variable must point to a service account key file$(RESET)"; \
-		echo "Example usage: GCP_SA_KEY_FILE=/path/to/service-account.json make helm-install-with-gcp-secrets"; \
+		echo "$(RED)Error: Service account key file $(GCP_SA_KEY_FILE) not found$(RESET)"; \
+		echo "Please ensure key.json is present in the project root directory"; \
 		exit 1; \
 	fi
 	
@@ -277,8 +275,8 @@ k8s-deploy:
 	kubectl apply -f k8s/configmap.yaml
 	kubectl apply -f k8s/expressops-env-config.yaml 
 	kubectl apply -f k8s/deployment.yaml
-	kubectl apply -f k8s/secrets/fake-secretstore.yaml
-	kubectl apply -f k8s/secrets/slack-externalsecret.yaml
+	kubectl apply -f k8s/secrets/gcp-clustersecretstore.yaml
+	kubectl apply -f k8s/secrets/expressops-externalsecret.yaml
 	kubectl apply -f k8s/service.yaml
 	@echo "⏳ Waiting for External Secret to sync (15s)..." #to give time for the secret to be created
 	@sleep 15
@@ -330,8 +328,8 @@ k8s-delete:
 	@echo "🗑️ Deleting ExpressOps from Kubernetes..."
 	kubectl delete -f k8s/service.yaml --ignore-not-found
 	kubectl delete -f k8s/deployment.yaml --ignore-not-found
-	kubectl delete -f k8s/secrets/slack-externalsecret.yaml --ignore-not-found
-	kubectl delete -f k8s/secrets/fake-secretstore.yaml --ignore-not-found				
+	kubectl delete -f k8s/secrets/expressops-externalsecret.yaml --ignore-not-found
+	kubectl delete -f k8s/secrets/gcp-clustersecretstore.yaml --ignore-not-found				
 	kubectl delete -f k8s/configmap.yaml --ignore-not-found
 	kubectl delete -f k8s/expressops-env-config.yaml --ignore-not-found
 	@echo "✅ ExpressOps deleted from Kubernetes"
@@ -363,16 +361,16 @@ helm-package:
 	@echo "✅ Chart empaquetado. Listo para distribuir."
 
 # Secret Management Targets
-k8s-apply-fake-clustersecretstore:
-	kubectl apply -f k8s/secrets/fake-clustersecretstore.yaml
-	@echo "Fake ClusterSecretStore applied"
+k8s-apply-gcp-secretstore:
+	kubectl apply -f k8s/secrets/gcp-clustersecretstore.yaml
+	@echo "GCP ClusterSecretStore applied"
 
 k8s-apply-externalsecret:
-	kubectl apply -f k8s/secrets/slack-externalsecret.yaml
+	kubectl apply -f k8s/secrets/expressops-externalsecret.yaml
 	@echo "ExternalSecret applied"
 
-k8s-setup-fake-secrets: k8s-apply-fake-clustersecretstore k8s-apply-externalsecret
-	@echo "Fake secret management setup complete"
+k8s-setup-gcp-secrets: k8s-apply-gcp-secretstore k8s-apply-externalsecret
+	@echo "GCP secret management setup complete"
 	@echo "Wait a moment for the ExternalSecret to create the actual Kubernetes secret"
 	sleep 5
 	kubectl get secret expressops-slack-secret
@@ -383,4 +381,26 @@ k8s-verify-secrets:
 	kubectl get secret expressops-slack-secret
 	@echo "Little Reminder: The secret's content is controlled by the External Secrets Operator ;D"
 
+# Configure and deploy full environment with GCP credentials
+setup-with-gcp-credentials:
+	@echo "$(BLUE)🔄 Setting up ExpressOps with GCP credentials from key.json...$(RESET)"
+	@if [ ! -f "$(GCP_SA_KEY_FILE)" ]; then \
+		echo "$(RED)Error: Service account key file $(GCP_SA_KEY_FILE) not found$(RESET)"; \
+		echo "Please ensure key.json is present in the project root directory"; \
+		exit 1; \
+	fi
+	
+	@echo "$(BLUE)🔄 Installing External Secrets Operator...$(RESET)"
+	@make k8s-install-eso
+	
+	@echo "$(BLUE)🔄 Deploying ExpressOps with GCP secrets...$(RESET)"
+	@make helm-install-with-gcp-secrets
+	
+	@echo "$(GREEN)✅ ExpressOps setup completed with GCP credentials$(RESET)"
+	@echo "$(YELLOW)For accessing the application:$(RESET) make k8s-port-forward"
+
 .DEFAULT_GOAL := help
+
+#kubectl create secret generic gcp-service-account-key \
+#  --from-file=key.json=path/to/your/key.json \
+#  --namespace=your-namespace
