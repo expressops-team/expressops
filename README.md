@@ -123,34 +123,42 @@ The help system is organized into categories:
 
 ## 🗝️ Secret Management
 
-ExpressOps uses External Secrets Operator with a ClusterSecretStore for managing secrets:
+ExpressOps uses External Secrets Operator with Google Cloud Secret Manager for secure secret management:
 
 ### How Secrets Work in ExpressOps
 
-1. **ClusterSecretStore**: Stores the webhook URL at the cluster level
+1. **GCP Secret Manager**: Stores the secrets in Google Cloud
+   - Secret Name: `slack-webhook`
+   - Project ID: `fc-it-school-2025`
+   - Full Path: `projects/88527591198/secrets/slack-webhook`
+
+2. **ClusterSecretStore**: Configures access to GCP Secret Manager
    ```yaml
    apiVersion: external-secrets.io/v1beta1
    kind: ClusterSecretStore
    metadata:
-     name: expressops-fake-secretstore
+     name: expressops-external-secrets
    spec:
      provider:
-       fake:
-         data:
-           - key: slack/webhook
-             value:
-               webhook_url: "https://hooks.slack.com/services/..."
+       gcpsm:
+         projectID: fc-it-school-2025
+         auth:
+           secretRef:
+             secretAccessKeySecretRef:
+               name: gcp-secret-creds
+               key: sa.json
    ```
 
-2. **ExternalSecret**: Creates Kubernetes secrets from the ClusterSecretStore
+3. **ExternalSecret**: Fetches the secret from GCP Secret Manager
    ```yaml
    apiVersion: external-secrets.io/v1beta1
    kind: ExternalSecret
    metadata:
      name: expressops-slack-external-secret
    spec:
+     refreshInterval: "1h"
      secretStoreRef:
-       name: expressops-fake-secretstore
+       name: expressops-external-secrets
        kind: ClusterSecretStore
      target:
        name: expressops-slack-secret
@@ -158,11 +166,11 @@ ExpressOps uses External Secrets Operator with a ClusterSecretStore for managing
      data:
        - secretKey: SLACK_WEBHOOK_URL
          remoteRef:
-           key: slack/webhook
-           property: webhook_url
+           key: projects/88527591198/secrets/slack-webhook
+           version: "latest"
    ```
 
-3. **Deployment**: References the created Kubernetes secret
+4. **Deployment**: References the created Kubernetes secret
    ```yaml
    env:
      - name: SLACK_WEBHOOK_URL
@@ -172,25 +180,29 @@ ExpressOps uses External Secrets Operator with a ClusterSecretStore for managing
            key: SLACK_WEBHOOK_URL
    ```
 
-### Deploying with Secrets
+### Deploying with GCP Secret Manager
 
-The recommended way to deploy with secrets is using one of these commands:
+The recommended way to deploy with GCP Secret Manager is using one of these commands:
 
 ```bash
-# Set your Slack webhook URL as an environment variable
-export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/TOKEN/HERE"
+# Make sure key.json (GCP service account credentials) is in the project root
+# This file allows access to the GCP Secret Manager
 
-# Deploy with Helm (recommended)
-make helm-install-with-secrets
+# Complete setup with External Secrets Operator and GCP Secret Manager
+make setup-with-gcp-credentials
 
-# Or deploy with kubectl
-make k8s-deploy-with-clustersecretstore
+# Or deploy using Helm with GCP Secret Manager
+make helm-install-with-gcp-secrets
+
+# Alternative: Deploy directly to Kubernetes with GCP Secret Manager
+make k8s-deploy-with-gcp-secretstore
 ```
 
 This approach keeps your secrets secure by:
-- Not storing them in Git
-- Only passing them at deployment time
-- Storing them securely in Kubernetes
+- Storing them in Google Cloud Secret Manager
+- Using service account authentication
+- Creating Kubernetes secrets automatically via External Secrets Operator
+- Never exposing sensitive values in your code or configuration files
 
 ## 🛥️ Kubernetes Deployment
 
