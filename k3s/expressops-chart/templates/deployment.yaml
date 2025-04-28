@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "expressops-chart.fullname" . }} #Unique name for this deployment release
+  labels:
+  {{- include "expressops-chart.labels" . | nindent 4 }} #Standard tags to identify this resource
+
+spec:
+  replicas: {{ .Values.replicaCount}}
+  selector:
+    matchLabels:
+      {{- include "expressops-chart.selectorLabels" . | nindent 6 }} #Tags that the Deployment uses to find its Pods
+  template:
+    metadata:
+      labels:
+        {{- include "expressops-chart.selectorLabels" . | nindent 8 }} #Tags that the Pods will have
+    spec:
+      containers:
+      - name: {{ .Chart.Name }} #Use the chart name as the basis for the container name
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}" ## Image configured in values.yaml (with fallback to Chart.yaml appVersion)
+        ports:
+        - name: http
+        - containerPort: {{ .Values.service.targetPort}} #Use the value from values.yaml
+        protocol: TCP
+        resources: # Image configured in values.yaml (with fallback to Chart.yaml appVersion)
+          {{- toYaml .Values.resources | nindent 10 }} #Converts the entire section of values.yaml to Yaml
+
+        envFrom:
+        - secretRef: #Reference the secret created by externalsecret, using the name in values.yaml
+            name: {{ .Values.slackSecretName }} #name of the K8s secret managed by ESO
+        - configMapRef:
+            name: {{ include "expressops-chart.fullname" . }}-env # (fullname + suffix)
+
+
+        args: ["/app/config.yaml"]
+
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+
+# Probes: Use the TargetPort from values.yaml for consistency
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.service.targetPort }}
+          initialDelaySeconds: 5
+          timeoutSeconds: 2
+          periodSeconds: 10
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.service.targetPort }}
+          initialDelaySeconds: 2
+          periodSeconds: 5
+
+      volumes:
+      - name: config-volume
+        configMap:
+          name: {{ include "expressops-chart.fullname" . }}-config

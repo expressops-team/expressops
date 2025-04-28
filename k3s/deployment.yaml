@@ -61,17 +61,3 @@ spec:
       - name: config-volume
         configMap:
           name: expressops-config
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: expressops
-  namespace: expressops-dev
-spec:
-  type: ClusterIP
-  selector:
-    app: expressops
-  ports:
-  - port: 80
-    targetPort: 8080

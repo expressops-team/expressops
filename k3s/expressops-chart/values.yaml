@@ -1,0 +1,43 @@
+# Default values ​​for expressops-chart.
+
+replicaCount: 2
+
+image:
+  repository: expressopsfreepik/expressops #Docker hub image
+  pullPolicy: IfNotPresent # Image pull policy
+
+  # tag: "v2" # The image tag is controlled by appVersion in Chart.yaml by default
+
+slackSecretName: slack-webhook-secret
+
+sleepDuration: "10"
+
+# Configuration for the K8s Service
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# Configuring resources for pods
+resources:
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+
+# --- External Secrets and GCP related settings ---
+
+# Name of the K8s Secret containing the GCP JSON credentials
+gcpCredentialsSecretName: gcp-creds-for-eso
+
+# SecretStore Configuration
+secretStore:
+  name: gcp-secret-store-expressops # Name that the SecretStore will have
+  gcpProjectId: fc-it-school-2025   # Tu Project ID
+
+# ExternalSecret Configuration
+externalSecret:
+  name: expressops-slack-webhook # Name that the ExternalSecret will have
+  gcpSecretName: slack-webhook-url-expressops-dev # Name of the secret in GCP Secret Manager
