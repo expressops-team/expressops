@@ -102,15 +102,24 @@ ExpressOps supports the following environment variables for configuration:
 
 The Makefile includes a comprehensive help system with information about available commands and configuration options.
 
-```bash
-make help
-```
+Here are the main help commands you can use:
 
-This will display all available commands, their purposes, and configuration variables:
+- `make help` - Shows you everything you can do with ExpressOps
+- `make quick-help` - Just the essential commands you'll use most often 
+- `make about` - Learn what ExpressOps is and how to get started
+- `make config` - See all your current settings and how to change them
 
-![Make Help Command](docs/img/help.png)
+These commands display information in a paged format (similar to 'more' or 'less'). Press 'q' to exit the view.
 
-**IMPORTANT:** The help command is your best source of information about deployment options and required environment variables.
+The help system is organized into categories:
+- Development commands (build, run)
+- Docker commands (build, push, run)
+- Kubernetes commands (deploy, status, logs)
+- Helm commands (install, upgrade, uninstall)
+
+![Make QuickHelp Command](docs/img/help.png)
+
+**IMPORTANT:** The help commands are your best source of information about deployment options and required environment variables.
 
 ## 🗝️ Secret Management
 
