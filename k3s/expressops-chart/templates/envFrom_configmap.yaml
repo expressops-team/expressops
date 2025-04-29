@@ -4,8 +4,9 @@ metadata:
   name: {{ include "expressops-chart.fullname" . }}-env
   labels:
     {{- include "expressops-chart.labels" . | nindent 4 }}
-
+    
+ # Use quote ensure it is a string
 data:
-  SLEEP_DURATION: {{ .Values.sleepDuration | quote }} # Use quote ensure it is a string
+  SLEEP_DURATION: {{ .Values.sleepDuration | quote }}
 
 # You can add more environment variables here and in values.yaml

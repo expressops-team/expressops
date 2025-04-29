@@ -1,7 +1,8 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "expressops-chart.fullname" . }} #Unique name for this release of the service
+ #Unique name for this release of the service
+  name: {{ include "expressops-chart.fullname" . }}
   labels:
   {{- include "expressops-chart.labels" . | nindent 4 }}
 spec:
@@ -11,5 +12,6 @@ spec:
       targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
       name: http
-  selector: # Tags that the service uses to find pods
+       # Tags that the service uses to find pods
+  selector:
     {{- include "expressops-chart.selectorLabels" . | nindent 4}}

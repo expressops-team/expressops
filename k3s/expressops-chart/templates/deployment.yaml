@@ -1,35 +1,46 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "expressops-chart.fullname" . }} #Unique name for this deployment release
+#Unique name for this deployment release
+  name: {{ include "expressops-chart.fullname" . }}
+   #Standard tags to identify this resource
   labels:
-  {{- include "expressops-chart.labels" . | nindent 4 }} #Standard tags to identify this resource
+  {{- include "expressops-chart.labels" . | nindent 4 }}
 
 spec:
   replicas: {{ .Values.replicaCount}}
   selector:
+  #Tags that the Deployment uses to find its Pods
     matchLabels:
-      {{- include "expressops-chart.selectorLabels" . | nindent 6 }} #Tags that the Deployment uses to find its Pods
+      {{- include "expressops-chart.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+    #Tags that the Pods will have
       labels:
-        {{- include "expressops-chart.selectorLabels" . | nindent 8 }} #Tags that the Pods will have
+        {{- include "expressops-chart.selectorLabels" . | nindent 8 }}
     spec:
       containers:
-      - name: {{ .Chart.Name }} #Use the chart name as the basis for the container name
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}" ## Image configured in values.yaml (with fallback to Chart.yaml appVersion)
+       #Use the chart name as the basis for the container name
+      - name: {{ .Chart.Name }}
+      #Image configured in values.yaml (with fallback to Chart.yaml appVersion)
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}" 
         ports:
+        
         - name: http
-        - containerPort: {{ .Values.service.targetPort}} #Use the value from values.yaml
-        protocol: TCP
-        resources: # Image configured in values.yaml (with fallback to Chart.yaml appVersion)
-          {{- toYaml .Values.resources | nindent 10 }} #Converts the entire section of values.yaml to Yaml
+          containerPort: {{ .Values.service.targetPort }}
+          protocol: TCP
+        #Converts the entire section of values.yaml to Yaml
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
 
         envFrom:
-        - secretRef: #Reference the secret created by externalsecret, using the name in values.yaml
-            name: {{ .Values.slackSecretName }} #name of the K8s secret managed by ESO
+         #Reference the secret created by externalsecret, using the name in values.yaml
+        - secretRef:
+        #name of the K8s secret managed by ESO
+            name: {{ .Values.slackSecretName }}
         - configMapRef:
-            name: {{ include "expressops-chart.fullname" . }}-env # (fullname + suffix)
+         # (fullname + suffix)
+            name: {{ include "expressops-chart.fullname" . }}-env
 
 
         args: ["/app/config.yaml"]
