@@ -38,7 +38,7 @@ help:
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
 		echo "$(YELLOW)$(BOLD)                     ExpressOps - Kubernetes Deployment System$(RESET)"; \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
-		echo "$(BLUE)Press 'q' to exit this view$(RESET)"; \
+		echo "$(BLUE)Press $(RED)'q'$(BLUE) to exit this view$(RESET)"; \
 		echo; \
 		echo "$(BLUE)$(BOLD)MOST FREQUENTLY USED COMMANDS:$(RESET)"; \
 		echo "  $(RED)make setup-with-gcp-credentials$(RESET)  - Complete setup with GCP credentials"; \
@@ -88,7 +88,7 @@ config:
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
 		echo "$(YELLOW)$(BOLD)                     ExpressOps - Configuration Values$(RESET)"; \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
-		echo "$(BLUE)Press 'q' to exit this view$(RESET)"; \
+		echo "$(BLUE)Press $(RED)'q'$(BLUE) to exit this view$(RESET)"; \
 		echo; \
 		echo "$(BOLD)$(BLUE)Runtime Configuration:$(RESET)"; \
 		echo "  $(GREEN)SERVER_PORT$(RESET)       = $(SERVER_PORT)"; \
@@ -127,7 +127,7 @@ about:
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
 		echo "$(YELLOW)$(BOLD)                           ExpressOps$(RESET)"; \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
-		echo "$(BLUE)Press 'q' to exit this view$(RESET)"; \
+		echo "$(BLUE)Press $(RED)'q'$(BLUE) to exit this view$(RESET)"; \
 		echo; \
 		echo "$(BOLD)$(BLUE)Project Overview:$(RESET)"; \
 		echo "  ExpressOps is the Tech School's project for the year 2025"; \
@@ -155,7 +155,7 @@ quick-help:
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
 		echo "$(BOLD)$(BLUE)ExpressOps Quick Help$(RESET)"; \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
-		echo "$(BLUE)Press 'q' to exit this view$(RESET)"; \
+		echo "$(BLUE)Press $(RED)'q'$(BLUE) to exit this view$(RESET)"; \
 		echo; \
 		echo "$(BOLD)Development:$(RESET)"; \
 		echo "  $(GREEN)make build$(RESET)                    - Build the application"; \

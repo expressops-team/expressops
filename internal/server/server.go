@@ -33,14 +33,6 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 
 	address := fmt.Sprintf("%s:%d", cfg.Server.Address, cfg.Server.Port)
 
-	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		logger.Info("Health check request received")
-
-		// You could add actual health checks here
-		w.Header().Set("Content-Type", "text/plain")
-		w.Write([]byte("OK"))
-	})
-
 	timeout := time.Duration(cfg.Server.TimeoutSec) * time.Second
 
 	// ONLY one generic handler that will handle all flows
@@ -367,7 +359,6 @@ func triggerDependentSteps(completedStep *stepExecution, execCtx *executionConte
 				break
 			}
 		}
-
 		// If all dependencies are complete, start this step
 		if allDepsComplete {
 			execCtx.wg.Add(1)
