@@ -45,6 +45,18 @@ resources:
     cpu: 100m
     memory: 256Mi
 
+# Node selector for pod assignment
+# Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+nodeSelector: {}
+
+# Affinity for pod assignment
+# Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+affinity: {}
+
+# Tolerations for pod assignment
+# Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+tolerations: []
+
 env:
   SERVER_PORT: "8080"
   SERVER_ADDRESS: "0.0.0.0"
@@ -58,25 +70,19 @@ config:
   server:
     timeoutSeconds: 4
 
-# External Secrets configuration
-externalSecrets:
+# Secret Management Configuration
+# Using Google Cloud Secret Manager with External Secrets Operator
+secrets:
   enabled: true
   refreshInterval: "1h"
-  secretStore:
-    name: "expressops-external-secrets"
-    kind: "ClusterSecretStore"
-  remoteRef:
-    key: "projects/88527591198/secrets/slack-webhook"
-    version: "latest"
-    
-# Google Cloud Secret Manager configuration
-gcpSecretManager:
-  enabled: true
-  projectID: "fc-it-school-2025"
-  serviceAccount: "expressops-external-secrets@fc-it-school-2025.iam.gserviceaccount.com"
-  # Service account credentials should be provided during deployment
-  serviceAccountKey: ""
-
-clusterSecretStore:
-  enabled: true
-  webhookUrl: "external-secret-webhook"
+  secretName: "slack-webhook"
+  # GCP Secret Manager Configuration
+  gcp:
+    projectID: "fc-it-school-2025"
+    serviceAccount: "expressops-external-secrets@fc-it-school-2025.iam.gserviceaccount.com"
+    serviceAccountKey: ""
+    secretStoreName: "expressops-external-secrets"
+    secretRefs:
+      - secretKey: "SLACK_WEBHOOK_URL"
+        remoteKey: "projects/88527591198/secrets/slack-webhook"
+        version: "latest"
