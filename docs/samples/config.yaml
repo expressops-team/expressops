@@ -90,7 +90,11 @@ flows:
     pipeline:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
+        dependsOn:
+          - health-check-plugin
       - pluginRef: slack-notifier
+        dependsOn:
+          - formatter-plugin
 
   - name: test-context # sleep testing
     description: "Test the context timeout"
@@ -103,14 +107,22 @@ flows:
     pipeline:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
+        dependsOn:
+          - health-check-plugin
       - pluginRef: test-print-plugin # it will be kube-health-plugin in the future :D
+        dependsOn:
+          - formatter-plugin
 
   - name: alert-flow
     description: "Health check with notification"
     pipeline:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
+        dependsOn:
+          - health-check-plugin
       - pluginRef: slack-notifier
+        dependsOn:
+          - formatter-plugin
   
 
 # GCP integration
@@ -119,18 +131,29 @@ flows:
     pipeline:
       - pluginRef: user-creation-plugin
       - pluginRef: slack-notifier
+        dependsOn:
+          - user-creation-plugin
       
   - name: set-permissions
     description: "Change permissions for a specific user on specified paths in GCP"
     pipeline:
       - pluginRef: permissions-plugin
       - pluginRef: slack-notifier
+        dependsOn:
+          - permissions-plugin
       
   - name: user-onboarding
     description: "Complete onboarding process: create user and set permissions"
     pipeline:
       - pluginRef: user-creation-plugin
       - pluginRef: slack-notifier
+        dependsOn:
+          - user-creation-plugin
       - pluginRef: permissions-plugin
+        dependsOn:
+          - user-creation-plugin
       - pluginRef: slack-notifier
+        parallel: true
+        dependsOn:
+          - permissions-plugin
     
