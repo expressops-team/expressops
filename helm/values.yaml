@@ -37,14 +37,13 @@ service:
   type: NodePort
   port: 80
   targetPort: 8080
-# = rama_nacho?
 resources:
   limits:
+    cpu: 200m
+    memory: 512Mi
+  requests: 
     cpu: 100m
-    memory: 128Mi
-  requests:
-    cpu: 50m
-    memory: 64Mi
+    memory: 256Mi
 
 env:
   SERVER_PORT: "8080"
