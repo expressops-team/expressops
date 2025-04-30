@@ -115,10 +115,11 @@ func parseParams(paramsRaw string) map[string]interface{} {
 }
 
 // Represents a step in the pipeline with its execution context
+// https://github.com/saantiaguilera/go-pipeline/blob/master/step.go
 type stepExecution struct {
 	step         v1alpha1.Step
 	index        int
-	sharedCtx    map[string]interface{}
+	sharedCtx    map[string]interface{} //dependencies, result, flags for execution
 	result       interface{}
 	dependencies []*stepExecution
 	executed     bool

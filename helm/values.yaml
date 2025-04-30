@@ -70,7 +70,6 @@ config:
   server:
     timeoutSeconds: 4
 
-# Secret Management Configuration
 # Using Google Cloud Secret Manager with External Secrets Operator
 secrets:
   enabled: true
