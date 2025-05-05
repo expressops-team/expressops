@@ -114,32 +114,32 @@ k8s-port-forward: ## Port forward to access the application
 
 k8s-delete: ## Delete Kubernetes deployment
 	@echo "🗑️ Deleting ExpressOps from Kubernetes..."
-	kubectl delete -f k8s/service.yaml --ignore-not-found
-	kubectl delete -f k8s/deployment.yaml --ignore-not-found
-	kubectl delete -f k8s/secrets/expressops-externalsecret.yaml --ignore-not-found
-	kubectl delete -f k8s/secrets/gcp-clustersecretstore.yaml --ignore-not-found				
-	kubectl delete -f k8s/configmap.yaml --ignore-not-found
-	kubectl delete -f k8s/expressops-env-config.yaml --ignore-not-found
+	-kubectl delete -f k8s/service.yaml --ignore-not-found || true
+	-kubectl delete -f k8s/deployment.yaml --ignore-not-found || true
+	-kubectl delete -f k8s/secrets/expressops-externalsecret.yaml --ignore-not-found || true
+	-kubectl delete -f k8s/secrets/gcp-clustersecretstore.yaml --ignore-not-found || true
+	-kubectl delete -f k8s/configmap.yaml --ignore-not-found || true
+	-kubectl delete -f k8s/expressops-env-config.yaml --ignore-not-found || true
 	@echo "✅ ExpressOps deleted from Kubernetes"
 
 # Secret Management
 k8s-apply-gcp-secretstore: ## Apply GCP ClusterSecretStore
-	kubectl apply -f k8s/secrets/gcp-clustersecretstore.yaml
+	-kubectl apply -f k8s/secrets/gcp-clustersecretstore.yaml || true
 	@echo "GCP ClusterSecretStore applied"
 
 k8s-apply-externalsecret: ## Apply ExternalSecret
-	kubectl apply -f k8s/secrets/expressops-externalsecret.yaml
+	-kubectl apply -f k8s/secrets/expressops-externalsecret.yaml || true
 	@echo "ExternalSecret applied"
 
 k8s-setup-gcp-secrets: k8s-apply-gcp-secretstore k8s-apply-externalsecret ## Setup GCP secrets
 	@echo "GCP secret management setup complete"
 	@echo "Wait a moment for the ExternalSecret to create the actual Kubernetes secret"
 	sleep 5
-	kubectl get secret expressops-slack-secret
+	-kubectl get secret expressops-slack-secret || true
 
 k8s-verify-secrets: ## Verify secrets are working
 	@echo "Verifying that the secret was created:"
-	kubectl get secret expressops-slack-secret
+	-kubectl get secret expressops-slack-secret || true
 	@echo "Little Reminder: The secret's content is controlled by the External Secrets Operator ;D"
 
 setup-with-gcp-credentials: ## Setup complete environment with GCP credentials

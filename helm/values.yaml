@@ -74,7 +74,7 @@ config:
 secrets:
   enabled: true
   refreshInterval: "1h"
-  secretName: "slack-webhook"
+  secretName: "expressops-slack-secret"
   # GCP Secret Manager Configuration
   gcp:
     projectID: "fc-it-school-2025"

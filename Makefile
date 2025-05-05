@@ -24,6 +24,7 @@ CONFIG_PATH ?= docs/samples/config.yaml
 CONFIG_MOUNT_PATH ?= /app/config.yaml
 K8S_NAMESPACE ?= default
 GCP_SA_KEY_FILE ?= key.json
+KUBECONFIG ?= ~/.kube/config
 
 # Include other makefiles
 include makefiles/docker.mk
@@ -177,6 +178,13 @@ quick-help:
 		echo "For full help: $(GREEN)make help$(RESET)"; \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
 	} | less -R
+
+# Easy installation with custom kubectl config
+setup-with-custom-kubectl: ## Setup with custom kubectl configuration
+	@echo "$(BLUE)🔄 Setting up ExpressOps with custom kubectl configuration...$(RESET)"
+	@echo "$(YELLOW)Using KUBECONFIG: $(KUBECONFIG)$(RESET)"
+	@KUBECONFIG=$(KUBECONFIG) make setup-with-gcp-credentials
+	@echo "$(GREEN)✅ Setup complete with custom kubectl configuration$(RESET)"
 
 .DEFAULT_GOAL := help
 
