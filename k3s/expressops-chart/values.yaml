@@ -4,6 +4,7 @@ replicaCount: 2
 
 image:
   repository: expressopsfreepik/expressops
+  tag: "v2"
   # Image pull policy
   pullPolicy: IfNotPresent 
 
@@ -31,14 +32,18 @@ resources:
 # --- External Secrets and GCP related settings ---
 
 # Name of the K8s Secret containing the GCP JSON credentials
-gcpCredentialsSecretName: gcp-creds-for-eso
+gcpCredentialsSecretName: "gcp-creds-for-eso"
 
-# SecretStore Configuration
-secretStore:
-  name: gcp-secret-store-expressops
-  gcpProjectId: fc-it-school-2025
+# ClusterSecretStore Configuration
+clusterSecretStore:
+  kind: ClusterSecretStore
+  name: gcp-cluster-secret-store
 
 # ExternalSecret Configuration
 externalSecret:
   name: expressops-slack-webhook
   gcpSecretName: slack-webhook-url-expressops-dev
+
+args:
+  - "--config"
+  - "/app/config.yaml"

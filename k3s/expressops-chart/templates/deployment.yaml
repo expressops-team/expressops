@@ -43,7 +43,8 @@ spec:
             name: {{ include "expressops-chart.fullname" . }}-env
 
 
-        args: ["/app/config.yaml"]
+        args:
+          {{- toYaml .Values.args | nindent 10 }}
 
         volumeMounts:
         - name: config-volume
