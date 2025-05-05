@@ -1,8 +1,5 @@
 # ============= Stage 1: Build ================
-FROM golang:1.24.2-alpine3.21 AS builder
-
-# Install necessary build tools
-RUN apk add --no-cache git build-base ca-certificates
+FROM golang:1.24 AS builder  
 
 WORKDIR /app
 
@@ -27,10 +24,13 @@ RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u
       done \
     done
 
+
+
 RUN find plugins -name "*.so" | sort
 
 # Compile main application
 RUN go build -ldflags="-s -w" -o expressops ./cmd
+RUN chmod +x /app/expressops
 
 # ============= Runtime stage - using distroless ================
 FROM gcr.io/distroless/base-debian12
@@ -41,12 +41,11 @@ COPY --from=builder /app/expressops /app/
 COPY --from=builder /app/plugins /app/plugins/
 
 
-
 # Expose port 8080 - this is just documentation, actual port is set via Kubernetes
 EXPOSE 8080
 
 # Run the application
-ENTRYPOINT ["/app/expressops", "-config"]
+ENTRYPOINT ["/app/expressops"]
 
 # CMD will be overwritten by k3s
-CMD ["/app/config.yaml"]
+CMD ["--config", "config.yaml"]
