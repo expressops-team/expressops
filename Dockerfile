@@ -1,22 +1,22 @@
-# Stage 1: Build
+# ============= Stage 1: Build ================
 FROM golang:1.24.2-alpine3.21 AS builder
 
-# Install build dependencies
+# Install necessary build tools
 RUN apk add --no-cache git build-base ca-certificates
 
-WORKDIR /build
+WORKDIR /app
 
 # Copy and download dependencies first (leverage Docker cache)
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code
+# Copy the entire codebase
 COPY . .
 
-# Clean any existing .so files
+# Clean any pre-existing .so files
 RUN find plugins -name "*.so" -delete
 
-# Build plugins
+# Compile plugins
 RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u); do \
       for gofile in $dir/*.go; do \
         if [ -f "$gofile" ]; then \
@@ -27,33 +27,36 @@ RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u
       done \
     done
 
-# Create a plugins directory with only .so files, preserving the structure
-RUN mkdir -p /build/plugins_bin && \
-    find plugins -name "*.so" -exec bash -c 'mkdir -p /build/plugins_bin/$(dirname {#} | sed "s|^plugins/||") && cp {#} /build/plugins_bin/$(dirname {#} | sed "s|^plugins/||")/' \; -exec echo "Copied {}" \;
+# Create target directory for .so files only
+RUN mkdir -p /app/plugins_bin && \
+    find plugins -name "*.so" -exec bash -c 'mkdir -p /app/plugins_bin/$(dirname {} | sed "s|^plugins/||") && cp {} /app/plugins_bin/$(dirname {} | sed "s|^plugins/||")/' \; && \
+    echo "Compiled plugin files:" && \
+    find /app/plugins_bin -type f | sort
 
-# Build main app with optimizations
+# Compile main application
 RUN go build -ldflags="-s -w" -o expressops ./cmd
 
-# Stage 2: Final image using Distroless
-FROM gcr.io/distroless/base-debian11
+# ============= Runtime stage - using Alpine ================
+FROM alpine:3.19
 
+# Install minimal dependencies
+RUN apk add --no-cache ca-certificates
+
+# Copy the compiled application and plugins from the builder stage
 WORKDIR /app
-
-# Copy only the expressops binary
-COPY --from=builder /build/expressops .
-
-# Copy the directory structure with .so files
-COPY --from=builder /build/plugins_bin /app/plugins
-
-# Copy required config
+COPY --from=builder /app/expressops /app/
+COPY --from=builder /app/plugins_bin /app/plugins/
 COPY docs/samples/config.yaml /app/config.yaml
 
+# Set environment variables
 ENV PLUGINS_PATH=plugins
 
-# Expose port 8080 for server
+# Expose port 8080 - this is just documentation, actual port is set via Kubernetes
 EXPOSE 8080
 
-# User is already non-root in distroless (not like in alpine)
+# Use non-root user for better security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
 
+# Run the application
 ENTRYPOINT ["/app/expressops", "-config", "/app/config.yaml"]
-# Optimized image with only .so files and preserved directory structure
