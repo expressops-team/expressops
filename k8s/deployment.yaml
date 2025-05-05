@@ -34,6 +34,13 @@ spec:
         - name: config-volume
           mountPath: /app/config.yaml
           subPath: config.yaml
+        resources:
+          limits:
+            cpu: 200m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
       volumes:
       - name: config-volume
         configMap:

@@ -29,9 +29,17 @@ readinessProbe:
   successThreshold: 1
   failureThreshold: 3
 
+# Security Contexts
+podSecurityContext:
+  fsGroup: 1000
 
-#podSecurityContext: {}
-#securityContext: {}
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
 
 service:
   type: NodePort

@@ -12,9 +12,9 @@ keywords:
   - automation
 maintainers: # momentantely just for info, maintainers:members not standard in helm
   - name: ExpressOps Team
-    members:
-      - name: DavidNull
-        url: https://github.com/davidnull
-      - name: Ignacio Padron
-        url: https://github.com/ignaciopadron
+#    members:
+#      - name: DavidNull
+#        url: https://github.com/davidnull
+#      - name: Ignacio Padron
+#        url: https://github.com/ignaciopadron
 
