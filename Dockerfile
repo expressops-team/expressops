@@ -1,22 +1,22 @@
-# ============= Stage 1: Build ================
+# Stage 1: Build
 FROM golang:1.24.2-alpine3.21 AS builder
 
-# Install necessary build tools
+# Install build dependencies
 RUN apk add --no-cache git build-base ca-certificates
 
-WORKDIR /app
+WORKDIR /build
 
 # Copy and download dependencies first (leverage Docker cache)
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the entire codebase
+# Copy source code
 COPY . .
 
-# Clean any pre-existing .so files
+# Clean any existing .so files
 RUN find plugins -name "*.so" -delete
 
-# Compile plugins
+# Build plugins
 RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u); do \
       for gofile in $dir/*.go; do \
         if [ -f "$gofile" ]; then \
@@ -27,36 +27,35 @@ RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u
       done \
     done
 
-# Create target directory for .so files only
-RUN mkdir -p /app/plugins_bin && \
-    find plugins -name "*.so" -exec bash -c 'mkdir -p /app/plugins_bin/$(dirname {} | sed "s|^plugins/||") && cp {} /app/plugins_bin/$(dirname {} | sed "s|^plugins/||")/' \; && \
-    echo "Compiled plugin files:" && \
-    find /app/plugins_bin -type f | sort
-
-# Compile main application
+# Build main app with optimizations
 RUN go build -ldflags="-s -w" -o expressops ./cmd
 
-# ============= Runtime stage - using Alpine ================
-FROM alpine:3.19
+# Stage 2: Final tiny image
+FROM alpine:3.21
 
-# Install minimal dependencies
-RUN apk add --no-cache ca-certificates
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata
 
-# Copy the compiled application and plugins from the builder stage
 WORKDIR /app
-COPY --from=builder /app/expressops /app/
-COPY --from=builder /app/plugins_bin /app/plugins/
+
+# Copy binaries and plugins from build stage
+COPY --from=builder /build/expressops .
+COPY --from=builder /build/plugins ./plugins
+RUN find plugins -name "*.go" -delete
+
+# Copy required config
 COPY docs/samples/config.yaml /app/config.yaml
 
-# Set environment variables
-ENV PLUGINS_PATH=plugins
+# Environment variables with direct values <=== given in the config.yaml file
 
-# Expose port 8080 - this is just documentation, actual port is set via Kubernetes
+
+# Expose port 8080 for server
 EXPOSE 8080
 
-# Use non-root user for better security
+# Run as non-root for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 
-# Run the application
-ENTRYPOINT ["/app/expressops", "-config", "/app/config.yaml"]
+ENTRYPOINT ["./expressops", "-config", "/app/config.yaml"]
+
+# Image size reduced from 1.59GB to 162MB :0
