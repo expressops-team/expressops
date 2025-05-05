@@ -25,3 +25,4 @@ build: ## Build plugins and application locally
 run: build ## Run application locally
 	@echo "🚀 Starting ExpressOps"
 	./expressops -config $(CONFIG_PATH) 
+	

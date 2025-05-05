@@ -81,8 +81,9 @@ help:
 		echo "  Account: $(GREEN)expressops-external-secrets@fc-it-school-2025.iam.gserviceaccount.com$(RESET)"; \
 		echo "  Secret: $(GREEN)projects/88527591198/secrets/slack-webhook$(RESET)"; \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
-	} | less -R
+	} | less -R 
 
+## With less you can go back and forth with the help menu
 ## Shows configuration values
 config:
 	@{ \
