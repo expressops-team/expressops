@@ -5,8 +5,8 @@
 
 k8s-install-eso: ## Install External Secrets Operator (required before first deployment)
 	@echo "🔄 Installing External Secrets Operator..."
-	@helm repo add external-secrets https://charts.external-secrets.io || true
-	@helm repo update || true
+	@helm repo add external-secrets https://charts.external-secrets.io
+	@helm repo update
 	@if helm list -n external-secrets | grep -q "external-secrets"; then \
 		echo "$(YELLOW)⚠️ External Secrets Operator already installed. Skipping installation.$(RESET)"; \
 	else \
@@ -14,7 +14,7 @@ k8s-install-eso: ## Install External Secrets Operator (required before first dep
 		helm install external-secrets external-secrets/external-secrets \
 			--namespace external-secrets \
 			--create-namespace \
-			--set installCRDs=true || true; \
+			--set installCRDs=true; \
 	fi
 	@echo "✅ External Secrets Operator setup completed"
 	@echo "⏳ Wait for operator to be ready..."
@@ -23,12 +23,12 @@ k8s-install-eso: ## Install External Secrets Operator (required before first dep
 k8s-deploy: ## Deploy application to Kubernetes
 	@echo "🔄 Deploying ExpressOps to Kubernetes..."
 	@echo "📦 Applying Kubernetes resources..."
-	-kubectl apply -f k8s/configmap.yaml || true
-	-kubectl apply -f k8s/expressops-env-config.yaml || true
-	-kubectl apply -f k8s/deployment.yaml || true
-	-kubectl apply -f k8s/secrets/gcp-clustersecretstore.yaml || true
-	-kubectl apply -f k8s/secrets/expressops-externalsecret.yaml || true
-	-kubectl apply -f k8s/service.yaml || true
+	kubectl apply -f k8s/configmap.yaml
+	kubectl apply -f k8s/expressops-env-config.yaml
+	kubectl apply -f k8s/deployment.yaml
+	kubectl apply -f k8s/secrets/gcp-clustersecretstore.yaml
+	kubectl apply -f k8s/secrets/expressops-externalsecret.yaml
+	kubectl apply -f k8s/service.yaml
 	@echo "⏳ Waiting for External Secret to sync (15s)..." #to give time for the secret to be created
 	@sleep 15
 	@if kubectl get secret expressops-slack-secret >/dev/null 2>&1; then \
@@ -47,12 +47,12 @@ k8s-deploy-with-clustersecretstore: ## Deploy using ClusterSecretStore (legacy)
 		exit 1; \
 	fi
 	@echo "$(BLUE)🔄 Preparando y desplegando ExpressOps a Kubernetes...$(RESET)"
-	-kubectl apply -f k8s/configmap.yaml || true
-	-kubectl apply -f k8s/expressops-env-config.yaml || true
-	-kubectl apply -f k8s/deployment.yaml || true
-	-kubectl apply -f k8s/secrets/gcp-clustersecretstore.yaml || true
-	-kubectl apply -f k8s/secrets/expressops-externalsecret.yaml || true
-	-kubectl apply -f k8s/service.yaml || true
+	kubectl apply -f k8s/configmap.yaml
+	kubectl apply -f k8s/expressops-env-config.yaml
+	kubectl apply -f k8s/deployment.yaml
+	kubectl apply -f k8s/secrets/gcp-clustersecretstore.yaml
+	kubectl apply -f k8s/secrets/expressops-externalsecret.yaml
+	kubectl apply -f k8s/service.yaml
 	@echo "$(GREEN)✅ ExpressOps desplegado con ClusterSecretStore$(RESET)"
 	@echo "$(YELLOW)Para acceder a la aplicación:$(RESET) make k8s-port-forward"
 
@@ -65,15 +65,15 @@ k8s-deploy-with-gcp-secretstore: ## Deploy with GCP Secret Manager
 	fi
 	
 	@echo "$(BLUE)🔄 Creating GCP service account secret...$(RESET)"
-	-kubectl create secret generic expressops-gcp-sa --from-file=sa.json=$(GCP_SA_KEY_FILE) --dry-run=client -o yaml | kubectl apply -f - || true
+	kubectl create secret generic expressops-gcp-sa --from-file=sa.json=$(GCP_SA_KEY_FILE) --dry-run=client -o yaml | kubectl apply -f -
 	
 	@echo "$(BLUE)🔄 Deploying Kubernetes resources...$(RESET)"
-	-kubectl apply -f k8s/configmap.yaml || true
-	-kubectl apply -f k8s/expressops-env-config.yaml || true
-	-kubectl apply -f k8s/secrets/gcp-clustersecretstore.yaml || true
-	-kubectl apply -f k8s/secrets/expressops-externalsecret.yaml || true
-	-kubectl apply -f k8s/deployment.yaml || true
-	-kubectl apply -f k8s/service.yaml || true
+	kubectl apply -f k8s/configmap.yaml
+	kubectl apply -f k8s/expressops-env-config.yaml
+	kubectl apply -f k8s/secrets/gcp-clustersecretstore.yaml
+	kubectl apply -f k8s/secrets/expressops-externalsecret.yaml
+	kubectl apply -f k8s/deployment.yaml
+	kubectl apply -f k8s/service.yaml
 	
 	@echo "$(GREEN)✅ ExpressOps deployed with GCP Secret Manager$(RESET)"
 	@echo "$(YELLOW)For accessing the application:$(RESET) make k8s-port-forward"
@@ -114,32 +114,32 @@ k8s-port-forward: ## Port forward to access the application
 
 k8s-delete: ## Delete Kubernetes deployment
 	@echo "🗑️ Deleting ExpressOps from Kubernetes..."
-	-kubectl delete -f k8s/service.yaml --ignore-not-found || true
-	-kubectl delete -f k8s/deployment.yaml --ignore-not-found || true
-	-kubectl delete -f k8s/secrets/expressops-externalsecret.yaml --ignore-not-found || true
-	-kubectl delete -f k8s/secrets/gcp-clustersecretstore.yaml --ignore-not-found || true
-	-kubectl delete -f k8s/configmap.yaml --ignore-not-found || true
-	-kubectl delete -f k8s/expressops-env-config.yaml --ignore-not-found || true
+	kubectl delete -f k8s/service.yaml --ignore-not-found
+	kubectl delete -f k8s/deployment.yaml --ignore-not-found
+	kubectl delete -f k8s/secrets/expressops-externalsecret.yaml --ignore-not-found
+	kubectl delete -f k8s/secrets/gcp-clustersecretstore.yaml --ignore-not-found
+	kubectl delete -f k8s/configmap.yaml --ignore-not-found
+	kubectl delete -f k8s/expressops-env-config.yaml --ignore-not-found
 	@echo "✅ ExpressOps deleted from Kubernetes"
 
 # Secret Management
 k8s-apply-gcp-secretstore: ## Apply GCP ClusterSecretStore
-	-kubectl apply -f k8s/secrets/gcp-clustersecretstore.yaml || true
+	kubectl apply -f k8s/secrets/gcp-clustersecretstore.yaml
 	@echo "GCP ClusterSecretStore applied"
 
 k8s-apply-externalsecret: ## Apply ExternalSecret
-	-kubectl apply -f k8s/secrets/expressops-externalsecret.yaml || true
+	kubectl apply -f k8s/secrets/expressops-externalsecret.yaml
 	@echo "ExternalSecret applied"
 
 k8s-setup-gcp-secrets: k8s-apply-gcp-secretstore k8s-apply-externalsecret ## Setup GCP secrets
 	@echo "GCP secret management setup complete"
 	@echo "Wait a moment for the ExternalSecret to create the actual Kubernetes secret"
 	sleep 5
-	-kubectl get secret expressops-slack-secret || true
+	kubectl get secret expressops-slack-secret
 
 k8s-verify-secrets: ## Verify secrets are working
 	@echo "Verifying that the secret was created:"
-	-kubectl get secret expressops-slack-secret || true
+	kubectl get secret expressops-slack-secret
 	@echo "Little Reminder: The secret's content is controlled by the External Secrets Operator ;D"
 
 setup-with-gcp-credentials: ## Setup complete environment with GCP credentials
@@ -151,10 +151,10 @@ setup-with-gcp-credentials: ## Setup complete environment with GCP credentials
 	fi
 	
 	@echo "$(BLUE)🔄 Installing External Secrets Operator...$(RESET)"
-	@make k8s-install-eso || true
+	@make k8s-install-eso
 	
 	@echo "$(BLUE)🔄 Deploying ExpressOps with GCP secrets...$(RESET)"
-	@make helm-install-with-gcp-secrets || true
+	@make helm-install-with-gcp-secrets
 	
 	@echo "$(GREEN)✅ ExpressOps setup completed with GCP credentials$(RESET)"
 	@echo "$(YELLOW)For accessing the application:$(RESET) make k8s-port-forward" 

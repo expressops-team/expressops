@@ -6,26 +6,26 @@
 helm-install: ## Install ExpressOps using Helm chart
 	@echo "🚀 Instalando ExpressOps con Helm..."
 	@echo "$(BLUE)Desplegando en namespace: $(K8S_NAMESPACE)$(RESET)"
-	-helm install expressops ./helm --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret || true
+	-helm install expressops ./helm --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret
 	@echo "✅ Helm chart instalado correctamente"
 
 helm-upgrade: ## Upgrade existing Helm deployment
 	@echo "🔄 Actualizando ExpressOps con Helm..."
-	-helm upgrade expressops ./helm --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret || true
+	-helm upgrade expressops ./helm --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret
 	@echo "✅ Helm chart actualizado correctamente"
 
 helm-uninstall: ## Uninstall Helm deployment
 	@echo "🗑️ Desinstalando ExpressOps de Helm..."
-	-helm uninstall expressops --namespace $(K8S_NAMESPACE) || true
+	-helm uninstall expressops --namespace $(K8S_NAMESPACE)
 	@echo "✅ Helm chart desinstalado correctamente"
 
 helm-template: ## View Helm templates without installing
 	@echo "👀 Visualizando plantillas renderizadas..."
-	-helm template expressops ./helm --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret || true
+	-helm template expressops ./helm --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret
 
 helm-package: ## Package Helm chart into a .tgz file
 	@echo "📦 Empaquetando Helm chart..."
-	-helm package ./helm || true
+	-helm package ./helm
 	@echo "✅ Chart empaquetado. Listo para distribuir."
 
 helm-install-with-secrets: ## Install ExpressOps with ClusterSecretStore (legacy)
@@ -38,7 +38,7 @@ helm-install-with-secrets: ## Install ExpressOps with ClusterSecretStore (legacy
 	-helm upgrade --install expressops ./helm \
 		--namespace $(K8S_NAMESPACE) \
 		--set clusterSecretStore.webhookUrl="$(SLACK_WEBHOOK_URL)" \
-		--set secrets.secretName=expressops-slack-secret || true
+		--set secrets.secretName=expressops-slack-secret
 	@echo "$(GREEN)✅ ExpressOps instalado correctamente con secretos$(RESET)"
 	@echo "$(YELLOW)Para acceder a la aplicación:$(RESET) make k8s-port-forward"
 
@@ -57,7 +57,7 @@ helm-install-with-gcp-secrets: ## Install ExpressOps with GCP Secret Manager via
 		--set gcpSecretManager.projectID=fc-it-school-2025 \
 		--set externalSecrets.remoteRef.key=projects/88527591198/secrets/slack-webhook \
 		--set secrets.secretName=expressops-slack-secret \
-		--set-file gcpSecretManager.serviceAccountKey=$(GCP_SA_KEY_FILE) || true
+		--set-file gcpSecretManager.serviceAccountKey=$(GCP_SA_KEY_FILE)
 	
 	@echo "$(GREEN)✅ ExpressOps installed correctly with GCP Secret Manager$(RESET)"
 	@echo "$(YELLOW)For accessing the application:$(RESET) make k8s-port-forward" 
