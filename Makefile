@@ -26,11 +26,21 @@ K8S_NAMESPACE ?= default
 GCP_SA_KEY_FILE ?= key.json
 KUBECONFIG ?= ~/.kube/config
 
+# Prometheus/Grafana variables
+PROMETHEUS_NAMESPACE ?= monitoring
+PROMETHEUS_RELEASE ?= prometheus
+PROMETHEUS_CHART_VERSION ?= 25.8.0
+PROMETHEUS_PORT ?= 9090
+GRAFANA_RELEASE ?= grafana
+GRAFANA_CHART_VERSION ?= 7.0.24
+GRAFANA_PORT ?= 3000
+
 # Include other makefiles
 include makefiles/docker.mk
 include makefiles/kubernetes.mk
 include makefiles/helm.mk
 include makefiles/build.mk
+include makefiles/prometheus.mk
 
 # help
 # @{} is for output like more command
@@ -48,6 +58,12 @@ help:
 		echo "  $(GREEN)make k8s-status$(RESET)                 - Check deployment status"; \
 		echo "  $(GREEN)make k8s-logs$(RESET)                   - View application logs"; \
 		echo; \
+		echo "$(BLUE)$(BOLD)MONITORING COMMANDS:$(RESET)"; \
+		echo "  $(GREEN)make prometheus-install$(RESET)         - Install Prometheus"; \
+		echo "  $(GREEN)make grafana-install$(RESET)            - Install Grafana"; \
+		echo "  $(GREEN)make prometheus-port-forward$(RESET)    - Access Prometheus UI"; \
+		echo "  $(GREEN)make grafana-port-forward$(RESET)       - Access Grafana UI"; \
+		echo; \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
 		echo; \
 		for mkfile in $(sort $(MAKEFILE_LIST)); do \
@@ -61,6 +77,8 @@ help:
 				echo "$(BOLD)$(BLUE)Kubernetes Commands:$(RESET)"; \
 			elif [ "$$mkfile" = "makefiles/helm.mk" ]; then \
 				echo "$(BOLD)$(BLUE)Helm Commands:$(RESET)"; \
+			elif [ "$$mkfile" = "makefiles/prometheus.mk" ]; then \
+				echo "$(BOLD)$(BLUE)Monitoring Commands:$(RESET)"; \
 			else \
 				echo "$(BOLD)$(BLUE)$$mkfile:$(RESET)"; \
 			fi; \
@@ -76,6 +94,12 @@ help:
 		echo "  3. $(GREEN)make docker-build$(RESET) - Create Docker image"; \
 		echo "  4. $(GREEN)make k8s-install-eso$(RESET) - Install External Secrets Operator"; \
 		echo "  5. $(GREEN)make helm-install-with-gcp-secrets$(RESET) - Deploy to Kubernetes"; \
+		echo; \
+		echo "$(BOLD)$(BLUE)Monitoring Workflow:$(RESET)"; \
+		echo "  1. $(GREEN)make prometheus-install$(RESET) - Install Prometheus"; \
+		echo "  2. $(GREEN)make grafana-install$(RESET) - Install Grafana"; \
+		echo "  3. $(GREEN)make prometheus-port-forward$(RESET) - Access Prometheus UI"; \
+		echo "  4. $(GREEN)make grafana-port-forward$(RESET) - Access Grafana UI (admin/admin123)"; \
 		echo; \
 		echo "$(BOLD)$(BLUE)Google Cloud Secret Manager:$(RESET)"; \
 		echo "  Account: $(GREEN)expressops-external-secrets@fc-it-school-2025.iam.gserviceaccount.com$(RESET)"; \
@@ -107,6 +131,13 @@ config:
 		echo; \
 		echo "$(BOLD)$(BLUE)Kubernetes Configuration:$(RESET)"; \
 		echo "  $(GREEN)K8S_NAMESPACE$(RESET)     = $(K8S_NAMESPACE)"; \
+		echo; \
+		echo "$(BOLD)$(BLUE)Monitoring Configuration:$(RESET)"; \
+		echo "  $(GREEN)PROMETHEUS_NAMESPACE$(RESET)  = $(PROMETHEUS_NAMESPACE)"; \
+		echo "  $(GREEN)PROMETHEUS_RELEASE$(RESET)    = $(PROMETHEUS_RELEASE)"; \
+		echo "  $(GREEN)PROMETHEUS_PORT$(RESET)       = $(PROMETHEUS_PORT)"; \
+		echo "  $(GREEN)GRAFANA_RELEASE$(RESET)       = $(GRAFANA_RELEASE)"; \
+		echo "  $(GREEN)GRAFANA_PORT$(RESET)          = $(GRAFANA_PORT)"; \
 		echo; \
 		echo "$(BOLD)$(BLUE)Secrets Configuration:$(RESET)"; \
 		echo "  $(GREEN)SLACK_WEBHOOK_URL$(RESET) = $(SLACK_WEBHOOK_URL)"; \
@@ -141,6 +172,10 @@ about:
 		echo "  2. Run locally: $(GREEN)make run$(RESET)"; \
 		echo "  3. Deploy to K8s: $(GREEN)make setup-with-gcp-credentials$(RESET)"; \
 		echo; \
+		echo "$(BOLD)$(BLUE)Monitoring:$(RESET)"; \
+		echo "  1. Install: $(GREEN)make prometheus-install grafana-install$(RESET)"; \
+		echo "  2. Access: $(GREEN)make prometheus-port-forward$(RESET) or $(GREEN)make grafana-port-forward$(RESET)"; \
+		echo; \
 		echo "$(BOLD)$(BLUE)Documentation:$(RESET)"; \
 		echo "  • For help: $(GREEN)make help$(RESET)"; \
 		echo "  • Quick reference: $(GREEN)make quick-help$(RESET)"; \
@@ -173,6 +208,12 @@ quick-help:
 		echo "  $(GREEN)make k8s-status$(RESET)               - Check deployment status"; \
 		echo "  $(GREEN)make k8s-logs$(RESET)                 - View application logs"; \
 		echo "  $(GREEN)make k8s-port-forward$(RESET)         - Access the application"; \
+		echo; \
+		echo "$(BOLD)Monitoring:$(RESET)"; \
+		echo "  $(GREEN)make prometheus-install$(RESET)       - Install Prometheus"; \
+		echo "  $(GREEN)make grafana-install$(RESET)          - Install Grafana"; \
+		echo "  $(GREEN)make prometheus-port-forward$(RESET)  - Access Prometheus UI"; \
+		echo "  $(GREEN)make grafana-port-forward$(RESET)     - Access Grafana UI"; \
 		echo; \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
 		echo "For full help: $(GREEN)make help$(RESET)"; \

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"expressops/api/v1alpha1"
+	"expressops/internal/metrics"
 	pluginManager "expressops/internal/plugin/loader"
 
 	"github.com/sirupsen/logrus"
@@ -19,7 +20,7 @@ import (
 // registry of flows
 var flowRegistry map[string]v1alpha1.Flow
 
-// initializeFlowRegistry carga los flujos definidos en el archivo de configuración
+// initializeFlowRegistry loads flows defined in the configuration file
 func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	flowRegistry = make(map[string]v1alpha1.Flow)
 	for _, flow := range cfg.Flows {
@@ -31,13 +32,21 @@ func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	initializeFlowRegistry(cfg, logger)
 
+	// Configure Prometheus metrics
+	metrics.SetActivePlugins(len(cfg.Plugins))
+
 	address := fmt.Sprintf("%s:%d", cfg.Server.Address, cfg.Server.Port)
 
 	timeout := time.Duration(cfg.Server.TimeoutSec) * time.Second
 
 	// ONLY one generic handler that will handle all flows
-	http.HandleFunc("/flow", dynamicFlowHandler(logger, timeout))
+	http.HandleFunc("/flow", metricsMiddleware(dynamicFlowHandler(logger, timeout), logger))
+
+	// Prometheus metrics endpoint
+	http.Handle("/metrics", metrics.MetricsHandler())
+
 	logger.Infof("Server listening on http://%s", address)
+	logger.Infof("Prometheus metrics available at http://%s/metrics", address)
 
 	// help for the user
 	logger.Infof("➡️ curl http://%s/flow?flowName=<flow_name> ⬅️", address)
@@ -47,6 +56,50 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Fatalf("Error starting server: %v", err)
 	}
+}
+
+// Middleware to record Prometheus metrics
+func metricsMiddleware(next http.HandlerFunc, logger *logrus.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flowName := r.URL.Query().Get("flowName")
+		if flowName == "" {
+			flowName = "unknown"
+		}
+
+		startTime := time.Now()
+
+		// Create wrapper to capture status code
+		mw := newMetricsResponseWriter(w)
+
+		// Call original handler
+		next(mw, r)
+
+		// Record metrics
+		duration := time.Since(startTime)
+		success := mw.statusCode < 400
+		metrics.RecordFlowExecution(flowName, duration, success)
+
+		logger.WithFields(logrus.Fields{
+			"flow":        flowName,
+			"duration_ms": duration.Milliseconds(),
+			"status_code": mw.statusCode,
+		}).Debug("Flow execution metrics recorded")
+	}
+}
+
+// Wrapper for ResponseWriter that captures status code
+type metricsResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func newMetricsResponseWriter(w http.ResponseWriter) *metricsResponseWriter {
+	return &metricsResponseWriter{w, http.StatusOK}
+}
+
+func (mw *metricsResponseWriter) WriteHeader(code int) {
+	mw.statusCode = code
+	mw.ResponseWriter.WriteHeader(code)
 }
 
 // dynamicFlowHandler handles requests to /flow and executes configured flows
@@ -335,6 +388,15 @@ func executeStepAsync(step *stepExecution, execCtx *executionContext) {
 // Helper to mark a step as failed
 func markStepFailed(step *stepExecution, execCtx *executionContext, errMsg string) {
 	execCtx.logger.Errorf("Plugin %s: %s", step.step.PluginRef, errMsg)
+
+	// Registrar error en métricas
+	errorType := "execution_error"
+	if strings.Contains(errMsg, "Plugin not found") {
+		errorType = "plugin_not_found"
+	} else if strings.Contains(errMsg, "Skipped due to dependency") {
+		errorType = "dependency_failure"
+	}
+	metrics.RecordPluginError(step.step.PluginRef, errorType)
 
 	execCtx.mutex.Lock()
 	*execCtx.results = append(*execCtx.results, map[string]interface{}{

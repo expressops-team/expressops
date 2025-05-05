@@ -53,6 +53,18 @@ resources:
     cpu: 100m
     memory: 256Mi
 
+# Prometheus Configuration
+prometheus:
+  enabled: true
+  metricsPath: /metrics
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 15s
+    scrapeTimeout: 10s
+    additionalLabels:
+      release: prometheus
+
 # Node selector for pod assignment
 # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
 nodeSelector: {}
