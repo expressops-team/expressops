@@ -26,7 +26,6 @@ K8S_NAMESPACE ?= default
 GCP_SA_KEY_FILE ?= key.json
 
 # Include other makefiles
-include makefiles/*.mk
 include makefiles/docker.mk
 include makefiles/kubernetes.mk
 include makefiles/helm.mk

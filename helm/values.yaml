@@ -24,7 +24,7 @@ readinessProbe:
   enabled: true
   path: /flow?flowName=health-status-no-format
   initialDelaySeconds: 10
-  periodSeconds: 20
+  periodSeconds: 50
   timeoutSeconds: 5
   successThreshold: 1
   failureThreshold: 3
@@ -85,3 +85,4 @@ secrets:
       - secretKey: "SLACK_WEBHOOK_URL"
         remoteKey: "projects/88527591198/secrets/slack-webhook"
         version: "latest"
+        
