@@ -14,7 +14,7 @@ PROMETHEUS_PORT ?= 9090
 
 # Variables for Grafana
 GRAFANA_RELEASE ?= grafana
-GRAFANA_CHART_VERSION ?= 7.0.24
+GRAFANA_CHART_VERSION ?= 8.15.0
 GRAFANA_PORT ?= 3000
 
 # Install Prometheus using Helm

@@ -27,7 +27,7 @@ GCP_SA_KEY_FILE ?= key.json
 KUBECONFIG ?= ~/.kube/config
 
 # Prometheus/Grafana variables
-PROMETHEUS_NAMESPACE ?= monitoring
+PROMETHEUS_NAMESPACE ?= monitoring-david # for testing purposes
 PROMETHEUS_RELEASE ?= prometheus
 PROMETHEUS_CHART_VERSION ?= 25.8.0
 PROMETHEUS_PORT ?= 9090
