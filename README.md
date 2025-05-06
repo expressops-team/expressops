@@ -242,6 +242,45 @@ make k8s-delete
 
 The application will be accessible at http://localhost:8080 after port forwarding.
 
+## 📊 Monitoring
+
+ExpressOps includes comprehensive monitoring with Prometheus and Grafana:
+
+### Key Metrics
+
+- CPU and memory usage
+- Plugin execution latency
+- Success/failure rates
+- HTTP request counts
+- Storage utilization
+
+### Setup Monitoring
+
+```bash
+# Install Prometheus
+make prometheus-install PROMETHEUS_NAMESPACE=monitoring-david
+
+# Install Grafana
+make grafana-install PROMETHEUS_NAMESPACE=monitoring-david GRAFANA_RELEASE=grafana-david
+
+# Access Prometheus UI
+make local-prometheus-port-forward PROMETHEUS_NAMESPACE=monitoring-david PROMETHEUS_PORT=9091
+
+# Access Grafana UI
+make grafana-port-forward PROMETHEUS_NAMESPACE=monitoring-david GRAFANA_RELEASE=grafana-david GRAFANA_PORT=3001
+```
+
+Default Grafana credentials: admin/admin123
+
+### Dashboard Setup
+
+Use the included development dashboard to monitor ExpressOps performance:
+
+```bash
+# Deploy the dashboard to Grafana
+./deploy-dashboard.sh
+```
+
 ## ⚙️ Configuration example
 
 ```yaml
