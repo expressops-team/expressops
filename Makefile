@@ -28,12 +28,12 @@ KUBECONFIG ?= ~/.kube/config
 
 # Prometheus/Grafana variables
 PROMETHEUS_NAMESPACE ?= monitoring-david # for testing purposes
-PROMETHEUS_RELEASE ?= prometheus
+PROMETHEUS_RELEASE ?= david-prometheus # for testing purposes
 PROMETHEUS_CHART_VERSION ?= 25.8.0
 PROMETHEUS_PORT ?= 9090
-GRAFANA_RELEASE ?= grafana
-GRAFANA_CHART_VERSION ?= 7.0.24
-GRAFANA_PORT ?= 3000
+GRAFANA_RELEASE ?= david-grafana # for testing purposes
+GRAFANA_CHART_VERSION ?= 8.15.0
+GRAFANA_PORT ?= 3001
 
 # Include other makefiles
 include makefiles/docker.mk
@@ -43,7 +43,7 @@ include makefiles/build.mk
 include makefiles/prometheus.mk
 
 # help
-# @{} is for output like more command
+# @{} is for output like more command (less -R)
 help:
 	@{ \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
