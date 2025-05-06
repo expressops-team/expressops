@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	pluginconf "expressops/internal/plugin/loader"
+	"expressops/internal/server"
 	"fmt"
 	"io"
 	"net/http"
@@ -70,14 +71,18 @@ func (s *SlackPlugin) Execute(ctx context.Context, _ *http.Request, shared *map[
 
 	// Get custom channel from shared context (optional)
 	var channel string
+	var channelLabel string
 	if channelVal, ok := (*shared)["channel"]; ok {
 		if channelStr, ok := channelVal.(string); ok {
 			channel = channelStr
+			channelLabel = channelStr
 		} else {
 			s.logger.Warnf("shared[\"channel\"] exists but is not a string (type: %T), using default webhook channel", channelVal)
+			channelLabel = "default"
 		}
 	} else {
 		s.logger.Debug("shared[\"channel\"] not found, using default webhook channel")
+		channelLabel = "default"
 	}
 
 	// Get severity from shared context (optional)
@@ -121,18 +126,28 @@ func (s *SlackPlugin) Execute(ctx context.Context, _ *http.Request, shared *map[
 	// Send the request
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
+
+	// ========= Determine status and record metrics ========
+	statusLabel := "success"
+
 	if err != nil {
+		statusLabel = "error_request"
 		s.logger.Errorf("Error sending message to Slack: %v", err)
+		server.IncSlackNotification(statusLabel, channelLabel)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	// Check response
 	if resp.StatusCode != http.StatusOK {
+		statusLabel = "error_api"
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		s.logger.Errorf("Error in Slack API response: %s - Body: %s", resp.Status, string(bodyBytes))
+		server.IncSlackNotification(statusLabel, channelLabel)
 		return nil, fmt.Errorf("slack API error: %s", resp.Status)
 	}
+
+	server.IncSlackNotification(statusLabel, channelLabel)
 
 	return "Message sent to Slack", nil
 }
