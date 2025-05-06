@@ -8,6 +8,7 @@ serverFiles:
           - targets:
             - localhost:8080
 
+
 server:
   extraScrapeConfigs: |
     - job_name: expressops
