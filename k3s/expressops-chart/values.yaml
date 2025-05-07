@@ -4,7 +4,7 @@ replicaCount: 2
 
 image:
   repository: expressopsfreepik/expressops
-  tag: "v2"
+  tag: "v6"
   # Image pull policy
   pullPolicy: IfNotPresent 
 

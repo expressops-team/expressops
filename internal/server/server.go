@@ -91,7 +91,7 @@ func SetResourceUsage(resourceType, mountPoint string, usagePercent float64) {
 // registry of flows
 var flowRegistry map[string]v1alpha1.Flow
 
-// initializeFlowRegistry carga los flujos definidos en el archivo de configuración
+// initializeFlowRegistry loads the flows defined in the configuration file
 func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	flowRegistry = make(map[string]v1alpha1.Flow)
 	for _, flow := range cfg.Flows {

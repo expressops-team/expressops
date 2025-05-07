@@ -1,0 +1,29 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "expressops-chart.fullname" . }}
+  namespace: expressops-dev
+  labels:
+    {{- include "expressops-chart.labels" . | nindent 8 }}
+    # Asegúrate de que Prometheus esté configurado para seleccionar ServiceMonitors con estas etiquetas,
+    # o que no tenga un selector restrictivo. Una etiqueta común que kube-prometheus-stack busca es 'release: prometheus'
+    # Si tu stack de prometheus tiene un serviceMonitorSelector específico, añade esas labels aquí.
+    # Por ejemplo, si Prometheus busca 'team: sre', añade 'team: sre'.
+    # Si no estás seguro, empieza sin etiquetas adicionales específicas para el selector de Prometheus y verifica.
+    # A menudo, el ServiceMonitor necesita la misma etiqueta 'release' que el propio stack de Prometheus.
+    # Ejemplo: release: prometheus (si así se llama tu release de kube-prometheus-stack)
+spec:
+  selector:
+    matchLabels:
+      # Estas etiquetas DEBEN COINCIDIR con las etiquetas de tu Kubernetes Service
+      # (las que se definen en service.yaml y se derivan de _helpers.tpl)
+      {{- include "expressops-chart.selectorLabels" . | nindent 10 }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }} # El namespace donde reside tu Service
+  endpoints:
+  - port: http # DEBE ser el NOMBRE del puerto en tu Service.yaml (spec.ports.name)
+    path: /metrics # Tu path de métricas
+    interval: 15s # Opcional: frecuencia de scrapeo
+{{- end }}
