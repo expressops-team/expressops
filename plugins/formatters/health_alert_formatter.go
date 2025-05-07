@@ -64,6 +64,7 @@ func (f *FormatterPlugin) Initialize(ctx context.Context, config map[string]inte
 	return nil
 }
 
+//nolint:unused
 func (f *FormatterPlugin) formatPercentage(value float64, metricType string, forLog bool) string {
 	threshold, exists := f.thresholds[metricType]
 	if !exists {
@@ -82,6 +83,7 @@ func (f *FormatterPlugin) formatPercentage(value float64, metricType string, for
 	return fmt.Sprintf("%.2f%%", value)
 }
 
+//nolint:unused
 func (f *FormatterPlugin) formatSize(value uint64) string {
 	return fmt.Sprintf("%.2f GB", float64(value)/1024/1024/1024)
 }
@@ -97,7 +99,6 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 	// First check for direct messages to pass through
 	if msg, ok := (*shared)["message"].(string); ok && msg != "" && msg != defaultMessage {
 		f.logger.Info("Using existing message from previous plugin")
-		// The message is already set, no need to format anything
 		return msg, nil
 	}
 
@@ -107,14 +108,20 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 		return f.formatKubernetesHealth(kubeResults, shared)
 	}
 
-	// Check for previous result as Kubernetes data
+	// Check for previous result
 	if prev, ok := (*shared)["previous_result"]; ok {
 		f.logger.Info("Checking previous result")
 
-		// Handle pod data format
+		// Handle pod data format (Kubernetes)
 		if podResults, ok := prev.([]map[string]string); ok {
 			f.logger.Info("Processing pod results from previous plugin")
 			return f.formatKubernetesHealth(podResults, shared)
+		}
+
+		// Handle general health data format (CPU, Mem, Disk from health-check-plugin)
+		if healthMap, ok := prev.(map[string]interface{}); ok {
+			f.logger.Info("Processing general health data from previous plugin result")
+			return f.formatHealthData(healthMap, shared)
 		}
 	}
 
@@ -125,6 +132,8 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 }
 
 // formatHealthData formats general health check data
+//
+//nolint:unused
 func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared *map[string]any) (interface{}, error) {
 	// Simple log format (single line)
 	var logFormatted strings.Builder
@@ -132,7 +141,6 @@ func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared 
 
 	// Rich format for alerts/display
 	var alertFormatted strings.Builder
-	// Clean output ;)
 	alertFormatted.WriteString("\n✨ Health Status Report ✨\n\n")
 
 	hasErrors := false
@@ -151,16 +159,13 @@ func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared 
 			}
 		}
 
-		// Add checks status to log
 		if checksOK {
 			logFormatted.WriteString("Checks:OK ")
 		} else {
 			logFormatted.WriteString("Checks:FAIL ")
 		}
-
 		alertFormatted.WriteString("\n")
 	} else {
-		// No health status, just show a message
 		alertFormatted.WriteString("🔍 Health Checks: No check data available\n\n")
 	}
 
@@ -168,13 +173,10 @@ func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared 
 	if cpuInfo, ok := input["cpu"].(map[string]interface{}); ok {
 		alertFormatted.WriteString("🖥️  CPU Usage:\n")
 		if usage, ok := cpuInfo["usage_percent"].(float64); ok {
-			// Check thresholds for errors only
 			cpuThreshold := f.thresholds["cpu"]
 			if usage >= cpuThreshold.Critical || usage >= cpuThreshold.Warning {
 				hasErrors = true
 			}
-
-			// Simpler log format without status indicators
 			logFormatted.WriteString(fmt.Sprintf("CPU:%.1f%% ", usage))
 			alertFormatted.WriteString(fmt.Sprintf("  Usage: %s\n", f.formatPercentage(usage, "cpu", false)))
 		}
@@ -184,19 +186,14 @@ func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared 
 	// Memory info
 	if memInfo, ok := input["memory"].(map[string]interface{}); ok {
 		alertFormatted.WriteString("🧠 Memory Usage:\n")
-
 		if usedPercent, ok := memInfo["used_percent"].(float64); ok {
-			// Check thresholds for errors only
 			memThreshold := f.thresholds["memory"]
 			if usedPercent >= memThreshold.Critical || usedPercent >= memThreshold.Warning {
 				hasErrors = true
 			}
-
-			// Simpler log format without status indicators
 			logFormatted.WriteString(fmt.Sprintf("Mem:%.1f%% ", usedPercent))
 			alertFormatted.WriteString(fmt.Sprintf("  Usage: %s\n", f.formatPercentage(usedPercent, "memory", false)))
 		}
-
 		if total, ok := memInfo["total"].(uint64); ok {
 			alertFormatted.WriteString(fmt.Sprintf("  Total: %s\n", f.formatSize(total)))
 		}
@@ -206,56 +203,41 @@ func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared 
 		if free, ok := memInfo["free"].(uint64); ok {
 			alertFormatted.WriteString(fmt.Sprintf("  Free:  %s\n", f.formatSize(free)))
 		}
-
 		alertFormatted.WriteString("\n")
 	}
 
 	// Disk info
 	if diskInfo, ok := input["disk"].(map[string]interface{}); ok {
 		alertFormatted.WriteString("💽 Disk Usage:\n")
-
-		// Track most critical disk usage
 		maxDiskUsage := 0.0
 		var criticalMount string
-
 		for mount, usage := range diskInfo {
-			// Skip snap mounts to reduce spam
 			if strings.HasPrefix(mount, "/snap") {
 				continue
 			}
-
 			if u, ok := usage.(map[string]interface{}); ok {
 				alertFormatted.WriteString(fmt.Sprintf("  %s:\n", mount))
-
 				usedPercent, hasPercent := u["used_percent"].(float64)
 				if hasPercent {
-					// Check disk threshold
 					diskThreshold := f.thresholds["disk"]
-
-					// Find the most critical disk
 					if usedPercent > maxDiskUsage {
 						maxDiskUsage = usedPercent
 						criticalMount = mount
-
-						// Set error flag based on thresholds
 						if usedPercent >= diskThreshold.Critical || usedPercent >= diskThreshold.Warning {
 							hasErrors = true
 						}
 					}
-
-					// Format output for this disk
-					diskPercent := usedPercent
+					diskPercentVal := usedPercent
 					var diskLine string
-					if diskPercent >= diskThreshold.Critical {
-						diskLine = fmt.Sprintf("    Usage: %.2f%% 🔴 CRITICAL\n", diskPercent)
-					} else if diskPercent >= diskThreshold.Warning {
-						diskLine = fmt.Sprintf("    Usage: %.2f%% 🟠 WARNING\n", diskPercent)
+					if diskPercentVal >= diskThreshold.Critical {
+						diskLine = fmt.Sprintf("    Usage: %.2f%% 🔴 CRITICAL\n", diskPercentVal)
+					} else if diskPercentVal >= diskThreshold.Warning {
+						diskLine = fmt.Sprintf("    Usage: %.2f%% 🟠 WARNING\n", diskPercentVal)
 					} else {
-						diskLine = fmt.Sprintf("    Usage: %.2f%%\n", diskPercent)
+						diskLine = fmt.Sprintf("    Usage: %.2f%%\n", diskPercentVal)
 					}
 					alertFormatted.WriteString(diskLine)
 				}
-
 				if total, ok := u["total"].(uint64); ok {
 					alertFormatted.WriteString(fmt.Sprintf("    Total: %s\n", f.formatSize(total)))
 				}
@@ -264,15 +246,11 @@ func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared 
 				}
 			}
 		}
-
-		// Add most critical disk to log line (without status)
 		if maxDiskUsage > 0 {
-			logFormatted.WriteString(fmt.Sprintf("Disk:%s:%.1f%% ",
-				criticalMount, maxDiskUsage))
+			logFormatted.WriteString(fmt.Sprintf("Disk:%s:%.1f%% ", criticalMount, maxDiskUsage))
 		}
 	}
 
-	// Summary
 	alertFormatted.WriteString("\n")
 	if hasErrors {
 		logFormatted.WriteString("Status:WARNING")
@@ -282,11 +260,9 @@ func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared 
 		alertFormatted.WriteString("✅ All systems operational!\n")
 	}
 
-	// Set message in shared context for slack notification
 	message := alertFormatted.String()
 	(*shared)["message"] = message
 
-	// Set severity based on errors
 	if hasErrors {
 		(*shared)["severity"] = "warning"
 	} else {
