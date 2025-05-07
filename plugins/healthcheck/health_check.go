@@ -2,12 +2,13 @@ package main
 
 import (
 	"context"
-	"expressops/internal/server"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"expressops/internal/metrics"
 
 	pluginconf "expressops/internal/plugin/loader"
 
@@ -72,7 +73,7 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 		}
 
 		// <---REGISTER CPU USAGE GAUGE --->
-		server.SetResourceUsage("cpu", "", cpuPercent[0])
+		metrics.SetResourceUsage("cpu", "", cpuPercent[0])
 
 	}
 
@@ -85,7 +86,7 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 		}
 
 		// <---REGISTER MEMORY USAGE GAUGE --->
-		server.SetResourceUsage("memory", "", memInfo.UsedPercent)
+		metrics.SetResourceUsage("memory", "", memInfo.UsedPercent)
 	}
 
 	if parts, err := disk.Partitions(false); err == nil {
@@ -106,7 +107,7 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 		}
 		result["disk"] = diskInfo
 		if worstMountPoint != "" {
-			server.SetResourceUsage("disk", worstMountPoint, maxDiskUsageForGauge)
+			metrics.SetResourceUsage("disk", worstMountPoint, maxDiskUsageForGauge)
 		}
 	}
 
@@ -121,7 +122,7 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 		} else {
 			healthStatus[name] = "OK"
 		}
-		server.IncHealthCheckPerformed(name, statusLabel)
+		metrics.IncHealthCheckPerformed(name, statusLabel)
 
 	}
 	result["health_status"] = healthStatus

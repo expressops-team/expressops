@@ -20,6 +20,11 @@ service:
   port: 80
   targetPort: 8080
 
+# Configuration for the k8s Prometheus operator
+serviceMonitor:
+  enabled: true
+  interval: 15s
+
 # Configuring resources for pods
 resources:
   limits:

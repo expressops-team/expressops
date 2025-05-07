@@ -6,7 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	pluginconf "expressops/internal/plugin/loader"
-	"expressops/internal/server"
+
+	"expressops/internal/metrics"
 	"fmt"
 	"io"
 	"net/http"
@@ -133,7 +134,7 @@ func (s *SlackPlugin) Execute(ctx context.Context, _ *http.Request, shared *map[
 	if err != nil {
 		statusLabel = "error_request"
 		s.logger.Errorf("Error sending message to Slack: %v", err)
-		server.IncSlackNotification(statusLabel, channelLabel)
+		metrics.IncSlackNotification(statusLabel, channelLabel)
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -143,11 +144,11 @@ func (s *SlackPlugin) Execute(ctx context.Context, _ *http.Request, shared *map[
 		statusLabel = "error_api"
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		s.logger.Errorf("Error in Slack API response: %s - Body: %s", resp.Status, string(bodyBytes))
-		server.IncSlackNotification(statusLabel, channelLabel)
+		metrics.IncSlackNotification(statusLabel, channelLabel)
 		return nil, fmt.Errorf("slack API error: %s", resp.Status)
 	}
 
-	server.IncSlackNotification(statusLabel, channelLabel)
+	metrics.IncSlackNotification(statusLabel, channelLabel)
 
 	return "Message sent to Slack", nil
 }

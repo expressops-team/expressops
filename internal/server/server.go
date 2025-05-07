@@ -10,83 +10,13 @@ import (
 	"time"
 
 	"expressops/api/v1alpha1"
+	"expressops/internal/metrics"
 	pluginManager "expressops/internal/plugin/loader"
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
-
-var (
-	// Counter for the total number of executed flows, labeled 'flowName'
-	flowsExecutedTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "expressops_flows_executed_total", // Metric name
-			Help: "Total number of flows executed.", // Descriptive help
-		},
-		[]string{"flowName"}, // Labels that the metric will have
-	)
-
-	// Counter for total plugin executions, with 'pluginRef' and 'status' tags (success/error)
-	pluginsExecutedTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "expressops_plugins_executed_total",
-			Help: "Total number of plugin executions attempted.",
-		},
-		[]string{"pluginRef", "status"},
-	)
-
-	// Counter for Slack notifications
-	slackNotificationsTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "expressops_slack_notifications_total",
-			Help: "Total number of Slack notifications sent.",
-		},
-		[]string{"status", "channel"}, // 'status' could be "success" or "error"
-	)
-
-	// Counter for individuals health checks
-	healthChecksPerformedTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "expressops_health_checks_performed_total",
-			Help: "Total number of individual health checks performed.",
-		},
-		[]string{"check_type", "status"}, // 'check_type' (cpu, mem, disk), 'status' (ok, fail)
-	)
-
-	// Gauge for resource usage (CPU, Memory, Disk most critical)
-	// GaugeVec to be able to have different types of resources with labels
-	resourceUsageGauge = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "expressops_resource_usage_percent",
-			Help: "Current resource usage percentage.",
-		},
-		[]string{"resource_type", "mount_point"}, // mount_point will be "" for cpu/mem
-	)
-)
-
-// --- PUBLIC FUNCTIONS TO ACCESS METRICS FROM OTHER PACKAGES ---
-
-// IncSlackNotification records a Slack notification.
-func IncSlackNotification(status, channel string) {
-	slackNotificationsTotal.WithLabelValues(status, channel).Inc()
-}
-
-// IncHealthCheckPerformed registers an individual health check.
-func IncHealthCheckPerformed(checkType, status string) {
-	healthChecksPerformedTotal.WithLabelValues(checkType, status).Inc()
-}
-
-// SetResourceUsage records the percentage of usage of a resource.
-func SetResourceUsage(resourceType, mountPoint string, usagePercent float64) {
-	if mountPoint == "" && (resourceType == "cpu" || resourceType == "memory") {
-		resourceUsageGauge.WithLabelValues(resourceType, "").Set(usagePercent)
-	} else if resourceType == "disk" && mountPoint != "" {
-		resourceUsageGauge.WithLabelValues(resourceType, mountPoint).Set(usagePercent)
-	}
-}
 
 // registry of flows
 var flowRegistry map[string]v1alpha1.Flow
@@ -153,7 +83,7 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 		}
 
 		// Increment the flow execution counter
-		flowsExecutedTotal.WithLabelValues(flowName).Inc()
+		metrics.IncFlowExecuted(flowName)
 		// End Increase
 
 		logger.WithFields(logrus.Fields{
@@ -215,6 +145,7 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 	}
 
 	var lastResult interface{}
+
 	for _, step := range flow.Pipeline {
 		// Skip commented plugins
 		if step.PluginRef == "" {
@@ -231,7 +162,7 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 
 			// --- Increase Executed Plugin Metric (CASE: Plugin NOT FOUND) ---
 			// We consider "plugin not found" as a type of plugin execution error.
-			pluginsExecutedTotal.WithLabelValues(step.PluginRef, "error_plugin_not_found").Inc() // 0 a generic "error" status
+			metrics.IncPluginExecuted(step.PluginRef, "error_plugin_not_found") // 0 a generic "error" status
 			// --- End increase ---
 
 			continue
@@ -248,12 +179,12 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 		logger.Infof("Executing plugin: %s", step.PluginRef)
 		res, err := plugin.Execute(ctx, r, &shared) // Call to the plugin
 
-		// --- Increase Executed Plugin Metric (CASE: Execution DONE) ---
+		//  =========== Increase Executed Plugin Metric (CASE: Execution DONE) ====================
 		statusLabel := "success"
 		if err != nil {
 			statusLabel = "error"
 		}
-		pluginsExecutedTotal.WithLabelValues(step.PluginRef, statusLabel).Inc()
+		metrics.IncPluginExecuted(step.PluginRef, statusLabel)
 		// --- End increase ---
 
 		if err != nil {
