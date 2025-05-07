@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"expressops/api/v1alpha1"
+	"expressops/internal/metrics"
 	pluginManager "expressops/internal/plugin/loader"
 
 	"github.com/sirupsen/logrus"
@@ -19,7 +20,7 @@ import (
 // registry of flows
 var flowRegistry map[string]v1alpha1.Flow
 
-// initializeFlowRegistry carga los flujos definidos en el archivo de configuración
+// initializeFlowRegistry loads flows defined in the configuration file
 func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	flowRegistry = make(map[string]v1alpha1.Flow)
 	for _, flow := range cfg.Flows {
@@ -31,13 +32,21 @@ func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	initializeFlowRegistry(cfg, logger)
 
+	// Start resource monitoring routine (metrics will already be initialized by expressops.go)
+	go monitorResourceUsage(logger)
+
 	address := fmt.Sprintf("%s:%d", cfg.Server.Address, cfg.Server.Port)
 
 	timeout := time.Duration(cfg.Server.TimeoutSec) * time.Second
 
 	// ONLY one generic handler that will handle all flows
-	http.HandleFunc("/flow", dynamicFlowHandler(logger, timeout))
+	http.HandleFunc("/flow", metricsMiddleware(dynamicFlowHandler(logger, timeout), logger))
+
+	// Prometheus metrics endpoint
+	http.Handle("/metrics", metrics.MetricsHandler())
+
 	logger.Infof("Server listening on http://%s", address)
+	logger.Infof("Prometheus metrics available at http://%s/metrics", address)
 
 	// help for the user
 	logger.Infof("➡️ curl http://%s/flow?flowName=<flow_name> ⬅️", address)
@@ -47,6 +56,145 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Fatalf("Error starting server: %v", err)
 	}
+}
+
+func monitorResourceUsage(logger *logrus.Logger) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Execute health-check-plugin to get real metrics
+			plugin, err := pluginManager.GetPlugin("health-check-plugin")
+			if err != nil {
+				logger.Warnf("Error getting health-check-plugin: %v", err)
+				continue
+			}
+
+			// Create a context and dummy request for the plugin
+			ctx := context.Background()
+			req, _ := http.NewRequest("GET", "/metrics", nil)
+			shared := make(map[string]interface{})
+
+			// Execute the plugin to get real metrics
+			result, err := plugin.Execute(ctx, req, &shared)
+			if err != nil {
+				logger.Warnf("Error executing health-check-plugin: %v", err)
+				continue
+			}
+
+			// Convert result to a map
+			healthData, ok := result.(map[string]interface{})
+			if !ok {
+				logger.Warn("Unexpected health check result format")
+				continue
+			}
+
+			// Extract and update CPU metrics
+			if cpuInfo, ok := healthData["cpu"].(map[string]interface{}); ok {
+				if cpuPercent, ok := cpuInfo["usage_percent"].(float64); ok {
+					metrics.RecordCpuUsage(cpuPercent)
+					logger.Debugf("Updated CPU usage: %.2f%%", cpuPercent)
+				}
+			}
+
+			// Extract and update memory metrics
+			if memInfo, ok := healthData["memory"].(map[string]interface{}); ok {
+				if used, ok := memInfo["used"].(uint64); ok {
+					metrics.RecordMemoryUsage(float64(used))
+					logger.Debugf("Updated memory usage: %d bytes", used)
+				}
+			}
+
+			// Extract and update disk metrics
+			if diskInfo, ok := healthData["disk"].(map[string]interface{}); ok {
+				// Sum used space across all partitions
+				var totalUsed uint64 = 0
+				for _, partInfo := range diskInfo {
+					if partData, ok := partInfo.(map[string]interface{}); ok {
+						if used, ok := partData["used"].(uint64); ok {
+							totalUsed += used
+						}
+					}
+				}
+				metrics.UpdateStorageUsage(float64(totalUsed))
+				logger.Debugf("Updated storage usage: %d bytes", totalUsed)
+			}
+
+			// Update active plugins count
+			activePlugins := 0
+			globalPlanMutex.Lock()
+			// Count plugins currently executing
+			for _, steps := range globalStepPlan {
+				for _, step := range steps {
+					if !step.executed {
+						activePlugins++
+					}
+				}
+			}
+			globalPlanMutex.Unlock()
+			metrics.UpdateConcurrentPlugins(activePlugins)
+			metrics.SetActivePlugins(activePlugins)
+
+			logger.Debug("Updated all resource metrics from health-check-plugin")
+		}
+	}
+}
+
+// Middleware to record Prometheus metrics
+func metricsMiddleware(next http.HandlerFunc, logger *logrus.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flowName := r.URL.Query().Get("flowName")
+		if flowName == "" {
+			flowName = "unknown"
+		}
+
+		startTime := time.Now()
+
+		// Create wrapper to capture status code
+		mw := newMetricsResponseWriter(w)
+
+		// Record HTTP request started
+		metrics.RecordHttpRequest(r.URL.Path, r.Method, 200)
+
+		// Call original handler
+		next(mw, r)
+
+		// Record metrics
+		duration := time.Since(startTime)
+		success := mw.statusCode < 400
+
+		// Record flow execution with success status
+		metrics.RecordFlowExecution(flowName, success)
+
+		// Record flow duration
+		metrics.RecordFlowDuration(flowName, duration)
+
+		// Record final HTTP status
+		metrics.RecordHttpRequest(r.URL.Path, r.Method, mw.statusCode)
+
+		logger.WithFields(logrus.Fields{
+			"flow":        flowName,
+			"duration_ms": duration.Milliseconds(),
+			"status_code": mw.statusCode,
+		}).Debug("Flow execution metrics recorded")
+	}
+}
+
+// Wrapper for ResponseWriter that captures status code
+type metricsResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func newMetricsResponseWriter(w http.ResponseWriter) *metricsResponseWriter {
+	return &metricsResponseWriter{w, http.StatusOK}
+}
+
+func (mw *metricsResponseWriter) WriteHeader(code int) {
+	mw.statusCode = code
+	mw.ResponseWriter.WriteHeader(code)
 }
 
 // dynamicFlowHandler handles requests to /flow and executes configured flows
@@ -256,6 +404,10 @@ func executeSteps(plan []*stepExecution, execCtx *executionContext) {
 func executeStepAsync(step *stepExecution, execCtx *executionContext) {
 	defer execCtx.wg.Done()
 
+	// Increment concurrent plugins counter
+	metrics.UpdateConcurrentPlugins(1)
+	defer metrics.UpdateConcurrentPlugins(-1) // Decrease counter when done
+
 	// Wait for dependencies in parallel
 	var depWg sync.WaitGroup
 	depErr := false
@@ -278,6 +430,7 @@ func executeStepAsync(step *stepExecution, execCtx *executionContext) {
 	// Skip if any dependency failed
 	if depErr {
 		markStepFailed(step, execCtx, "Skipped due to dependency failure")
+		metrics.RecordPluginError(step.step.PluginRef, "dependency_failure")
 		return
 	}
 
@@ -292,13 +445,23 @@ func executeStepAsync(step *stepExecution, execCtx *executionContext) {
 	plugin, err := pluginManager.GetPlugin(step.step.PluginRef)
 	if err != nil {
 		markStepFailed(step, execCtx, fmt.Sprintf("Plugin not found: %v", err))
+		metrics.RecordPluginError(step.step.PluginRef, "plugin_not_found")
 		return
 	}
 
+	// Start measuring plugin execution time
+	pluginStartTime := time.Now()
+
 	execCtx.logger.Infof("Executing plugin: %s", step.step.PluginRef)
 	res, err := plugin.Execute(execCtx.ctx, execCtx.request, &step.sharedCtx)
+
+	// Record plugin execution latency
+	pluginDuration := time.Since(pluginStartTime)
+	metrics.RecordPluginLatency(step.step.PluginRef, pluginDuration)
+
 	if err != nil {
 		markStepFailed(step, execCtx, fmt.Sprintf("Error: %v", err))
+		metrics.RecordPluginError(step.step.PluginRef, "execution_error")
 		return
 	}
 
@@ -335,6 +498,15 @@ func executeStepAsync(step *stepExecution, execCtx *executionContext) {
 // Helper to mark a step as failed
 func markStepFailed(step *stepExecution, execCtx *executionContext, errMsg string) {
 	execCtx.logger.Errorf("Plugin %s: %s", step.step.PluginRef, errMsg)
+
+	// Registrar error en métricas
+	errorType := "execution_error"
+	if strings.Contains(errMsg, "Plugin not found") {
+		errorType = "plugin_not_found"
+	} else if strings.Contains(errMsg, "Skipped due to dependency") {
+		errorType = "dependency_failure"
+	}
+	metrics.RecordPluginError(step.step.PluginRef, errorType)
 
 	execCtx.mutex.Lock()
 	*execCtx.results = append(*execCtx.results, map[string]interface{}{

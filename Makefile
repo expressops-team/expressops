@@ -10,7 +10,7 @@ PRINT = @echo
 
 # Common variables
 IMAGE_REPOSITORY ?= davidnull/expressops
-IMAGE_TAG ?= 1.0.0
+IMAGE_TAG ?= 1.1.5
 PLUGINS_PATH ?= plugins
 CONTAINER_NAME ?= expressops-app
 HOST_PORT ?= 8080
@@ -24,16 +24,23 @@ CONFIG_PATH ?= docs/samples/config.yaml
 CONFIG_MOUNT_PATH ?= /app/config.yaml
 K8S_NAMESPACE ?= default
 GCP_SA_KEY_FILE ?= key.json
+KUBECONFIG ?= ~/.kube/config
+
+# Prometheus/Grafana variables
+PROMETHEUS_NAMESPACE ?= monitoring # Namespace for Grafana. Assumes your existing Prometheus (prometheus-kube-prometheus-prometheus) is also in this namespace.
+GRAFANA_RELEASE ?= david-grafana
+GRAFANA_CHART_VERSION ?= 8.15.0
+GRAFANA_PORT ?= 3001 # Default Grafana port for port-forwarding
 
 # Include other makefiles
-include makefiles/*.mk
 include makefiles/docker.mk
 include makefiles/kubernetes.mk
 include makefiles/helm.mk
 include makefiles/build.mk
+include makefiles/prometheus.mk
 
 # help
-# @{} is for output like more command
+# @{} is for output like more command (less -R)
 help:
 	@{ \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
@@ -48,6 +55,10 @@ help:
 		echo "  $(GREEN)make k8s-status$(RESET)                 - Check deployment status"; \
 		echo "  $(GREEN)make k8s-logs$(RESET)                   - View application logs"; \
 		echo; \
+		echo "$(BLUE)$(BOLD)MONITORING COMMANDS (Grafana connects to existing Prometheus):$(RESET)"; \
+		echo "  $(GREEN)make grafana-install$(RESET)            - Install Grafana (will connect to prometheus-kube-prometheus-prometheus in PROMETHEUS_NAMESPACE)"; \
+		echo "  $(GREEN)make grafana-port-forward$(RESET)       - Access Grafana UI (http://localhost:$(GRAFANA_PORT))"; \
+		echo; \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
 		echo; \
 		for mkfile in $(sort $(MAKEFILE_LIST)); do \
@@ -61,6 +72,8 @@ help:
 				echo "$(BOLD)$(BLUE)Kubernetes Commands:$(RESET)"; \
 			elif [ "$$mkfile" = "makefiles/helm.mk" ]; then \
 				echo "$(BOLD)$(BLUE)Helm Commands:$(RESET)"; \
+			elif [ "$$mkfile" = "makefiles/prometheus.mk" ]; then \
+				echo "$(BOLD)$(BLUE)Monitoring Commands:$(RESET)"; \
 			else \
 				echo "$(BOLD)$(BLUE)$$mkfile:$(RESET)"; \
 			fi; \
@@ -77,12 +90,18 @@ help:
 		echo "  4. $(GREEN)make k8s-install-eso$(RESET) - Install External Secrets Operator"; \
 		echo "  5. $(GREEN)make helm-install-with-gcp-secrets$(RESET) - Deploy to Kubernetes"; \
 		echo; \
+		echo "$(BOLD)$(BLUE)Monitoring Workflow (Grafana with existing Prometheus):$(RESET)"; \
+		echo "  1. $(GREEN)make grafana-install$(RESET) (Ensure PROMETHEUS_NAMESPACE is set to where your existing Prometheus and Grafana will run)"; \
+		echo "  2. $(GREEN)make grafana-port-forward$(RESET)"; \
+		echo "  3. $(GREEN)Access Grafana at http://localhost:$(GRAFANA_PORT) with admin/expressops$(RESET)"; \
+		echo; \
 		echo "$(BOLD)$(BLUE)Google Cloud Secret Manager:$(RESET)"; \
 		echo "  Account: $(GREEN)expressops-external-secrets@fc-it-school-2025.iam.gserviceaccount.com$(RESET)"; \
 		echo "  Secret: $(GREEN)projects/88527591198/secrets/slack-webhook$(RESET)"; \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
-	} | less -R
+	} | less -R 
 
+## With less you can go back and forth with the help menu
 ## Shows configuration values
 config:
 	@{ \
@@ -106,6 +125,12 @@ config:
 		echo; \
 		echo "$(BOLD)$(BLUE)Kubernetes Configuration:$(RESET)"; \
 		echo "  $(GREEN)K8S_NAMESPACE$(RESET)     = $(K8S_NAMESPACE)"; \
+		echo; \
+		echo "$(BOLD)$(BLUE)Monitoring Configuration:$(RESET)"; \
+		echo "  $(GREEN)PROMETHEUS_NAMESPACE$(RESET)  = $(PROMETHEUS_NAMESPACE)"; \
+		echo "  $(GREEN)GRAFANA_RELEASE$(RESET)       = $(GRAFANA_RELEASE)"; \
+		echo "  $(GREEN)GRAFANA_CHART_VERSION$(RESET)  = $(GRAFANA_CHART_VERSION)"; \
+		echo "  $(GREEN)GRAFANA_PORT$(RESET)          = $(GRAFANA_PORT)"; \
 		echo; \
 		echo "$(BOLD)$(BLUE)Secrets Configuration:$(RESET)"; \
 		echo "  $(GREEN)SLACK_WEBHOOK_URL$(RESET) = $(SLACK_WEBHOOK_URL)"; \
@@ -140,6 +165,10 @@ about:
 		echo "  2. Run locally: $(GREEN)make run$(RESET)"; \
 		echo "  3. Deploy to K8s: $(GREEN)make setup-with-gcp-credentials$(RESET)"; \
 		echo; \
+		echo "$(BOLD)$(BLUE)Monitoring:$(RESET)"; \
+		echo "  1. Install Grafana: $(GREEN)make grafana-install$(RESET)"; \
+		echo "  2. Access Grafana: $(GREEN)make grafana-port-forward$(RESET)"; \
+		echo; \
 		echo "$(BOLD)$(BLUE)Documentation:$(RESET)"; \
 		echo "  • For help: $(GREEN)make help$(RESET)"; \
 		echo "  • Quick reference: $(GREEN)make quick-help$(RESET)"; \
@@ -173,10 +202,21 @@ quick-help:
 		echo "  $(GREEN)make k8s-logs$(RESET)                 - View application logs"; \
 		echo "  $(GREEN)make k8s-port-forward$(RESET)         - Access the application"; \
 		echo; \
+		echo "$(BOLD)Monitoring (Grafana with existing Prometheus):$(RESET)"; \
+		echo "  $(GREEN)make grafana-install$(RESET)                  - Install Grafana (connects to prometheus-kube-prometheus-prometheus)"; \
+		echo "  $(GREEN)make grafana-port-forward$(RESET)             - Access Grafana UI (http://localhost:$(GRAFANA_PORT))"; \
+		echo; \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
 		echo "For full help: $(GREEN)make help$(RESET)"; \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
 	} | less -R
+
+# Easy installation with custom kubectl config
+setup-with-custom-kubectl: ## Setup with custom kubectl configuration
+	@echo "$(BLUE)🔄 Setting up ExpressOps with custom kubectl configuration...$(RESET)"
+	@echo "$(YELLOW)Using KUBECONFIG: $(KUBECONFIG)$(RESET)"
+	@KUBECONFIG=$(KUBECONFIG) make setup-with-gcp-credentials
+	@echo "$(GREEN)✅ Setup complete with custom kubectl configuration$(RESET)"
 
 .DEFAULT_GOAL := help
 

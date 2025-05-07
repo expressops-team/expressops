@@ -27,33 +27,35 @@ RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u
       done \
     done
 
-# Create a plugins directory with only .so files, preserving the structure
-RUN mkdir -p /build/plugins_bin && \
-    find plugins -name "*.so" -exec bash -c 'mkdir -p /build/plugins_bin/$(dirname {#} | sed "s|^plugins/||") && cp {#} /build/plugins_bin/$(dirname {#} | sed "s|^plugins/||")/' \; -exec echo "Copied {}" \;
-
 # Build main app with optimizations
 RUN go build -ldflags="-s -w" -o expressops ./cmd
 
-# Stage 2: Final image using Distroless
-FROM gcr.io/distroless/base-debian11
+# Stage 2: Final tiny image
+FROM alpine:3.21
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
 
-# Copy only the expressops binary
+# Copy binaries and plugins from build stage
 COPY --from=builder /build/expressops .
-
-# Copy the directory structure with .so files
-COPY --from=builder /build/plugins_bin /app/plugins
+COPY --from=builder /build/plugins ./plugins
+RUN find plugins -name "*.go" -delete
 
 # Copy required config
 COPY docs/samples/config.yaml /app/config.yaml
 
-ENV PLUGINS_PATH=plugins
+# Environment variables with direct values <=== given in the config.yaml file
+
 
 # Expose port 8080 for server
 EXPOSE 8080
 
-# User is already non-root in distroless (not like in alpine)
+# Run as non-root for security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
 
-ENTRYPOINT ["/app/expressops", "-config", "/app/config.yaml"]
-# Optimized image with only .so files and preserved directory structure
+ENTRYPOINT ["./expressops", "-config", "/app/config.yaml"]
+
+# Image size reduced from 1.59GB to 162MB :0

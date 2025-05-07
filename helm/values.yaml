@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: davidnull/expressops
-  tag: 1.0.0
+  tag: 1.1.5
   pullPolicy: IfNotPresent
 
 imagePullSecrets: [] 
@@ -24,14 +24,22 @@ readinessProbe:
   enabled: true
   path: /flow?flowName=health-status-no-format
   initialDelaySeconds: 10
-  periodSeconds: 20
+  periodSeconds: 50
   timeoutSeconds: 5
   successThreshold: 1
   failureThreshold: 3
 
+# Security Contexts
+podSecurityContext:
+  fsGroup: 1000
 
-#podSecurityContext: {}
-#securityContext: {}
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
 
 service:
   type: NodePort
@@ -44,6 +52,18 @@ resources:
   requests: 
     cpu: 100m
     memory: 256Mi
+
+# Prometheus Configuration
+prometheus:
+  enabled: true
+  metricsPath: /metrics
+  serviceMonitor:
+    enabled: true
+    namespace: default
+    interval: 15s
+    scrapeTimeout: 10s
+    additionalLabels:
+      release: prometheus
 
 # Node selector for pod assignment
 # Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
@@ -74,7 +94,7 @@ config:
 secrets:
   enabled: true
   refreshInterval: "1h"
-  secretName: "slack-webhook"
+  secretName: "expressops-slack-secret"
   # GCP Secret Manager Configuration
   gcp:
     projectID: "fc-it-school-2025"
@@ -85,3 +105,4 @@ secrets:
       - secretKey: "SLACK_WEBHOOK_URL"
         remoteKey: "projects/88527591198/secrets/slack-webhook"
         version: "latest"
+        

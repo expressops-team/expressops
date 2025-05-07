@@ -2,11 +2,30 @@ package main
 
 import (
 	"context"
-	"expressops/internal/config" // imports the internal/config package
-	"expressops/internal/server" // imports the server package
+	"expressops/internal/config"  // imports the internal/config package
+	"expressops/internal/metrics" // import metrics package
+	"expressops/internal/server"  // imports the server package
 	"flag"
+	"runtime"
 	//logger
 )
+
+// Initialize metrics when package is loaded
+func init() {
+	// Register and initialize basic metrics
+	metrics.SetActivePlugins(0)
+
+	// Initialize resource metrics with initial values
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	metrics.RecordMemoryUsage(float64(m.Alloc))
+	metrics.RecordCpuUsage(0.0)
+	metrics.UpdateStorageUsage(0.0)
+	metrics.UpdateConcurrentPlugins(0)
+
+	// Log initialization
+	// This ensures all metrics are registered with the Prometheus registry
+}
 
 func main() {
 	// Initialize basic logger
