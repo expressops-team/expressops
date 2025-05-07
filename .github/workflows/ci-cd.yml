@@ -132,7 +132,7 @@ jobs:
         run: |
           echo "Deploying to development environment with image tag: ${{ needs.update-helm-chart-dev.outputs.new_image_tag }}"
           helm upgrade --install expressops ./helm \
-            --namespace <TU_NAMESPACE_DEV> \
+            --namespace default \
             -f ./helm/values.yaml \
             --set image.tag=${{ needs.update-helm-chart-dev.outputs.new_image_tag }} \
             --create-namespace
@@ -198,7 +198,7 @@ jobs:
         run: |
           echo "Deploying to production environment with image tag: ${{ needs.update-helm-chart-prod.outputs.new_image_tag }}"
           helm upgrade --install expressops ./helm \
-            --namespace <TU_NAMESPACE_PROD> \
+            --namespace default \
             -f ./helm/values.yaml \
             --set image.tag=${{ needs.update-helm-chart-prod.outputs.new_image_tag }} \
             --create-namespace 
