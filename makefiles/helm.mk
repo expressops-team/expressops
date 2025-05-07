@@ -14,6 +14,11 @@ helm-upgrade: ## Upgrade existing Helm deployment
 	-helm upgrade expressops ./helm --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret
 	@echo "✅ Helm chart actualizado correctamente"
 
+helm-diff: ## Diff Helm deployment
+	@echo "🔄 Diferencias en Helm chart..."
+	-helm diff upgrade expressops ./helm --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret
+	@echo "✅ Helm chart actualizado correctamente"
+
 helm-uninstall: ## Uninstall Helm deployment
 	@echo "🗑️ Desinstalando ExpressOps de Helm..."
 	-helm uninstall expressops --namespace $(K8S_NAMESPACE)

@@ -15,6 +15,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Variable to measure start time
+var startTime = time.Now()
+
 // DefaultThresholds defines default threshold values for checks
 var DefaultThresholds = map[string]float64{
 	"cpu":    90.0,
@@ -64,12 +67,15 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 
 	result := make(map[string]interface{})
 
+	// Get CPU metrics
 	if cpuPercent, err := cpu.Percent(time.Second, false); err == nil && len(cpuPercent) > 0 {
 		result["cpu"] = map[string]interface{}{
 			"usage_percent": cpuPercent[0],
 		}
+		// Metrics will be updated from monitorResourceUsage in server.go
 	}
 
+	// Get memory metrics
 	if memInfo, err := mem.VirtualMemory(); err == nil {
 		result["memory"] = map[string]interface{}{
 			"total":        memInfo.Total,
@@ -77,10 +83,14 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 			"free":         memInfo.Free,
 			"used_percent": memInfo.UsedPercent,
 		}
+		// Metrics will be updated from monitorResourceUsage in server.go
 	}
 
+	// Get disk metrics
 	if parts, err := disk.Partitions(false); err == nil {
 		diskInfo := make(map[string]interface{})
+		var totalUsed uint64 = 0
+
 		for _, part := range parts {
 			if usage, err := disk.Usage(part.Mountpoint); err == nil {
 				diskInfo[part.Mountpoint] = map[string]interface{}{
@@ -89,9 +99,11 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 					"free":         usage.Free,
 					"used_percent": usage.UsedPercent,
 				}
+				totalUsed += usage.Used
 			}
 		}
 		result["disk"] = diskInfo
+		// Metrics will be updated from monitorResourceUsage in server.go
 	}
 
 	healthStatus := make(map[string]string)
@@ -105,6 +117,10 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 		}
 	}
 	result["health_status"] = healthStatus
+
+	// Add other useful metrics information
+	result["timestamp"] = time.Now().Unix()
+	result["uptime"] = time.Since(startTime).Seconds()
 
 	p.logger.Info("Health check completed")
 	return result, nil

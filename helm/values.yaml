@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: davidnull/expressops
-  tag: 1.1.4
+  tag: 1.1.5
   pullPolicy: IfNotPresent
 
 imagePullSecrets: [] 
@@ -59,7 +59,7 @@ prometheus:
   metricsPath: /metrics
   serviceMonitor:
     enabled: true
-    namespace: monitoring
+    namespace: default
     interval: 15s
     scrapeTimeout: 10s
     additionalLabels:

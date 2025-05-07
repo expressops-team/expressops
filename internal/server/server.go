@@ -5,9 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -61,34 +59,85 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 }
 
 func monitorResourceUsage(logger *logrus.Logger) {
-	ticker := time.NewTicker(15 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			// Monitor actual resource metrics
-			var m runtime.MemStats
-			runtime.ReadMemStats(&m)
+			// Execute health-check-plugin to get real metrics
+			plugin, err := pluginManager.GetPlugin("health-check-plugin")
+			if err != nil {
+				logger.Warnf("Error getting health-check-plugin: %v", err)
+				continue
+			}
 
-			// Update memory usage metrics
-			metrics.RecordMemoryUsage(float64(m.Alloc))
+			// Create a context and dummy request for the plugin
+			ctx := context.Background()
+			req, _ := http.NewRequest("GET", "/metrics", nil)
+			shared := make(map[string]interface{})
 
-			// Get CPU usage (simulated for development)
-			cpuUsage := 25.0 + rand.Float64()*20.0 // Value between 25-45% for demo
-			metrics.RecordCpuUsage(cpuUsage)
+			// Execute the plugin to get real metrics
+			result, err := plugin.Execute(ctx, req, &shared)
+			if err != nil {
+				logger.Warnf("Error executing health-check-plugin: %v", err)
+				continue
+			}
 
-			// Update storage usage (simulated)
-			storageUsed := 1024.0 * 1024.0 * (100.0 + rand.Float64()*50.0) // 100-150 MB for demo
-			metrics.UpdateStorageUsage(storageUsed)
+			// Convert result to a map
+			healthData, ok := result.(map[string]interface{})
+			if !ok {
+				logger.Warn("Unexpected health check result format")
+				continue
+			}
 
-			// Update concurrent plugins count
-			// This is just a placeholder - in real code this would be more dynamic
-			activeConcurrentPlugins := 0
-			// Some logic to count active plugins would go here
-			metrics.UpdateConcurrentPlugins(activeConcurrentPlugins)
+			// Extract and update CPU metrics
+			if cpuInfo, ok := healthData["cpu"].(map[string]interface{}); ok {
+				if cpuPercent, ok := cpuInfo["usage_percent"].(float64); ok {
+					metrics.RecordCpuUsage(cpuPercent)
+					logger.Debugf("Updated CPU usage: %.2f%%", cpuPercent)
+				}
+			}
 
-			logger.Debug("Updated resource usage metrics")
+			// Extract and update memory metrics
+			if memInfo, ok := healthData["memory"].(map[string]interface{}); ok {
+				if used, ok := memInfo["used"].(uint64); ok {
+					metrics.RecordMemoryUsage(float64(used))
+					logger.Debugf("Updated memory usage: %d bytes", used)
+				}
+			}
+
+			// Extract and update disk metrics
+			if diskInfo, ok := healthData["disk"].(map[string]interface{}); ok {
+				// Sum used space across all partitions
+				var totalUsed uint64 = 0
+				for _, partInfo := range diskInfo {
+					if partData, ok := partInfo.(map[string]interface{}); ok {
+						if used, ok := partData["used"].(uint64); ok {
+							totalUsed += used
+						}
+					}
+				}
+				metrics.UpdateStorageUsage(float64(totalUsed))
+				logger.Debugf("Updated storage usage: %d bytes", totalUsed)
+			}
+
+			// Update active plugins count
+			activePlugins := 0
+			globalPlanMutex.Lock()
+			// Count plugins currently executing
+			for _, steps := range globalStepPlan {
+				for _, step := range steps {
+					if !step.executed {
+						activePlugins++
+					}
+				}
+			}
+			globalPlanMutex.Unlock()
+			metrics.UpdateConcurrentPlugins(activePlugins)
+			metrics.SetActivePlugins(activePlugins)
+
+			logger.Debug("Updated all resource metrics from health-check-plugin")
 		}
 	}
 }

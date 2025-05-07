@@ -65,3 +65,13 @@ func GetPlugin(name string) (Plugin, error) {
 	}
 	return p, nil
 }
+
+// GetMetricsFunc checks if a metrics function exists by name
+func GetMetricsFunc(funcName string) (interface{}, error) {
+	return nil, fmt.Errorf("metrics function not accessible")
+}
+
+// UpdateMetric updates a metric by name with a value
+func UpdateMetric(funcName string, value float64) error {
+	return fmt.Errorf("metrics update not implemented")
+}

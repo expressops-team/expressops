@@ -10,7 +10,7 @@ PRINT = @echo
 
 # Common variables
 IMAGE_REPOSITORY ?= davidnull/expressops
-IMAGE_TAG ?= 1.1.4
+IMAGE_TAG ?= 1.1.5
 PLUGINS_PATH ?= plugins
 CONTAINER_NAME ?= expressops-app
 HOST_PORT ?= 8080
@@ -27,13 +27,13 @@ GCP_SA_KEY_FILE ?= key.json
 KUBECONFIG ?= ~/.kube/config
 
 # Prometheus/Grafana variables
-PROMETHEUS_NAMESPACE ?= monitoring-david # for testing purposes
-PROMETHEUS_RELEASE ?= david-prometheus # for testing purposes
+PROMETHEUS_NAMESPACE ?= monitoring
 PROMETHEUS_CHART_VERSION ?= 25.8.0
 PROMETHEUS_PORT ?= 9090
-GRAFANA_RELEASE ?= david-grafana # for testing purposes
+PROMETHEUS_RELEASE ?= david-prometheus
+GRAFANA_RELEASE ?= david-grafana
 GRAFANA_CHART_VERSION ?= 8.15.0
-GRAFANA_PORT ?= 3001
+GRAFANA_PORT ?= 3000
 
 # Include other makefiles
 include makefiles/docker.mk
@@ -96,10 +96,11 @@ help:
 		echo "  5. $(GREEN)make helm-install-with-gcp-secrets$(RESET) - Deploy to Kubernetes"; \
 		echo; \
 		echo "$(BOLD)$(BLUE)Monitoring Workflow:$(RESET)"; \
-		echo "  1. $(GREEN)make prometheus-install$(RESET) - Install Prometheus"; \
-		echo "  2. $(GREEN)make grafana-install$(RESET) - Install Grafana"; \
-		echo "  3. $(GREEN)make prometheus-port-forward$(RESET) - Access Prometheus UI"; \
-		echo "  4. $(GREEN)make grafana-port-forward$(RESET) - Access Grafana UI (admin/admin123)"; \
+		echo "  1. $(GREEN)make prometheus-install$(RESET)"; \
+		echo "  2. $(GREEN)make grafana-install$(RESET)"; \
+		echo "  3. $(GREEN)make prometheus-port-forward$(RESET)"; \
+		echo "  4. $(GREEN)make grafana-port-forward$(RESET)"; \
+		echo "  5. $(GREEN)Access Grafana at http://localhost:3001 with admin/expressops$(RESET)"; \
 		echo; \
 		echo "$(BOLD)$(BLUE)Google Cloud Secret Manager:$(RESET)"; \
 		echo "  Account: $(GREEN)expressops-external-secrets@fc-it-school-2025.iam.gserviceaccount.com$(RESET)"; \
@@ -134,9 +135,10 @@ config:
 		echo; \
 		echo "$(BOLD)$(BLUE)Monitoring Configuration:$(RESET)"; \
 		echo "  $(GREEN)PROMETHEUS_NAMESPACE$(RESET)  = $(PROMETHEUS_NAMESPACE)"; \
-		echo "  $(GREEN)PROMETHEUS_RELEASE$(RESET)    = $(PROMETHEUS_RELEASE)"; \
+		echo "  $(GREEN)PROMETHEUS_CHART_VERSION$(RESET) = $(PROMETHEUS_CHART_VERSION)"; \
 		echo "  $(GREEN)PROMETHEUS_PORT$(RESET)       = $(PROMETHEUS_PORT)"; \
 		echo "  $(GREEN)GRAFANA_RELEASE$(RESET)       = $(GRAFANA_RELEASE)"; \
+		echo "  $(GREEN)GRAFANA_CHART_VERSION$(RESET)  = $(GRAFANA_CHART_VERSION)"; \
 		echo "  $(GREEN)GRAFANA_PORT$(RESET)          = $(GRAFANA_PORT)"; \
 		echo; \
 		echo "$(BOLD)$(BLUE)Secrets Configuration:$(RESET)"; \
@@ -173,7 +175,7 @@ about:
 		echo "  3. Deploy to K8s: $(GREEN)make setup-with-gcp-credentials$(RESET)"; \
 		echo; \
 		echo "$(BOLD)$(BLUE)Monitoring:$(RESET)"; \
-		echo "  1. Install: $(GREEN)make prometheus-install grafana-install$(RESET)"; \
+		echo "  1. Install: $(GREEN)make prometheus-install$(RESET) and $(GREEN)make grafana-install$(RESET)"; \
 		echo "  2. Access: $(GREEN)make prometheus-port-forward$(RESET) or $(GREEN)make grafana-port-forward$(RESET)"; \
 		echo; \
 		echo "$(BOLD)$(BLUE)Documentation:$(RESET)"; \
@@ -210,10 +212,10 @@ quick-help:
 		echo "  $(GREEN)make k8s-port-forward$(RESET)         - Access the application"; \
 		echo; \
 		echo "$(BOLD)Monitoring:$(RESET)"; \
-		echo "  $(GREEN)make prometheus-install$(RESET)       - Install Prometheus"; \
-		echo "  $(GREEN)make grafana-install$(RESET)          - Install Grafana"; \
-		echo "  $(GREEN)make prometheus-port-forward$(RESET)  - Access Prometheus UI"; \
-		echo "  $(GREEN)make grafana-port-forward$(RESET)     - Access Grafana UI"; \
+		echo "  $(GREEN)make prometheus-install$(RESET)               - Install Prometheus"; \
+		echo "  $(GREEN)make grafana-install$(RESET)                  - Install Grafana"; \
+		echo "  $(GREEN)make prometheus-port-forward$(RESET)          - Access Prometheus UI"; \
+		echo "  $(GREEN)make grafana-port-forward$(RESET)             - Access Grafana UI"; \
 		echo; \
 		echo "$(YELLOW)=================================================================================$(RESET)"; \
 		echo "For full help: $(GREEN)make help$(RESET)"; \

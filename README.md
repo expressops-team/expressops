@@ -16,7 +16,7 @@ https://hub.docker.com/r/davidnull/expressops
 
 You can pull it with:
 ```bash
-docker pull davidnull/expressops:1.1.1
+docker pull davidnull/expressops:1.1.5
 ```
 
 ## 📑 Table of Contents
