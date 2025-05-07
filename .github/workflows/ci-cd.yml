@@ -1,20 +1,11 @@
-# IGNORE THIS
-# NOT WORKING, NOT FUNCTIONAL, JUST TO LEARN
-#============================================
-#   ...
-#  (º-º)
-#    I _{cooking...}
-#   \I/
-#   /-\
-#============================================
 name: ExpressOps CI/CD
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ rama_david, master ]
     tags: [ 'v*' ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ rama_david, master ]
 
 jobs:
   lint:
@@ -54,6 +45,9 @@ jobs:
     name: Build
     needs: test
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+      image_name: davidnull/expressops
     steps:
       - uses: actions/checkout@v3
       
@@ -70,19 +64,21 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       
-      - name: Extract metadata
+      - name: Extract metadata and determine primary tag
         id: meta
         uses: docker/metadata-action@v4
         with:
           images: davidnull/expressops
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=schedule
             type=ref,event=branch
             type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=sha,format=short
       
       - name: Build and push
+        id: build-push
         uses: docker/build-push-action@v4
         with:
           context: .
@@ -93,28 +89,90 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  update-helm-chart-dev:
+    name: Update Helm Chart (Dev)
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      new_image_tag: ${{ needs.build.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+
+      - name: Install yq
+        run: sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
+
+      - name: Update image tag in values.yaml
+        run: |
+          IMAGE_TAG=${{ needs.build.outputs.image_tag }}
+          echo "Using image tag: $IMAGE_TAG"
+          yq e ".image.tag = \"$IMAGE_TAG\"" -i ./helm/values.yaml
+          cat ./helm/values.yaml
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add ./helm/values.yaml
+          git commit -m "ci: Update image tag to ${{ needs.build.outputs.image_tag }} in Helm chart" || echo "No changes to commit"
+          git push
+
   deploy-dev:
     name: Deploy to Development
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
-    needs: build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+    needs: [build, update-helm-chart-dev]
     runs-on: ubuntu-latest
     environment: development
     steps:
-      - name: Deploy to Dev Environment
+      - uses: actions/checkout@v3
+      
+      - name: Deploy to Dev Environment with Helm
         run: |
-          echo "Deploying to development environment"
-          # Add deployment commands here
-          # For example, kubectl apply, helm upgrade, etc.
+          echo "Deploying to development environment with image tag: ${{ needs.update-helm-chart-dev.outputs.new_image_tag }}"
+          echo "helm upgrade --install expressops ./helm --namespace <YOUR_DEV_NAMESPACE> -f ./helm/values.yaml --set image.tag=${{ needs.update-helm-chart-dev.outputs.new_image_tag }}"
+
+  update-helm-chart-prod:
+    name: Update Helm Chart (Prod)
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      new_image_tag: ${{ needs.build.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+
+      - name: Install yq
+        run: sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
+
+      - name: Update image tag in values.yaml
+        run: |
+          IMAGE_TAG=${{ needs.build.outputs.image_tag }}
+          echo "Using image tag for prod: $IMAGE_TAG"
+          yq e ".image.tag = \"$IMAGE_TAG\"" -i ./helm/values.yaml
+          cat ./helm/values.yaml
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add ./helm/values.yaml
+          git commit -m "ci: Update image tag to ${{ needs.build.outputs.image_tag }} in Helm chart for production release" || echo "No changes to commit"
+          git push
 
   deploy-prod:
     name: Deploy to Production
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [build, update-helm-chart-prod]
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Deploy to Production Environment
+      - uses: actions/checkout@v3
+
+      - name: Deploy to Production Environment with Helm
         run: |
-          echo "Deploying to production environment"
-          # Add deployment commands here
-          # For example, kubectl apply, helm upgrade, etc. 
+          echo "Deploying to production environment with image tag: ${{ needs.update-helm-chart-prod.outputs.new_image_tag }}"
+          echo "helm upgrade --install expressops ./helm --namespace <YOUR_PROD_NAMESPACE> -f ./helm/values.yaml --set image.tag=${{ needs.update-helm-chart-prod.outputs.new_image_tag }}" 
