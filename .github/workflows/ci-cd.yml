@@ -108,12 +108,34 @@ jobs:
     runs-on: ubuntu-latest
     environment: development
     steps:
-      - uses: actions/checkout@v3
-      
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Authenticate to Google Cloud (Dev)
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY_DEV }}'
+
+      - name: Set up GKE credentials (Dev)
+        uses: 'google-github-actions/get-gke-credentials@v2'
+        with:
+          cluster_name: '${{ secrets.GKE_CLUSTER_NAME_DEV }}'
+          location: '${{ secrets.GKE_CLUSTER_ZONE_DEV }}'
+          project_id: '${{ secrets.GCP_PROJECT_ID_DEV }}'
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.x'
+
       - name: Deploy to Dev Environment with Helm
         run: |
           echo "Deploying to development environment with image tag: ${{ needs.update-helm-chart-dev.outputs.new_image_tag }}"
-          echo "helm upgrade --install expressops ./helm --namespace <YOUR_DEV_NAMESPACE> -f ./helm/values.yaml --set image.tag=${{ needs.update-helm-chart-dev.outputs.new_image_tag }}"
+          helm upgrade --install expressops ./helm \
+            --namespace <TU_NAMESPACE_DEV> \
+            -f ./helm/values.yaml \
+            --set image.tag=${{ needs.update-helm-chart-dev.outputs.new_image_tag }} \
+            --create-namespace
 
   update-helm-chart-prod:
     name: Update Helm Chart (Prod)
@@ -152,9 +174,31 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Authenticate to Google Cloud (Prod)
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY_PROD }}'
+
+      - name: Set up GKE credentials (Prod)
+        uses: 'google-github-actions/get-gke-credentials@v2'
+        with:
+          cluster_name: '${{ secrets.GKE_CLUSTER_NAME_PROD }}'
+          location: '${{ secrets.GKE_CLUSTER_ZONE_PROD }}'
+          project_id: '${{ secrets.GCP_PROJECT_ID_PROD }}'
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.x'
 
       - name: Deploy to Production Environment with Helm
         run: |
           echo "Deploying to production environment with image tag: ${{ needs.update-helm-chart-prod.outputs.new_image_tag }}"
-          echo "helm upgrade --install expressops ./helm --namespace <YOUR_PROD_NAMESPACE> -f ./helm/values.yaml --set image.tag=${{ needs.update-helm-chart-prod.outputs.new_image_tag }}" 
+          helm upgrade --install expressops ./helm \
+            --namespace <TU_NAMESPACE_PROD> \
+            -f ./helm/values.yaml \
+            --set image.tag=${{ needs.update-helm-chart-prod.outputs.new_image_tag }} \
+            --create-namespace 
