@@ -2,7 +2,7 @@
 
 # Usage: ./generate-traffic.sh [URL] [REQUESTS] [DELAY_SECONDS]
 
-URL=${1:-"http://localhost:8080/flow"}
+URL=${1:-"http://localhost:8081/flow"}
 REQUESTS=${2:-100}
 DELAY=${3:-0.5}
 
