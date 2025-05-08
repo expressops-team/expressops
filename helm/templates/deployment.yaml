@@ -30,13 +30,39 @@ spec:
             - name: http
               containerPort: {{ .Values.env.SERVER_PORT | default 8080 }}
               protocol: TCP
+          # Readiness Probe - Verify if the server is ready to receive requests
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.readinessProbe.successThreshold }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          # Liveness Probe - Verify if the server is responding
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.livenessProbe.successThreshold }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "expressops.fullname" . }}-env-config
-            {{- if and .Values.slackWebhook.enabled (or .Values.slackWebhook.url (not (empty (lookup "v1" "Secret" .Release.Namespace (printf "%s-secrets" (include "expressops.fullname" .)))) )) }}
-            - secretRef:
-                name: {{ include "expressops.fullname" . }}-secrets
-            {{- end }}
+          env:
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: SLACK_WEBHOOK_URL
           volumeMounts:
             - name: config-volume
               mountPath: /app/config.yaml

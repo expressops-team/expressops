@@ -2,7 +2,7 @@
 FROM golang:1.24.2-alpine3.21 AS builder
 
 # Install build dependencies
-RUN apk add --no-cache git build-base ca-certificates
+RUN apk add --no-cache git build-base ca-certificates gcc musl-dev
 
 WORKDIR /build
 
@@ -41,6 +41,7 @@ WORKDIR /app
 # Copy binaries and plugins from build stage
 COPY --from=builder /build/expressops .
 COPY --from=builder /build/plugins ./plugins
+RUN find plugins -name "*.go" -delete
 
 # Copy required config
 COPY docs/samples/config.yaml /app/config.yaml

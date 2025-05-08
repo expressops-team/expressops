@@ -1,8 +1,5 @@
-# docker run -d --name expressops-demo -p 8080:8080 expressops:1.0.0  <-- for testing
-#      make docker-build   //    make docker-run
-# make build-plugins // make run // make clean // make help // make docker-build // make docker-run
-
-# make run <===
+# ExpressOps Makefile
+# Main entry point for all operations
 GREEN = \033[32m
 RED = \033[31m
 BLUE = \033[34m
@@ -11,255 +8,217 @@ BOLD = \033[1m
 RESET = \033[0m
 PRINT = @echo 
 
-# Configurable variables (can be overridden with environment variables)
+# Common variables
 IMAGE_REPOSITORY ?= davidnull/expressops
-IMAGE_TAG ?= 1.0.0
+IMAGE_TAG ?= 1.1.5
 PLUGINS_PATH ?= plugins
-
 CONTAINER_NAME ?= expressops-app
-HOST_PORT ?= 8080
+HOST_PORT ?= 8081
 SERVER_PORT ?= 8080
 SERVER_ADDRESS ?= 0.0.0.0
 TIMEOUT_SECONDS ?= 4
-LOG_LEVEL ?= info
+LOG_LEVEL ?= info	
 LOG_FORMAT ?= text
-SLACK_WEBHOOK_URL ?= 
+SLACK_WEBHOOK_URL ?= external-secret-webhook
 CONFIG_PATH ?= docs/samples/config.yaml
 CONFIG_MOUNT_PATH ?= /app/config.yaml
 K8S_NAMESPACE ?= default
+GCP_SA_KEY_FILE ?= key.json
+KUBECONFIG ?= ~/.kube/config
 
-.PHONY: build run docker-build docker-push docker-run docker-clean help k8s-deploy k8s-status k8s-logs k8s-delete k8s-port-forward k8s-install-eso helm-install helm-upgrade helm-uninstall helm-template helm-package
+# Prometheus/Grafana variables
+PROMETHEUS_NAMESPACE ?= monitoring # Namespace for Grafana. Assumes your existing Prometheus (prometheus-kube-prometheus-prometheus) is also in this namespace.
+GRAFANA_RELEASE ?= david-grafana
+GRAFANA_CHART_VERSION ?= 8.15.0
+GRAFANA_PORT ?= 3000
 
-# Build plugins and application locally
-build:
-	@echo "Cleaning previous plugins..."
-	@find plugins -name "*.so" -delete
-	@echo "Building plugins..."
-	@for dir in $$(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u); do \
-		for gofile in $$dir/*.go; do \
-			if [ -f "$$gofile" ]; then \
-				plugin_name=$$(basename "$$gofile" .go); \
-				echo "Building plugin $$plugin_name.so from $$gofile"; \
-				CGO_ENABLED=1 GOOS=linux go build -buildmode=plugin -o "$$dir/$$plugin_name.so" "$$gofile" || exit 1; \
-			fi \
-		done \
-	done
-	@echo "Verifying compiled plugins:"
-	@find plugins -name "*.so" | sort
-	@echo "Building main application..."
-	@go build -o expressops ./cmd
-	@echo "✅ Build completed"
+# Include other makefiles
+include makefiles/docker.mk
+include makefiles/kubernetes.mk
+include makefiles/helm.mk
+include makefiles/build.mk
+include makefiles/prometheus.mk
 
-# Run the application locally
-run: build
-	@echo "🚀 Starting ExpressOps"
-	./expressops -config $(CONFIG_PATH)
-
-# Build Docker image
-docker-build:
-	@echo "🐳 Building Docker image..."
-	docker build \
-		--build-arg SERVER_PORT=$(SERVER_PORT) \
-		--build-arg SERVER_ADDRESS=$(SERVER_ADDRESS) \
-		--build-arg TIMEOUT_SECONDS=$(TIMEOUT_SECONDS) \
-		--build-arg LOG_LEVEL=$(LOG_LEVEL) \
-		--build-arg LOG_FORMAT=$(LOG_FORMAT) \
-		--build-arg CONFIG_PATH=$(CONFIG_MOUNT_PATH) \
-		-t $(IMAGE_REPOSITORY):$(IMAGE_TAG) .
-	@echo "✅ Image built: $(IMAGE_REPOSITORY):$(IMAGE_TAG)"
-	@echo "🏷️ Tagging image for Docker Hub..."
-	docker tag $(IMAGE_REPOSITORY):$(IMAGE_TAG) davidnull/expressops:$(IMAGE_TAG)
-	@echo "✅ Image tagged: davidnull/expressops:$(IMAGE_TAG)"
-
-# Push Docker image to Docker Hub
-docker-push: docker-build
-	@echo "⬆️ Pushing image to Docker Hub..."
-	docker login
-	docker push davidnull/expressops:$(IMAGE_TAG)
-	@echo "✅ Image pushed to Docker Hub"
-
-# Run Docker container
-docker-run:
-	@echo "🚀 Starting container..."
-	@echo "📌 Application available at http://localhost:$(HOST_PORT)"
-	docker run --name $(CONTAINER_NAME) \
-		-p $(HOST_PORT):$(SERVER_PORT) \
-		-e SERVER_PORT=$(SERVER_PORT) \
-		-e SERVER_ADDRESS=$(SERVER_ADDRESS) \
-		-e TIMEOUT_SECONDS=$(TIMEOUT_SECONDS) \
-		-e LOG_LEVEL=$(LOG_LEVEL) \
-		-e LOG_FORMAT=$(LOG_FORMAT) \
-		-e SLACK_WEBHOOK_URL=$(SLACK_WEBHOOK_URL) \
-		-v $(PWD)/$(CONFIG_PATH):$(CONFIG_MOUNT_PATH) \
-		--rm $(IMAGE_REPOSITORY):$(IMAGE_TAG)
-
-# Run Docker container with build
-docker-run-build: docker-build docker-run
-
-# Clean Docker resources
-docker-clean:
-	@echo "🧹 Cleaning Docker resources..."
-	-docker stop $(CONTAINER_NAME) 2>/dev/null || true
-	-docker rm $(CONTAINER_NAME) 2>/dev/null || true
-	-docker rmi $(IMAGE_REPOSITORY):$(IMAGE_TAG) 2>/dev/null || true
-	@echo "🗑 Removing <none> images..."
-	-docker rmi $$(docker images -f "dangling=true" -q) 2>/dev/null || true
-	@echo "✅ Cleanup completed"
-
-# how this works
+# help
+# @{} is for output like more command (less -R)
 help:
-	@echo
-	@echo "$(YELLOW)=================================================================================$(RESET)"
-	@echo "$(YELLOW)===================$(BOLD)$(BLUE)IMPORTANT READ THE COMMENTS IN THE CODE$(RESET)$(YELLOW)=======================$(RESET)"
-	@echo "$(YELLOW)=================================================================================$(RESET)"
-	@echo
-	@echo "$(BLUE)Available commands:$(RESET)"
-	@echo "$(GREEN)  make help          $(RESET)- Show this help"
-	@echo "$(GREEN)  make build         $(RESET)- Build plugins and application"
-	@echo "$(GREEN)  make run           $(RESET)- Run application locally"
-	@echo "$(GREEN)  make docker-build  $(RESET)- Build Docker image"
-	@echo "$(GREEN)  make docker-push   $(RESET)- Build, tag and push Docker image to Docker Hub"
-	@echo "$(GREEN)  make docker-run    $(RESET)- Run container"
+	@{ \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+		echo "$(YELLOW)$(BOLD)                     ExpressOps - Kubernetes Deployment System$(RESET)"; \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+		echo "$(BLUE)Press $(RED)'q'$(BLUE) to exit this view$(RESET)"; \
+		echo; \
+		echo "$(BLUE)$(BOLD)MOST FREQUENTLY USED COMMANDS:$(RESET)"; \
+		echo "  $(RED)make setup-with-gcp-credentials$(RESET)  - Complete setup with GCP credentials"; \
+		echo "  $(GREEN)make helm-install-with-gcp-secrets$(RESET) - Deploy using GCP secrets"; \
+		echo "  $(GREEN)make k8s-port-forward$(RESET)           - Access the application"; \
+		echo "  $(GREEN)make k8s-status$(RESET)                 - Check deployment status"; \
+		echo "  $(GREEN)make k8s-logs$(RESET)                   - View application logs"; \
+		echo; \
+		echo "$(BLUE)$(BOLD)MONITORING COMMANDS (Grafana connects to existing Prometheus):$(RESET)"; \
+		echo "  $(GREEN)make grafana-install$(RESET)            - Install Grafana (will connect to prometheus-kube-prometheus-prometheus in PROMETHEUS_NAMESPACE)"; \
+		echo "  $(GREEN)make grafana-port-forward$(RESET)       - Access Grafana UI (http://localhost:$(GRAFANA_PORT))"; \
+		echo; \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+		echo; \
+		for mkfile in $(sort $(MAKEFILE_LIST)); do \
+			if [ "$$mkfile" = "Makefile" ]; then \
+				echo "$(BOLD)$(BLUE)Main Commands:$(RESET)"; \
+			elif [ "$$mkfile" = "makefiles/build.mk" ]; then \
+				echo "$(BOLD)$(BLUE)Development Commands:$(RESET)"; \
+			elif [ "$$mkfile" = "makefiles/docker.mk" ]; then \
+				echo "$(BOLD)$(BLUE)Docker Commands:$(RESET)"; \
+			elif [ "$$mkfile" = "makefiles/kubernetes.mk" ]; then \
+				echo "$(BOLD)$(BLUE)Kubernetes Commands:$(RESET)"; \
+			elif [ "$$mkfile" = "makefiles/helm.mk" ]; then \
+				echo "$(BOLD)$(BLUE)Helm Commands:$(RESET)"; \
+			elif [ "$$mkfile" = "makefiles/prometheus.mk" ]; then \
+				echo "$(BOLD)$(BLUE)Monitoring Commands:$(RESET)"; \
+			else \
+				echo "$(BOLD)$(BLUE)$$mkfile:$(RESET)"; \
+			fi; \
+			grep -E '^## .*$$' $$mkfile | awk 'BEGIN {FS = "## "}; {printf "  $(YELLOW)%s$(RESET)\n", $$2}'; \
+			echo; \
+			grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $$mkfile | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "    $(GREEN)%-28s$(RESET) %s\n", $$1, $$2}'; \
+			echo; \
+		done; \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+		echo "$(BOLD)$(BLUE)Development Workflow:$(RESET)"; \
+		echo "  1. $(GREEN)make build$(RESET) - Build the application locally"; \
+		echo "  2. $(GREEN)make run$(RESET) - Run the application locally"; \
+		echo "  3. $(GREEN)make docker-build$(RESET) - Create Docker image"; \
+		echo "  4. $(GREEN)make k8s-install-eso$(RESET) - Install External Secrets Operator"; \
+		echo "  5. $(GREEN)make helm-install-with-gcp-secrets$(RESET) - Deploy to Kubernetes"; \
+		echo; \
+		echo "$(BOLD)$(BLUE)Monitoring Workflow (Grafana with existing Prometheus):$(RESET)"; \
+		echo "  1. $(GREEN)make grafana-install$(RESET) (Ensure PROMETHEUS_NAMESPACE is set to where your existing Prometheus and Grafana will run)"; \
+		echo "  2. $(GREEN)make grafana-port-forward$(RESET)"; \
+		echo "  3. $(GREEN)Access Grafana at http://localhost:$(GRAFANA_PORT) with admin/expressops$(RESET)"; \
+		echo; \
+		echo "$(BOLD)$(BLUE)Google Cloud Secret Manager:$(RESET)"; \
+		echo "  Account: $(GREEN)expressops-external-secrets@fc-it-school-2025.iam.gserviceaccount.com$(RESET)"; \
+		echo "  Secret: $(GREEN)projects/88527591198/secrets/slack-webhook$(RESET)"; \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+	} | less -R 
 
-	@echo "$(GREEN)  make k8s-install-eso $(RED)- Required before first deployment$(RESET)"
-	@echo "$(GREEN)  make k8s-deploy    $(RESET)- Deploy to Kubernetes"
-	@echo "$(GREEN)  make k8s-status    $(RESET)- Check Kubernetes deployment status"
-	@echo "$(GREEN)  make k8s-logs      $(RESET)- View Kubernetes logs"
-	@echo "$(GREEN)  make k8s-port-forward $(RESET)- Port forward to access the application"
-	@echo "$(GREEN)  make k8s-delete    $(RESET)- Delete Kubernetes deployment"
-	
-	@echo "$(GREEN)  make helm-install  $(RESET)- Install ExpressOps using Helm chart"
-	@echo "$(GREEN)  make helm-upgrade  $(RESET)- Upgrade existing Helm deployment"
-	@echo "$(GREEN)  make helm-uninstall$(RESET)- Uninstall Helm deployment"
-	@echo "$(GREEN)  make helm-template $(RESET)- View Helm templates without installing"
-	@echo "$(GREEN)  make helm-package  $(RESET)- Package Helm chart into a .tgz file"
-	@echo
-	@echo "$(YELLOW)=================================================================================$(RESET)"
-	@echo
-	@echo "$(BLUE)Configurable variables (with our current values):$(RESET)"
-	@echo "$(GREEN)  IMAGE_REPOSITORY $(RESET)= $(IMAGE_REPOSITORY)"
-	@echo "$(GREEN)  IMAGE_TAG        $(RESET)= $(IMAGE_TAG)"
-	@echo "$(GREEN)  PLUGINS_PATH     $(RESET)= $(PLUGINS_PATH)"
-	@echo "$(GREEN)  CONTAINER_NAME   $(RESET)= $(CONTAINER_NAME)"
-	@echo "$(GREEN)  HOST_PORT        $(RESET)= $(HOST_PORT)"
-	@echo "$(GREEN)  SERVER_PORT      $(RESET)= $(SERVER_PORT)"
-	@echo "$(GREEN)  SERVER_ADDRESS   $(RESET)= $(SERVER_ADDRESS)"
-	@echo "$(GREEN)  TIMEOUT_SECONDS  $(RESET)= $(TIMEOUT_SECONDS)"
-	@echo "$(GREEN)  LOG_LEVEL        $(RESET)= $(LOG_LEVEL)"
-	@echo "$(GREEN)  LOG_FORMAT       $(RESET)= $(LOG_FORMAT)"
-	@echo "$(GREEN)  SLACK_WEBHOOK_URL $(RESET)= $(SLACK_WEBHOOK_URL)..."
-	@echo "$(GREEN)  CONFIG_PATH      $(RESET)= $(CONFIG_PATH)"
-	@echo "$(GREEN)  CONFIG_MOUNT_PATH $(RESET)= $(CONFIG_MOUNT_PATH)"
-	@echo "$(GREEN)  K8S_NAMESPACE    $(RESET)= $(K8S_NAMESPACE)"
+## With less you can go back and forth with the help menu
+## Shows configuration values
+config:
+	@{ \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+		echo "$(YELLOW)$(BOLD)                     ExpressOps - Configuration Values$(RESET)"; \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+		echo "$(BLUE)Press $(RED)'q'$(BLUE) to exit this view$(RESET)"; \
+		echo; \
+		echo "$(BOLD)$(BLUE)Runtime Configuration:$(RESET)"; \
+		echo "  $(GREEN)SERVER_PORT$(RESET)       = $(SERVER_PORT)"; \
+		echo "  $(GREEN)SERVER_ADDRESS$(RESET)    = $(SERVER_ADDRESS)"; \
+		echo "  $(GREEN)TIMEOUT_SECONDS$(RESET)   = $(TIMEOUT_SECONDS)"; \
+		echo "  $(GREEN)LOG_LEVEL$(RESET)         = $(LOG_LEVEL)"; \
+		echo "  $(GREEN)LOG_FORMAT$(RESET)        = $(LOG_FORMAT)"; \
+		echo; \
+		echo "$(BOLD)$(BLUE)Docker Configuration:$(RESET)"; \
+		echo "  $(GREEN)IMAGE_REPOSITORY$(RESET)  = $(IMAGE_REPOSITORY)"; \
+		echo "  $(GREEN)IMAGE_TAG$(RESET)         = $(IMAGE_TAG)"; \
+		echo "  $(GREEN)CONTAINER_NAME$(RESET)    = $(CONTAINER_NAME)"; \
+		echo "  $(GREEN)HOST_PORT$(RESET)         = $(HOST_PORT)"; \
+		echo; \
+		echo "$(BOLD)$(BLUE)Kubernetes Configuration:$(RESET)"; \
+		echo "  $(GREEN)K8S_NAMESPACE$(RESET)     = $(K8S_NAMESPACE)"; \
+		echo; \
+		echo "$(BOLD)$(BLUE)Monitoring Configuration:$(RESET)"; \
+		echo "  $(GREEN)PROMETHEUS_NAMESPACE$(RESET)  = $(PROMETHEUS_NAMESPACE)"; \
+		echo "  $(GREEN)GRAFANA_RELEASE$(RESET)       = $(GRAFANA_RELEASE)"; \
+		echo "  $(GREEN)GRAFANA_CHART_VERSION$(RESET)  = $(GRAFANA_CHART_VERSION)"; \
+		echo "  $(GREEN)GRAFANA_PORT$(RESET)          = $(GRAFANA_PORT)"; \
+		echo; \
+		echo "$(BOLD)$(BLUE)Secrets Configuration:$(RESET)"; \
+		echo "  $(GREEN)SLACK_WEBHOOK_URL$(RESET) = $(SLACK_WEBHOOK_URL)"; \
+		echo "  $(GREEN)GCP_SA_KEY_FILE$(RESET)   = $(GCP_SA_KEY_FILE)"; \
+		echo; \
+		echo "$(BOLD)$(BLUE)File Paths:$(RESET)"; \
+		echo "  $(GREEN)PLUGINS_PATH$(RESET)      = $(PLUGINS_PATH)"; \
+		echo "  $(GREEN)CONFIG_PATH$(RESET)       = $(CONFIG_PATH)"; \
+		echo "  $(GREEN)CONFIG_MOUNT_PATH$(RESET) = $(CONFIG_MOUNT_PATH)"; \
+		echo; \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+		echo "$(BOLD)To change these values, set the corresponding environment variable or edit the Makefile.$(RESET)"; \
+		echo "Example: $(GREEN)IMAGE_TAG=2.0.0 make docker-build$(RESET)"; \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+	} | less -R
 
-# Install External Secrets Operator
-# Before deploying:
-# 1. Set the SLACK_WEBHOOK_URL environment variable (required):
-#    export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/REAL/TOKEN"
-# - In case there was one before, you can delete it with:
-# ==>  	kubectl delete secret expressops-secrets
-k8s-install-eso:
-	@echo "🔄 Installing External Secrets Operator..."
-	@helm repo add external-secrets https://charts.external-secrets.io
-	@helm repo update
-	@helm install external-secrets external-secrets/external-secrets \
-		--namespace external-secrets \
-		--create-namespace \
-		--set installCRDs=true
-	@echo "✅ External Secrets Operator installed"
-	@echo "⏳ Wait for operator to be ready..."
-	@kubectl wait --for=condition=available --timeout=90s deployment/external-secrets -n external-secrets || echo "⚠️ Timeout waiting for ESO to be ready"
+## Shows information about the project
+about:
+	@{ \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+		echo "$(YELLOW)$(BOLD)                           ExpressOps$(RESET)"; \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+		echo "$(BLUE)Press $(RED)'q'$(BLUE) to exit this view$(RESET)"; \
+		echo; \
+		echo "$(BOLD)$(BLUE)Project Overview:$(RESET)"; \
+		echo "  ExpressOps is the Tech School's project for the year 2025"; \
+		echo "  It is a Kubernetes deployment system for managing operations"; \
+		echo "  with external secrets from Google Cloud Secret Manager."; \
+		echo; \
+		echo "$(BOLD)$(BLUE)Getting Started:$(RESET)"; \
+		echo "  1. Build locally: $(GREEN)make build$(RESET)"; \
+		echo "  2. Run locally: $(GREEN)make run$(RESET)"; \
+		echo "  3. Deploy to K8s: $(GREEN)make setup-with-gcp-credentials$(RESET)"; \
+		echo; \
+		echo "$(BOLD)$(BLUE)Monitoring:$(RESET)"; \
+		echo "  1. Install Grafana: $(GREEN)make grafana-install$(RESET)"; \
+		echo "  2. Access Grafana: $(GREEN)make grafana-port-forward$(RESET)"; \
+		echo; \
+		echo "$(BOLD)$(BLUE)Documentation:$(RESET)"; \
+		echo "  • For help: $(GREEN)make help$(RESET)"; \
+		echo "  • Quick reference: $(GREEN)make quick-help$(RESET)"; \
+		echo "  • Configuration: $(GREEN)make config$(RESET)"; \
+		echo; \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+		echo "$(BOLD)Need help? Start with: $(GREEN)make quick-help$(RESET)$(RESET)"; \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+	} | less -R
 
-# Kubernetes Deployment
-# Before deploying:
-# 1. Set the SLACK_WEBHOOK_URL environment variable (required):
-#    export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/REAL/TOKEN"
-# 2. Connect to Kubernetes with the SSH tunnel:
-#    gcloud compute ssh --zone "europe-west1-d" "it-school-2025-1" --tunnel-through-iap --project "fc-it-school-2025" --ssh-flag "-N -L 6443:127.0.0.1:6443"
-# 3. Build and push the image to Docker Hub (optional):
-#    make docker-push
-k8s-deploy:
-	@echo "🔄 Deploying ExpressOps to Kubernetes..."
-	@echo "📦 Applying Kubernetes resources..."
-	kubectl apply -f k8s/configmap.yaml
-	kubectl apply -f k8s/expressops-env-config.yaml 
-	kubectl apply -f k8s/deployment.yaml
-	kubectl apply -f k8s/secrets/fake-secretstore.yaml
-	kubectl apply -f k8s/secrets/slack-externalsecret.yaml
-	kubectl apply -f k8s/service.yaml
-	@echo "⏳ Waiting for External Secret to sync (15s)..." #to give time for the secret to be created
-	@sleep 15
-	@if kubectl get secret expressops-secrets >/dev/null 2>&1; then \
-		echo "✅ Secret 'expressops-secrets' created successfully"; \
-	else \
-		echo "⚠️ Secret 'expressops-secrets' not created yet. You may need to install External Secrets Operator."; \
-		echo "   Run: make k8s-install-eso"; \
-	fi
-	@echo "✅ ExpressOps deployed to Kubernetes"
-	@echo "🔍 Verify status with: make k8s-status"
-	@echo "🌐 Access the application with: make k8s-port-forward"
+## Quick help with most common commands
+quick-help:
+	@{ \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+		echo "$(BOLD)$(BLUE)ExpressOps Quick Help$(RESET)"; \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+		echo "$(BLUE)Press $(RED)'q'$(BLUE) to exit this view$(RESET)"; \
+		echo; \
+		echo "$(BOLD)Development:$(RESET)"; \
+		echo "  $(GREEN)make build$(RESET)                    - Build the application"; \
+		echo "  $(GREEN)make run$(RESET)                      - Run locally"; \
+		echo; \
+		echo "$(BOLD)Docker:$(RESET)"; \
+		echo "  $(GREEN)make docker-build$(RESET)             - Build container"; \
+		echo "  $(GREEN)make docker-run$(RESET)               - Run container locally"; \
+		echo; \
+		echo "$(BOLD)Kubernetes:$(RESET)"; \
+		echo "  $(RED)make setup-with-gcp-credentials$(RESET) - Complete setup with GCP"; \
+		echo "  $(GREEN)make helm-install-with-gcp-secrets$(RESET) - Deploy with GCP secrets"; \
+		echo "  $(GREEN)make k8s-status$(RESET)               - Check deployment status"; \
+		echo "  $(GREEN)make k8s-logs$(RESET)                 - View application logs"; \
+		echo "  $(GREEN)make k8s-port-forward$(RESET)         - Access the application"; \
+		echo; \
+		echo "$(BOLD)Monitoring (Grafana with existing Prometheus):$(RESET)"; \
+		echo "  $(GREEN)make grafana-install$(RESET)                  - Install Grafana (connects to prometheus-kube-prometheus-prometheus)"; \
+		echo "  $(GREEN)make grafana-port-forward$(RESET)             - Access Grafana UI (http://localhost:$(GRAFANA_PORT))"; \
+		echo; \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+		echo "For full help: $(GREEN)make help$(RESET)"; \
+		echo "$(YELLOW)=================================================================================$(RESET)"; \
+	} | less -R
 
-k8s-status:
-	@echo "🔍 Checking ExpressOps deployment status:"
-	@kubectl get pods -l app=expressops -n $(K8S_NAMESPACE)
-	@echo "\n🌐 Service status:"
-	@kubectl get svc expressops -n $(K8S_NAMESPACE)
-	@echo "\n📊 Deployment status:"
-	@kubectl get deployment expressops -n $(K8S_NAMESPACE)
-
-k8s-logs:
-	@echo "📃 ExpressOps logs:"
-	@POD=$$(kubectl get pods -l app=expressops -n $(K8S_NAMESPACE) -o jsonpath="{.items[0].metadata.name}"); \
-	if [ -n "$$POD" ]; then \
-		kubectl logs $$POD -n $(K8S_NAMESPACE) --tail=100; \
-	else \
-		echo "❌ No ExpressOps pods found"; \
-	fi
-
-k8s-port-forward:
-	@echo "🔄 Setting up port forwarding for ExpressOps service..."
-	@echo "🌐 Access the application at http://localhost:$(HOST_PORT)"
-	@POD=$$(kubectl get pods -l app=expressops -n $(K8S_NAMESPACE) -o jsonpath="{.items[0].metadata.name}"); \
-	if [ -n "$$POD" ]; then \
-		kubectl port-forward svc/expressops $(HOST_PORT):80 -n $(K8S_NAMESPACE); \
-	else \
-		echo "❌ No ExpressOps pods found"; \
-	fi
-
-k8s-delete:
-	@echo "🗑️ Deleting ExpressOps from Kubernetes..."
-	kubectl delete -f k8s/service.yaml --ignore-not-found
-	kubectl delete -f k8s/deployment.yaml --ignore-not-found
-	kubectl delete -f k8s/secrets/slack-externalsecret.yaml --ignore-not-found
-	kubectl delete -f k8s/secrets/fake-secretstore.yaml --ignore-not-found				
-	kubectl delete -f k8s/configmap.yaml --ignore-not-found
-	kubectl delete -f k8s/expressops-env-config.yaml --ignore-not-found
-	@echo "✅ ExpressOps deleted from Kubernetes"
-
-# Helm Commands
-helm-install:
-	@echo "🚀 Instalando ExpressOps con Helm..."
-	@echo "$(BLUE)Desplegando en namespace: $(K8S_NAMESPACE)$(RESET)"
-	helm install expressops ./helm --namespace $(K8S_NAMESPACE)
-	@echo "✅ Helm chart instalado correctamente"
-
-helm-upgrade:
-	@echo "🔄 Actualizando ExpressOps con Helm..."
-	helm upgrade expressops ./helm --namespace $(K8S_NAMESPACE)
-	@echo "✅ Helm chart actualizado correctamente"
-
-helm-uninstall:
-	@echo "🗑️ Desinstalando ExpressOps de Helm..."
-	helm uninstall expressops --namespace $(K8S_NAMESPACE)
-	@echo "✅ Helm chart desinstalado correctamente"
-
-helm-template:
-	@echo "👀 Visualizando plantillas renderizadas..."
-	helm template expressops ./helm --namespace $(K8S_NAMESPACE)
-
-helm-package:
-	@echo "📦 Empaquetando Helm chart..."
-	helm package ./helm
-	@echo "✅ Chart empaquetado. Listo para distribuir."
+# Easy installation with custom kubectl config
+setup-with-custom-kubectl: ## Setup with custom kubectl configuration
+	@echo "$(BLUE)🔄 Setting up ExpressOps with custom kubectl configuration...$(RESET)"
+	@echo "$(YELLOW)Using KUBECONFIG: $(KUBECONFIG)$(RESET)"
+	@KUBECONFIG=$(KUBECONFIG) make setup-with-gcp-credentials
+	@echo "$(GREEN)✅ Setup complete with custom kubectl configuration$(RESET)"
 
 .DEFAULT_GOAL := help
+
+# Ensure makefiles exists
+$(shell mkdir -p makefiles) 

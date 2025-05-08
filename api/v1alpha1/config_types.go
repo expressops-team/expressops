@@ -47,4 +47,6 @@ type Flow struct {
 type Step struct {
 	PluginRef  string                 `yaml:"pluginRef"`
 	Parameters map[string]interface{} `yaml:"parameters,omitempty"`
+	Parallel   bool                   `yaml:"parallel,omitempty"`
+	DependsOn  []string               `yaml:"dependsOn,omitempty"`
 }

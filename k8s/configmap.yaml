@@ -36,7 +36,8 @@ data:
       - name: kube-health-plugin
         path: plugins/kubehealth/kube_health.so
         type: k8s
-        config: {}
+        config:
+          namespace: "default"
         
       - name: test-print-plugin
         path: plugins/testprint/testprint.so
@@ -81,14 +82,22 @@ data:
         pipeline:
           - pluginRef: user-creation-plugin
           - pluginRef: formatter-plugin
+            dependsOn:
+              - user-creation-plugin
           - pluginRef: slack-notifier
+            dependsOn:
+              - formatter-plugin
           
       - name: set-permissions
         description: "Change permissions for a specific user on specified paths in GCP"
         pipeline:
           - pluginRef: permissions-plugin
           - pluginRef: formatter-plugin
+            dependsOn:
+              - permissions-plugin
           - pluginRef: slack-notifier
+            dependsOn:
+              - formatter-plugin
       
       - name: full-user-onboarding
         description: "Complete user onboarding process"
@@ -96,8 +105,15 @@ data:
         pipeline:
           - pluginRef: user-creation-plugin
           - pluginRef: permissions-plugin
+            dependsOn:
+              - user-creation-plugin
           - pluginRef: formatter-plugin
+            dependsOn:
+              - user-creation-plugin
+              - permissions-plugin
           - pluginRef: slack-notifier
+            dependsOn:
+              - formatter-plugin
 
 
       - name: health-status-no-format
@@ -113,7 +129,11 @@ data:
         pipeline:
           - pluginRef: health-check-plugin
           - pluginRef: formatter-plugin
+            dependsOn:
+              - health-check-plugin
           - pluginRef: slack-notifier
+            dependsOn:
+              - formatter-plugin
           
           
       - name: debug-test
@@ -128,9 +148,10 @@ data:
         customHandler: "Monitors Kubernetes pods and sends alerts via Slack"
         pipeline:
           - pluginRef: kube-health-plugin
-          - pluginRef: formatter-plugin
           - pluginRef: slack-notifier
-          
+            dependsOn:
+              - kube-health-plugin
+
       - name: full-monitoring
         description: "Complete monitoring of system and Kubernetes"
         customHandler: "Combines system health check and Kubernetes monitoring"
@@ -138,4 +159,11 @@ data:
           - pluginRef: health-check-plugin
           - pluginRef: kube-health-plugin
           - pluginRef: formatter-plugin
+            parallel: true
+            dependsOn:
+              - health-check-plugin
+              - kube-health-plugin
           - pluginRef: slack-notifier
+            parallel: true
+            dependsOn:
+              - formatter-plugin

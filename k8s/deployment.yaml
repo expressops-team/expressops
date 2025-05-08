@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: expressops
-        image: davidnull/expressops:1.0.0 
+        image: davidnull/expressops:1.1.0 
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -24,12 +24,23 @@ spec:
         envFrom:
         - configMapRef:
             name: expressops-env-config
-        - secretRef:
-            name: expressops-secrets
+        env:
+        - name: SLACK_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: expressops-slack-secret
+              key: SLACK_WEBHOOK_URL
         volumeMounts:
         - name: config-volume
           mountPath: /app/config.yaml
           subPath: config.yaml
+        resources:
+          limits:
+            cpu: 200m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
       volumes:
       - name: config-volume
         configMap:

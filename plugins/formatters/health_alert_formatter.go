@@ -30,6 +30,7 @@ type FormatterPlugin struct {
 	config     map[string]interface{}
 }
 
+// Initialize sets up the plugin
 func (f *FormatterPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	f.logger = logger
 	f.config = config
@@ -85,65 +86,93 @@ func (f *FormatterPlugin) formatSize(value uint64) string {
 	return fmt.Sprintf("%.2f GB", float64(value)/1024/1024/1024)
 }
 
+// Execute formats health data for display and notification
 func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
 	f.logger.Info("Formatting health check results")
 
-	input, ok := (*shared)["_input"].(map[string]interface{})
-	if !ok {
-		f.logger.Error("No valid _input received")
-		return "", fmt.Errorf("no valid _input received")
+	// Always start with a default message in case something fails
+	defaultMessage := "Health status check completed"
+	(*shared)["message"] = defaultMessage
+
+	// First check for direct messages to pass through
+	if msg, ok := (*shared)["message"].(string); ok && msg != "" && msg != defaultMessage {
+		f.logger.Info("Using existing message from previous plugin")
+		return msg, nil
 	}
 
+	// Check for Kubernetes health data
+	if kubeResults, ok := (*shared)["kube_health_results"].([]map[string]string); ok {
+		f.logger.Info("Processing Kubernetes health data")
+		return f.formatKubernetesHealth(kubeResults, shared)
+	}
+
+	// Check for previous result
+	if prev, ok := (*shared)["previous_result"]; ok {
+		f.logger.Info("Checking previous result")
+
+		// Handle pod data format (Kubernetes)
+		if podResults, ok := prev.([]map[string]string); ok {
+			f.logger.Info("Processing pod results from previous plugin")
+			return f.formatKubernetesHealth(podResults, shared)
+		}
+
+		// Handle general health data format (CPU, Mem, Disk from health-check-plugin)
+		if healthMap, ok := prev.(map[string]interface{}); ok {
+			f.logger.Info("Processing general health data from previous plugin result")
+			return f.formatHealthData(healthMap, shared)
+		}
+	}
+
+	// Fallback to a simple message if nothing else worked
+	message := "Health check completed successfully"
+	(*shared)["message"] = message
+	return message, nil
+}
+
+// formatHealthData formats general health check data
+func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared *map[string]any) (interface{}, error) {
 	// Simple log format (single line)
 	var logFormatted strings.Builder
 	logFormatted.WriteString("Health check: ")
 
 	// Rich format for alerts/display
 	var alertFormatted strings.Builder
-	// Clean output ;)
 	alertFormatted.WriteString("\n✨ Health Status Report ✨\n\n")
-
-	status, ok := input["health_status"].(map[string]string)
-	if !ok {
-		f.logger.Error("Result without health_status field")
-		return "", fmt.Errorf("health check result must contain a health_status field")
-	}
 
 	hasErrors := false
 
-	// Process health status checks
-	checksOK := true
-	alertFormatted.WriteString("🔍 Health Checks:\n")
-	for k, v := range status {
-		if v == "OK" {
-			alertFormatted.WriteString(fmt.Sprintf("  %s: ✅ OK\n", k))
-		} else {
-			checksOK = false
-			hasErrors = true
-			alertFormatted.WriteString(fmt.Sprintf("  %s: ❌ %s\n", k, v))
+	// Process health status checks if available
+	if status, ok := input["health_status"].(map[string]string); ok {
+		checksOK := true
+		alertFormatted.WriteString("🔍 Health Checks:\n")
+		for k, v := range status {
+			if v == "OK" {
+				alertFormatted.WriteString(fmt.Sprintf("  %s: ✅ OK\n", k))
+			} else {
+				checksOK = false
+				hasErrors = true
+				alertFormatted.WriteString(fmt.Sprintf("  %s: ❌ %s\n", k, v))
+			}
 		}
-	}
 
-	// Add checks status to log
-	if checksOK {
-		logFormatted.WriteString("Checks:OK ")
+		if checksOK {
+			logFormatted.WriteString("Checks:OK ")
+		} else {
+			logFormatted.WriteString("Checks:FAIL ")
+		}
+		alertFormatted.WriteString("\n")
 	} else {
-		logFormatted.WriteString("Checks:FAIL ")
+		alertFormatted.WriteString("🔍 Health Checks: No check data available\n\n")
 	}
-
-	alertFormatted.WriteString("\n")
 
 	// CPU info
 	if cpuInfo, ok := input["cpu"].(map[string]interface{}); ok {
 		alertFormatted.WriteString("🖥️  CPU Usage:\n")
 		if usage, ok := cpuInfo["usage_percent"].(float64); ok {
-			// Check thresholds for errors only
 			cpuThreshold := f.thresholds["cpu"]
 			if usage >= cpuThreshold.Critical || usage >= cpuThreshold.Warning {
 				hasErrors = true
 			}
-
-			// Simpler log format without status indicators
 			logFormatted.WriteString(fmt.Sprintf("CPU:%.1f%% ", usage))
 			alertFormatted.WriteString(fmt.Sprintf("  Usage: %s\n", f.formatPercentage(usage, "cpu", false)))
 		}
@@ -153,19 +182,14 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 	// Memory info
 	if memInfo, ok := input["memory"].(map[string]interface{}); ok {
 		alertFormatted.WriteString("🧠 Memory Usage:\n")
-
 		if usedPercent, ok := memInfo["used_percent"].(float64); ok {
-			// Check thresholds for errors only
 			memThreshold := f.thresholds["memory"]
 			if usedPercent >= memThreshold.Critical || usedPercent >= memThreshold.Warning {
 				hasErrors = true
 			}
-
-			// Simpler log format without status indicators
 			logFormatted.WriteString(fmt.Sprintf("Mem:%.1f%% ", usedPercent))
 			alertFormatted.WriteString(fmt.Sprintf("  Usage: %s\n", f.formatPercentage(usedPercent, "memory", false)))
 		}
-
 		if total, ok := memInfo["total"].(uint64); ok {
 			alertFormatted.WriteString(fmt.Sprintf("  Total: %s\n", f.formatSize(total)))
 		}
@@ -175,56 +199,41 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 		if free, ok := memInfo["free"].(uint64); ok {
 			alertFormatted.WriteString(fmt.Sprintf("  Free:  %s\n", f.formatSize(free)))
 		}
-
 		alertFormatted.WriteString("\n")
 	}
 
 	// Disk info
 	if diskInfo, ok := input["disk"].(map[string]interface{}); ok {
 		alertFormatted.WriteString("💽 Disk Usage:\n")
-
-		// Track most critical disk usage
 		maxDiskUsage := 0.0
 		var criticalMount string
-
 		for mount, usage := range diskInfo {
-			// Skip snap mounts to reduce spam
 			if strings.HasPrefix(mount, "/snap") {
 				continue
 			}
-
 			if u, ok := usage.(map[string]interface{}); ok {
 				alertFormatted.WriteString(fmt.Sprintf("  %s:\n", mount))
-
 				usedPercent, hasPercent := u["used_percent"].(float64)
 				if hasPercent {
-					// Check disk threshold
 					diskThreshold := f.thresholds["disk"]
-
-					// Find the most critical disk
 					if usedPercent > maxDiskUsage {
 						maxDiskUsage = usedPercent
 						criticalMount = mount
-
-						// Set error flag based on thresholds
 						if usedPercent >= diskThreshold.Critical || usedPercent >= diskThreshold.Warning {
 							hasErrors = true
 						}
 					}
-
-					// Format output for this disk
-					diskPercent := usedPercent
+					diskPercentVal := usedPercent
 					var diskLine string
-					if diskPercent >= diskThreshold.Critical {
-						diskLine = fmt.Sprintf("    Usage: %.2f%% 🔴 CRITICAL\n", diskPercent)
-					} else if diskPercent >= diskThreshold.Warning {
-						diskLine = fmt.Sprintf("    Usage: %.2f%% 🟠 WARNING\n", diskPercent)
+					if diskPercentVal >= diskThreshold.Critical {
+						diskLine = fmt.Sprintf("    Usage: %.2f%% 🔴 CRITICAL\n", diskPercentVal)
+					} else if diskPercentVal >= diskThreshold.Warning {
+						diskLine = fmt.Sprintf("    Usage: %.2f%% 🟠 WARNING\n", diskPercentVal)
 					} else {
-						diskLine = fmt.Sprintf("    Usage: %.2f%%\n", diskPercent)
+						diskLine = fmt.Sprintf("    Usage: %.2f%%\n", diskPercentVal)
 					}
 					alertFormatted.WriteString(diskLine)
 				}
-
 				if total, ok := u["total"].(uint64); ok {
 					alertFormatted.WriteString(fmt.Sprintf("    Total: %s\n", f.formatSize(total)))
 				}
@@ -233,15 +242,11 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 				}
 			}
 		}
-
-		// Add most critical disk to log line (without status)
 		if maxDiskUsage > 0 {
-			logFormatted.WriteString(fmt.Sprintf("Disk:%s:%.1f%% ",
-				criticalMount, maxDiskUsage))
+			logFormatted.WriteString(fmt.Sprintf("Disk:%s:%.1f%% ", criticalMount, maxDiskUsage))
 		}
 	}
 
-	// Summary
 	alertFormatted.WriteString("\n")
 	if hasErrors {
 		logFormatted.WriteString("Status:WARNING")
@@ -251,20 +256,80 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 		alertFormatted.WriteString("✅ All systems operational!\n")
 	}
 
-	// Log the simple one-line format
-	f.logger.Info(logFormatted.String())
+	message := alertFormatted.String()
+	(*shared)["message"] = message
 
-	// Store formatted output in shared context
-	(*shared)["formatted_output"] = alertFormatted.String()
-
-	return alertFormatted.String(), nil
-}
-
-func (f *FormatterPlugin) FormatResult(result interface{}) (string, error) {
-	if msg, ok := result.(string); ok {
-		return msg, nil
+	if hasErrors {
+		(*shared)["severity"] = "warning"
+	} else {
+		(*shared)["severity"] = "info"
 	}
-	return "", fmt.Errorf("unexpected result type: %T", result)
+
+	return message, nil
 }
 
+// formatKubernetesHealth formats Kubernetes health check results
+func (f *FormatterPlugin) formatKubernetesHealth(kubeResults []map[string]string, shared *map[string]any) (interface{}, error) {
+	var sb strings.Builder
+	hasIssues := false
+	totalPods := len(kubeResults)
+	problemPods := 0
+
+	sb.WriteString("\n🚢 Kubernetes Health Report 🚢\n\n")
+	sb.WriteString("Pod Status:\n")
+
+	// Count issues and format each pod
+	for _, pod := range kubeResults {
+		status := pod["status"]
+		emoji := pod["emoji"]
+		name := pod["name"]
+
+		if emoji != "✅" {
+			hasIssues = true
+			problemPods++
+		}
+
+		sb.WriteString(fmt.Sprintf("  %s: %s %s\n", name, status, emoji))
+	}
+
+	// Add summary
+	sb.WriteString("\nSummary:\n")
+	sb.WriteString(fmt.Sprintf("  Total pods: %d\n", totalPods))
+	sb.WriteString(fmt.Sprintf("  Healthy pods: %d\n", totalPods-problemPods))
+
+	if problemPods > 0 {
+		sb.WriteString(fmt.Sprintf("  Problem pods: %d 🔴\n", problemPods))
+		sb.WriteString("\n⚠️ Issues detected! Please check your Kubernetes cluster.\n")
+	} else {
+		sb.WriteString("\n✅ All pods are healthy!\n")
+	}
+
+	// Store in shared context for slack notification
+	message := sb.String()
+	(*shared)["message"] = message
+
+	// Make sure severity is set
+	if hasIssues {
+		(*shared)["severity"] = "warning"
+	} else {
+		(*shared)["severity"] = "info"
+	}
+
+	return message, nil
+}
+
+// FormatResult returns a simple string representation
+func (f *FormatterPlugin) FormatResult(result interface{}) (string, error) {
+	if result == nil {
+		return "No result to format", nil
+	}
+
+	if str, ok := result.(string); ok {
+		return str, nil
+	}
+
+	return fmt.Sprintf("%v", result), nil
+}
+
+// Export the plugin instance
 var PluginInstance pluginconf.Plugin = &FormatterPlugin{}

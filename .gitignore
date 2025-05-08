@@ -12,7 +12,10 @@ logs/*.log
 logs/*.zip
 
 # Kubernetes secrets
-# k8s/secrets.yaml DOES NOT EXIST, IT IS GENERATED FROM k8s/secrets/fake-secretstore.yaml
+k8s/secrets/fake-clustersecretstore.yaml  
+# Terraform
+terraform/*
+
 
 # Local environment files
 .env
@@ -23,3 +26,5 @@ logs/*.zip
 .vscode/
 *.swp
 *.swo
+# Google service account key
+key.json
