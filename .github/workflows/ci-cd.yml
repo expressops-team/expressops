@@ -44,14 +44,17 @@ jobs:
         with:
           install_components: 'gke-gcloud-auth-plugin'
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+      - name: Create Service Account key file
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > /tmp/sa-key.json
           
+      - name: Authenticate to Google Cloud
+        run: |
+          gcloud auth activate-service-account --key-file=/tmp/sa-key.json
+          gcloud config set project fc-it-school-2025
+            
       - name: Setup kubectl & Helm
         run: |
-          # Install kubectl and helm
           curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
@@ -60,19 +63,14 @@ jobs:
 
       - name: Start tunnel and deploy with Helm
         run: |
-          # Crear directorio para kubeconfig
           mkdir -p ~/.kube
           
-          # Start SSH tunnel in background
-          echo "Starting SSH tunnel to GKE cluster..."
           nohup gcloud compute ssh --zone "europe-west1-d" "it-school-2025-1" --tunnel-through-iap --project "fc-it-school-2025" --ssh-flag "-N -L 6443:127.0.0.1:6443" &
           TUNNEL_PID=$!
           echo "Tunnel process started with PID: $TUNNEL_PID"
           
-          # Wait for tunnel to establish
           sleep 10
           
-          # Crear kubeconfig básico para acceder a través del túnel
           cat > ~/.kube/config <<EOF
           apiVersion: v1
           kind: Config
@@ -92,10 +90,8 @@ jobs:
             user: {}
           EOF
           
-          # Verify we can connect
           kubectl get nodes || (echo "Failed to connect to cluster" && kill $TUNNEL_PID && exit 1)
           
-          # Deploy with Helm
           echo "Deploying with latest image tag: $LATEST_TAG"
           helm upgrade --install expressops ./helm \
             --namespace default \
@@ -103,5 +99,4 @@ jobs:
             --set image.tag=$LATEST_TAG \
             --create-namespace
             
-          # Kill tunnel
           kill $TUNNEL_PID 
