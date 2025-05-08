@@ -2,10 +2,10 @@ name: ExpressOps CI/CD
 
 on:
   push:
-    branches: [ rama_david, master ]
+    branches: [ master ]
     tags: [ 'v*' ]
   pull_request:
-    branches: [ rama_david, master ]
+    branches: [ master ]
 
 jobs:
   test:
@@ -23,20 +23,14 @@ jobs:
       - name: Test
         run: go test -v ./...
 
-  update-helm-chart:
-    name: Update Helm Chart
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/rama_david' || github.ref == 'refs/heads/master')
+  deploy:
+    name: Deploy to Kubernetes
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: test
     runs-on: ubuntu-latest
-    outputs:
-      image_tag: "1.1.5"
     steps:
-      - uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.PAT_TOKEN }}
-
-      - name: Install yq
-        run: sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Get latest Docker Hub tag
         id: get_latest_tag
@@ -44,40 +38,6 @@ jobs:
           LATEST_TAG=$(curl -s "https://hub.docker.com/v2/repositories/davidnull/expressops/tags/" | grep -o '"name":"[^"]*' | grep -v latest | sed 's/"name":"//' | head -1)
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
           echo "Latest tag found: $LATEST_TAG"
-
-      - name: Update Helm Chart version
-        run: |
-          # Update Chart.yaml
-          VERSION=$(grep 'version:' ./helm/Chart.yaml | awk '{print $2}')
-          MINOR_VERSION=$(echo $VERSION | cut -d. -f2)
-          NEW_MINOR=$((MINOR_VERSION + 1))
-          NEW_VERSION="0.$NEW_MINOR.0"
-          sed -i "s/version: $VERSION/version: $NEW_VERSION/" ./helm/Chart.yaml
-          sed -i "s/appVersion: \".*\"/appVersion: \"$LATEST_TAG\"/" ./helm/Chart.yaml
-          
-          # Update values.yaml
-          yq e ".image.tag = \"$LATEST_TAG\"" -i ./helm/values.yaml
-          
-          echo "Updated chart version to $NEW_VERSION and image tag to $LATEST_TAG"
-          cat ./helm/Chart.yaml
-          cat ./helm/values.yaml
-
-      - name: Commit and push changes
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add ./helm/Chart.yaml ./helm/values.yaml
-          git commit -m "ci: Update Helm chart to use latest Docker image $LATEST_TAG" || echo "No changes to commit"
-          git push
-
-  deploy:
-    name: Deploy to Kubernetes
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/rama_david' || github.ref == 'refs/heads/master')
-    needs: update-helm-chart
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
 
       - name: Authenticate to Google Cloud
         uses: 'google-github-actions/auth@v2'
@@ -98,8 +58,9 @@ jobs:
 
       - name: Deploy with Helm
         run: |
-          echo "Deploying with image tag: ${{ needs.update-helm-chart.outputs.image_tag }}"
+          echo "Deploying with latest image tag: $LATEST_TAG"
           helm upgrade --install expressops ./helm \
             --namespace default \
             -f ./helm/values.yaml \
+            --set image.tag=$LATEST_TAG \
             --create-namespace 
