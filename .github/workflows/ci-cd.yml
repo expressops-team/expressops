@@ -37,40 +37,70 @@ jobs:
         run: |
           LATEST_TAG=$(curl -s "https://hub.docker.com/v2/repositories/davidnull/expressops/tags/" | grep -o '"name":"[^"]*' | grep -v latest | sed 's/"name":"//' | head -1)
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
-          echo "Latest tag found: $LATEST_TAG"
 
-      - id: 'auth'
-        name: 'Authenticate to Google Cloud'
-        uses: 'google-github-actions/auth@v1'
+      - name: Setup gcloud CLI
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          install_components: 'gke-gcloud-auth-plugin'
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
+          
+      - name: Authenticate with GCP
+        uses: google-github-actions/auth@v1
         with:
           credentials_json: '${{ secrets.GCP_SA_KEY }}'
-          project_id: 'fc-it-school-2025'
-      
-
-      - name: 'Set up Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v1'
-      
-
-      - name: 'Get GKE credentials'
-        run: |
-          gcloud container clusters get-credentials default --zone europe-west1-d --project fc-it-school-2025
-          kubectl cluster-info
 
       - name: Setup kubectl & Helm
         run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
           curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-          
-      - name: Verify cluster connection
+
+      - name: Create kubeconfig for SSH tunnel
         run: |
+          mkdir -p ~/.kube
+          cat <<EOF > ~/.kube/config
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - cluster:
+              server: https://localhost:6443
+              insecure-skip-tls-verify: true
+            name: k8s-cluster
+          contexts:
+          - context:
+              cluster: k8s-cluster
+              user: kubernetes-admin
+            name: k8s-context
+          current-context: k8s-context
+          users:
+          - name: kubernetes-admin
+            user:
+              client-certificate-data: ${{ secrets.K8S_CLIENT_CERT }}
+              client-key-data: ${{ secrets.K8S_CLIENT_KEY }}
+          EOF
+          chmod 600 ~/.kube/config
+
+      - name: Start SSH tunnel and deploy
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+            -N -L 6443:127.0.0.1:6443 \
+            -p 22 \
+            USERNAME@IP_DEL_SERVIDOR \
+            -o "UserKnownHostsFile=/dev/null" &
+          SSH_PID=$!
+          sleep 10
           kubectl cluster-info
           kubectl get nodes
-      
-      - name: Deploy with Helm
-        run: |
-          echo "Deploying with latest image tag: $LATEST_TAG"
           helm upgrade --install expressops ./helm \
             --namespace default \
             -f ./helm/values.yaml \
             --set image.tag=$LATEST_TAG \
-            --create-namespace 
-            
+            --create-namespace
+          kill $SSH_PID
