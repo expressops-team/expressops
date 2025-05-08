@@ -39,30 +39,69 @@ jobs:
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
           echo "Latest tag found: $LATEST_TAG"
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v1
         with:
-          version: 'latest'
+          install_components: 'gke-gcloud-auth-plugin'
 
-      - name: Configure kubeconfig
-        run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
           
-          # Verificar conexión al cluster
-          kubectl get nodes
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v3
-        with:
-          version: 'v3.x'
-
-      - name: Deploy with Helm
+      - name: Setup kubectl & Helm
         run: |
+          # Install kubectl and helm
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Start tunnel and deploy with Helm
+        run: |
+          # Crear directorio para kubeconfig
+          mkdir -p ~/.kube
+          
+          # Start SSH tunnel in background
+          echo "Starting SSH tunnel to GKE cluster..."
+          nohup gcloud compute ssh --zone "europe-west1-d" "it-school-2025-1" --tunnel-through-iap --project "fc-it-school-2025" --ssh-flag "-N -L 6443:127.0.0.1:6443" &
+          TUNNEL_PID=$!
+          echo "Tunnel process started with PID: $TUNNEL_PID"
+          
+          # Wait for tunnel to establish
+          sleep 10
+          
+          # Crear kubeconfig básico para acceder a través del túnel
+          cat > ~/.kube/config <<EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: k3s-cluster
+            cluster:
+              server: https://localhost:6443
+              insecure-skip-tls-verify: true
+          contexts:
+          - name: k3s
+            context:
+              cluster: k3s-cluster
+              user: admin
+          current-context: k3s
+          users:
+          - name: admin
+            user: {}
+          EOF
+          
+          # Verify we can connect
+          kubectl get nodes || (echo "Failed to connect to cluster" && kill $TUNNEL_PID && exit 1)
+          
+          # Deploy with Helm
           echo "Deploying with latest image tag: $LATEST_TAG"
           helm upgrade --install expressops ./helm \
             --namespace default \
             -f ./helm/values.yaml \
             --set image.tag=$LATEST_TAG \
-            --create-namespace 
+            --create-namespace
+            
+          # Kill tunnel
+          kill $TUNNEL_PID 
