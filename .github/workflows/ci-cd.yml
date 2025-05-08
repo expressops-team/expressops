@@ -53,7 +53,7 @@ jobs:
 
       - name: 'Get GKE credentials'
         run: |
-          gcloud container clusters get-credentials YOUR_CLUSTER_NAME --zone YOUR_ZONE --project fc-it-school-2025
+          gcloud container clusters get-credentials default --zone europe-west1-d --project fc-it-school-2025
           kubectl cluster-info
 
       - name: Setup kubectl & Helm
