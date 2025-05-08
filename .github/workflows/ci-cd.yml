@@ -39,17 +39,56 @@ jobs:
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
           echo "Latest tag found: $LATEST_TAG"
 
-      - name: Authenticate to Google Cloud
-        uses: 'google-github-actions/auth@v2'
-        with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+      - name: Install gcloud CLI
+        uses: google-github-actions/setup-gcloud@v1
 
-      - name: Set up GKE credentials
-        uses: 'google-github-actions/get-gke-credentials@v2'
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
         with:
-          cluster_name: '${{ secrets.GKE_CLUSTER_NAME }}'
-          location: '${{ secrets.GKE_CLUSTER_ZONE }}'
-          project_id: '${{ secrets.GCP_PROJECT_ID }}'
+          version: 'latest'
+
+      - name: Create kubeconfig directory
+        run: mkdir -p $HOME/.kube
+
+      - name: Create kubeconfig
+        run: |
+          cat << EOF > $HOME/.kube/config
+          apiVersion: v1
+          clusters:
+          - cluster:
+              server: https://localhost:6443
+              insecure-skip-tls-verify: true
+            name: it-school-2025-cluster
+          contexts:
+          - context:
+              cluster: it-school-2025-cluster
+              user: admin
+            name: it-school-2025-context
+          current-context: it-school-2025-context
+          kind: Config
+          preferences: {}
+          users:
+          - name: admin
+            user:
+              client-key-data: ${{ secrets.K8S_CLIENT_KEY }}
+              client-certificate-data: ${{ secrets.K8S_CLIENT_CERT }}
+          EOF
+          chmod 600 $HOME/.kube/config
+
+      - name: Start SSH tunnel in background
+        run: |
+          gcloud auth activate-service-account --key-file=<(echo '${{ secrets.GCP_SA_KEY }}')
+          nohup gcloud compute ssh --zone "europe-west1-d" "it-school-2025-1" --tunnel-through-iap --project "fc-it-school-2025" --ssh-flag "-N -L 6443:127.0.0.1:6443" &
+          echo "SSH tunnel PID: $!" >> $GITHUB_ENV
+          sleep 5
+          kubectl cluster-info
 
       - name: Set up Helm
         uses: azure/setup-helm@v3
@@ -63,4 +102,12 @@ jobs:
             --namespace default \
             -f ./helm/values.yaml \
             --set image.tag=$LATEST_TAG \
-            --create-namespace 
+            --create-namespace
+
+      - name: Close SSH tunnel
+        if: always()
+        run: |
+          if [[ -n "${SSH_TUNNEL_PID}" ]]; then
+            kill ${SSH_TUNNEL_PID} || true
+          fi 
+
