@@ -13,7 +13,7 @@ IMAGE_REPOSITORY ?= davidnull/expressops
 IMAGE_TAG ?= 1.1.5
 PLUGINS_PATH ?= plugins
 CONTAINER_NAME ?= expressops-app
-HOST_PORT ?= 8080
+HOST_PORT ?= 8081
 SERVER_PORT ?= 8080
 SERVER_ADDRESS ?= 0.0.0.0
 TIMEOUT_SECONDS ?= 4
@@ -30,7 +30,7 @@ KUBECONFIG ?= ~/.kube/config
 PROMETHEUS_NAMESPACE ?= monitoring # Namespace for Grafana. Assumes your existing Prometheus (prometheus-kube-prometheus-prometheus) is also in this namespace.
 GRAFANA_RELEASE ?= david-grafana
 GRAFANA_CHART_VERSION ?= 8.15.0
-GRAFANA_PORT ?= 3001 # Default Grafana port for port-forwarding
+GRAFANA_PORT ?= 3000
 
 # Include other makefiles
 include makefiles/docker.mk
