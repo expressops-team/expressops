@@ -64,7 +64,6 @@ func (f *FormatterPlugin) Initialize(ctx context.Context, config map[string]inte
 	return nil
 }
 
-//nolint:unused
 func (f *FormatterPlugin) formatPercentage(value float64, metricType string, forLog bool) string {
 	threshold, exists := f.thresholds[metricType]
 	if !exists {
@@ -83,7 +82,6 @@ func (f *FormatterPlugin) formatPercentage(value float64, metricType string, for
 	return fmt.Sprintf("%.2f%%", value)
 }
 
-//nolint:unused
 func (f *FormatterPlugin) formatSize(value uint64) string {
 	return fmt.Sprintf("%.2f GB", float64(value)/1024/1024/1024)
 }
@@ -132,8 +130,6 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 }
 
 // formatHealthData formats general health check data
-//
-//nolint:unused
 func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared *map[string]any) (interface{}, error) {
 	// Simple log format (single line)
 	var logFormatted strings.Builder

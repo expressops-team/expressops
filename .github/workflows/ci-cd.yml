@@ -23,61 +23,13 @@ jobs:
       - name: Test
         run: go test -v ./...
 
-  build:
-    name: Build
-    needs: test
-    runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.meta.outputs.version }}
-      image_name: davidnull/expressops
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      
-      - name: Login to DockerHub
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
-      - name: Extract metadata and determine primary tag
-        id: meta
-        uses: docker/metadata-action@v4
-        with:
-          images: davidnull/expressops
-          tags: |
-            type=schedule
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=short
-      
-      - name: Build and push
-        id: build-push
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
   update-helm-chart:
     name: Update Helm Chart
     if: github.event_name == 'push' && (github.ref == 'refs/heads/rama_david' || github.ref == 'refs/heads/master')
-    needs: build
+    needs: test
     runs-on: ubuntu-latest
     outputs:
-      new_image_tag: ${{ needs.build.outputs.image_tag }}
+      image_tag: "1.1.5"
     steps:
       - uses: actions/checkout@v3
         with:
@@ -86,25 +38,42 @@ jobs:
       - name: Install yq
         run: sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
 
-      - name: Update image tag in values.yaml
+      - name: Get latest Docker Hub tag
+        id: get_latest_tag
         run: |
-          IMAGE_TAG=${{ needs.build.outputs.image_tag }}
-          echo "Using image tag: $IMAGE_TAG"
-          yq e ".image.tag = \\"$IMAGE_TAG\\"" -i ./helm/values.yaml
+          LATEST_TAG=$(curl -s "https://hub.docker.com/v2/repositories/davidnull/expressops/tags/" | grep -o '"name":"[^"]*' | grep -v latest | sed 's/"name":"//' | head -1)
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+          echo "Latest tag found: $LATEST_TAG"
+
+      - name: Update Helm Chart version
+        run: |
+          # Update Chart.yaml
+          VERSION=$(grep 'version:' ./helm/Chart.yaml | awk '{print $2}')
+          MINOR_VERSION=$(echo $VERSION | cut -d. -f2)
+          NEW_MINOR=$((MINOR_VERSION + 1))
+          NEW_VERSION="0.$NEW_MINOR.0"
+          sed -i "s/version: $VERSION/version: $NEW_VERSION/" ./helm/Chart.yaml
+          sed -i "s/appVersion: \".*\"/appVersion: \"$LATEST_TAG\"/" ./helm/Chart.yaml
+          
+          # Update values.yaml
+          yq e ".image.tag = \"$LATEST_TAG\"" -i ./helm/values.yaml
+          
+          echo "Updated chart version to $NEW_VERSION and image tag to $LATEST_TAG"
+          cat ./helm/Chart.yaml
           cat ./helm/values.yaml
 
       - name: Commit and push changes
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add ./helm/values.yaml
-          git commit -m "ci: Update image tag to ${{ needs.build.outputs.image_tag }} in Helm chart" || echo "No changes to commit"
+          git add ./helm/Chart.yaml ./helm/values.yaml
+          git commit -m "ci: Update Helm chart to use latest Docker image $LATEST_TAG" || echo "No changes to commit"
           git push
 
   deploy:
     name: Deploy to Kubernetes
     if: github.event_name == 'push' && (github.ref == 'refs/heads/rama_david' || github.ref == 'refs/heads/master')
-    needs: [build, update-helm-chart]
+    needs: update-helm-chart
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -129,9 +98,8 @@ jobs:
 
       - name: Deploy with Helm
         run: |
-          echo "Deploying with image tag: ${{ needs.update-helm-chart.outputs.new_image_tag }}"
+          echo "Deploying with image tag: ${{ needs.update-helm-chart.outputs.image_tag }}"
           helm upgrade --install expressops ./helm \
             --namespace default \
             -f ./helm/values.yaml \
-            --set image.tag=${{ needs.update-helm-chart.outputs.new_image_tag }} \
             --create-namespace 

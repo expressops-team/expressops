@@ -17,16 +17,15 @@ COPY . .
 RUN find plugins -name "*.so" -delete
 
 # Build plugins
-RUN mkdir -p plugins && \
-    CGO_ENABLED=1 go build -ldflags="-s -w" -buildmode=plugin -o plugins/slack/slack.so plugins/slack/slack.go && \
-    CGO_ENABLED=1 go build -ldflags="-s -w" -buildmode=plugin -o plugins/healthcheck/health_check.so plugins/healthcheck/health_check.go && \
-    CGO_ENABLED=1 go build -ldflags="-s -w" -buildmode=plugin -o plugins/formatters/health_alert_formatter.so plugins/formatters/health_alert_formatter.go && \
-    CGO_ENABLED=1 go build -ldflags="-s -w" -buildmode=plugin -o plugins/testprint/testprint.so plugins/testprint/testprint.go && \
-    CGO_ENABLED=1 go build -ldflags="-s -w" -buildmode=plugin -o plugins/flowlister/flow_lister.so plugins/flowlister/flow_lister.go && \
-    CGO_ENABLED=1 go build -ldflags="-s -w" -buildmode=plugin -o plugins/sleep/sleep_plugin.so plugins/sleep/sleep_plugin.go && \
-    CGO_ENABLED=1 go build -ldflags="-s -w" -buildmode=plugin -o plugins/usercreation/user_creation.so plugins/usercreation/user_creation.go && \
-    CGO_ENABLED=1 go build -ldflags="-s -w" -buildmode=plugin -o plugins/permissions/permissions.so plugins/permissions/permissions.go && \
-    CGO_ENABLED=1 go build -ldflags="-s -w" -buildmode=plugin -o plugins/opensearch/opensearch_logger.so plugins/opensearch/opensearch_logger.go
+RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u); do \
+      for gofile in $dir/*.go; do \
+        if [ -f "$gofile" ]; then \
+          plugin_name=$(basename "$gofile" .go); \
+          echo "Building plugin $plugin_name.so from $gofile"; \
+          CGO_ENABLED=1 go build -ldflags="-s -w" -buildmode=plugin -o "$dir/$plugin_name.so" "$gofile" || exit 1; \
+        fi \
+      done \
+    done
 
 # Build main app with optimizations
 RUN go build -ldflags="-s -w" -o expressops ./cmd
