@@ -2,7 +2,7 @@
 FROM golang:1.24.2-alpine3.21 AS builder
 
 # Install build dependencies
-RUN apk add --no-cache git build-base ca-certificates
+RUN apk add --no-cache git build-base ca-certificates gcc musl-dev
 
 WORKDIR /build
 
