@@ -29,5 +29,3 @@ for i in $(seq 1 $REQUESTS); do
   
   sleep $DELAY
 done
-
-echo "Tráfico generado. Verifica tus métricas en Prometheus/Grafana." 
