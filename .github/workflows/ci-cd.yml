@@ -24,7 +24,7 @@ jobs:
         run: go test -v ./...
 
   deploy:
-    name: Deploy to Kubernetes
+    name: Deploy to Kubernetes on VM
     if: github.event_name == 'push' && github.ref == 'refs/heads/puesta_en_conjunto'
     needs: test
     runs-on: ubuntu-latest
@@ -36,41 +36,68 @@ jobs:
         id: get_latest_tag
         run: |
           LATEST_TAG=$(curl -s "https://hub.docker.com/v2/repositories/davidnull/expressops/tags/" | grep -o '"name":"[^"]*' | grep -v latest | sed 's/"name":"//' | head -1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "Error: Couldn't get the latest tag from Docker Hub."
+            exit 1
+          fi
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
-          echo "Latest tag found: $LATEST_TAG"
+          echo "Latest tag: $LATEST_TAG"
 
-      - id: 'auth'
-        name: 'Authenticate to Google Cloud'
-        uses: 'google-github-actions/auth@v1'
-        with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
-          project_id: 'fc-it-school-2025'
-      
-
-      - name: 'Set up Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v1'
-      
-
-      - name: 'Get GKE credentials'
+      - name: Prepare service account key
         run: |
-          gcloud container clusters get-credentials YOUR_CLUSTER_NAME --zone YOUR_ZONE --project fc-it-school-2025
-          kubectl cluster-info
-
-      - name: Setup kubectl & Helm
+          mkdir -p ./credentials
+          echo '${{ secrets.GCP_SA_KEY }}' > ./credentials/key.json
+          chmod 600 ./credentials/key.json
+        
+      - name: Package Helm Chart
         run: |
-          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-          
-      - name: Verify cluster connection
+          tar -czf expressops-chart.tar.gz ./helm
+        
+      - name: Deploy using gcloud SSH within Docker
+        env:
+          GCP_PROJECT_ID: fc-it-school-2025
+          GCP_ZONE: europe-west1-d
+          GCP_VM_INSTANCE_NAME: it-school-2025-1
+          REMOTE_CHART_PATH: /tmp/expressops-chart.tar.gz
+          REMOTE_EXTRACT_PATH: /tmp/expressops-helm-chart
         run: |
-          kubectl cluster-info
-          kubectl get nodes
-      
-      - name: Deploy with Helm
-        run: |
-          echo "Deploying with latest image tag: $LATEST_TAG"
-          helm upgrade --install expressops ./helm \
-            --namespace default \
-            -f ./helm/values.yaml \
-            --set image.tag=$LATEST_TAG \
-            --create-namespace 
-            
+          docker run --rm \
+            -v $(pwd)/credentials:/gcp-key:ro \
+            -v $(pwd)/expressops-chart.tar.gz:/workspace/expressops-chart.tar.gz:ro \
+            -e GOOGLE_APPLICATION_CREDENTIALS=/gcp-key/key.json \
+            -e GCP_PROJECT_ID=$GCP_PROJECT_ID \
+            -e GCP_ZONE=$GCP_ZONE \
+            -e GCP_VM_INSTANCE_NAME=$GCP_VM_INSTANCE_NAME \
+            -e REMOTE_CHART_PATH=$REMOTE_CHART_PATH \
+            -e REMOTE_EXTRACT_PATH=$REMOTE_EXTRACT_PATH \
+            -e LATEST_TAG=${{ env.LATEST_TAG }} \
+            -w /workspace \
+            google/cloud-sdk:alpine bash -c '
+              set -e
+              gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+              gcloud config set project $GCP_PROJECT_ID
+              sleep 15
+              gcloud compute scp --zone "$GCP_ZONE" \
+                /workspace/expressops-chart.tar.gz "$GCP_VM_INSTANCE_NAME:$REMOTE_CHART_PATH" \
+                --tunnel-through-iap \
+                --project "$GCP_PROJECT_ID"
+              gcloud compute ssh "$GCP_VM_INSTANCE_NAME" --zone "$GCP_ZONE" \
+                --tunnel-through-iap \
+                --project "$GCP_PROJECT_ID" \
+                --command "
+                  set -e
+                  if ! command -v helm &> /dev/null; then
+                    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+                  fi
+                  mkdir -p $REMOTE_EXTRACT_PATH
+                  tar -xzf $REMOTE_CHART_PATH -C $REMOTE_EXTRACT_PATH
+                  helm upgrade --install expressops $REMOTE_EXTRACT_PATH/helm \
+                    --namespace default \
+                    -f $REMOTE_EXTRACT_PATH/helm/values.yaml \
+                    --set image.tag=${LATEST_TAG} \
+                    --create-namespace \
+                    --debug
+                  rm -f $REMOTE_CHART_PATH
+                  rm -rf $REMOTE_EXTRACT_PATH
+                "
+            '
