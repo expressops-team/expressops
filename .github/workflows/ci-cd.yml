@@ -84,6 +84,9 @@ jobs:
               gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
               echo "Configurando proyecto GCP: $GCP_PROJECT_ID..."
               gcloud config set project $GCP_PROJECT_ID
+
+              echo "Esperando 15 segundos por tema persomisos"
+              sleep 15
               
               echo "Copiando chart de Helm a la VM ($GCP_VM_INSTANCE_NAME)..."
               gcloud compute scp --zone "$GCP_ZONE" \
