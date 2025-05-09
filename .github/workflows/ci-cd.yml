@@ -24,7 +24,7 @@ jobs:
         run: go test -v ./...
 
   deploy:
-    name: Deploy to Kubernetes
+    name: Deploy to Kubernetes on VM
     if: github.event_name == 'push' && github.ref == 'refs/heads/puesta_en_conjunto'
     needs: test
     runs-on: ubuntu-latest
@@ -36,54 +36,92 @@ jobs:
         id: get_latest_tag
         run: |
           LATEST_TAG=$(curl -s "https://hub.docker.com/v2/repositories/davidnull/expressops/tags/" | grep -o '"name":"[^"]*' | grep -v latest | sed 's/"name":"//' | head -1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "Error: No se pudo obtener la última etiqueta de Docker Hub."
+            exit 1
+          fi
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+          echo "Última etiqueta de Docker Hub obtenida: $LATEST_TAG"
 
       - name: Prepare service account key
         run: |
           mkdir -p ./credentials
           echo '${{ secrets.GCP_SA_KEY }}' > ./credentials/key.json
           chmod 600 ./credentials/key.json
+          echo "Archivo key.json preparado."
+          # Para depuración, verifica que el JSON es válido (opcional, puede exponer parte de la clave en logs)
+          # gcloud auth activate-service-account --key-file=./credentials/key.json --project=fc-it-school-2025 || echo "Error al validar key.json con gcloud auth"
         
-      # Empaquetar y copiar el chart de Helm a la VM remota
       - name: Package Helm Chart
         run: |
           tar -czf expressops-chart.tar.gz ./helm
+          echo "Chart de Helm empaquetado en expressops-chart.tar.gz"
         
-      - name: Deploy using gcloud SSH
+      - name: Deploy using gcloud SSH within Docker
+        env:
+          GCP_PROJECT_ID: fc-it-school-2025
+          GCP_ZONE: europe-west1-d
+          GCP_VM_INSTANCE_NAME: it-school-2025-1 # Nombre de tu VM
+          REMOTE_CHART_PATH: /tmp/expressops-chart.tar.gz
+          REMOTE_EXTRACT_PATH: /tmp/expressops-helm-chart
         run: |
+          echo "Iniciando despliegue en la VM usando contenedor Docker..."
           docker run --rm \
-            -v $(pwd):/workspace \
-            -v $(pwd)/credentials:/gcp-key \
+            -v $(pwd)/credentials:/gcp-key:ro \
+            -v $(pwd)/expressops-chart.tar.gz:/workspace/expressops-chart.tar.gz:ro \
             -e GOOGLE_APPLICATION_CREDENTIALS=/gcp-key/key.json \
             -w /workspace \
-            google/cloud-sdk:latest bash -c '
-              # Autenticarse con GCP
-              gcloud auth activate-service-account --key-file=/gcp-key/key.json
-              gcloud config set project fc-it-school-2025
+            google/cloud-sdk:alpine bash -c '
+              set -e # Salir inmediatamente si un comando falla
+
+              echo "Activando cuenta de servicio..."
+              gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+              echo "Configurando proyecto GCP: $GCP_PROJECT_ID..."
+              gcloud config set project $GCP_PROJECT_ID
               
-              # Copiar el chart empaquetado a la VM
-              gcloud compute scp --zone "europe-west1-d" \
-                expressops-chart.tar.gz it-school-2025-1:/tmp/ \
+              echo "Copiando chart de Helm a la VM ($GCP_VM_INSTANCE_NAME)..."
+              gcloud compute scp --zone "$GCP_ZONE" \
+                /workspace/expressops-chart.tar.gz "$GCP_VM_INSTANCE_NAME:$REMOTE_CHART_PATH" \
                 --tunnel-through-iap \
-                --project "fc-it-school-2025"
+                --project "$GCP_PROJECT_ID"
               
-              # Ejecutar comando Helm directamente en la VM remota
-              gcloud compute ssh it-school-2025-1 --zone "europe-west1-d" \
+              echo "Ejecutando comandos de Helm en la VM..."
+              gcloud compute ssh "$GCP_VM_INSTANCE_NAME" --zone "$GCP_ZONE" \
                 --tunnel-through-iap \
-                --project "fc-it-school-2025" \
+                --project "$GCP_PROJECT_ID" \
                 --command "
-                  # Desempaquetar el chart
-                  mkdir -p /tmp/expressops-chart
-                  tar -xzf /tmp/expressops-chart.tar.gz -C /tmp/expressops-chart
+                  set -e # Salir inmediatamente si un comando falla dentro de la VM
+                  echo \"Conectado a la VM: $GCP_VM_INSTANCE_NAME\"
+
+                  # Instalar Helm si no existe (o actualizar)
+                  echo \"Verificando/Instalando Helm en la VM...\"
+                  if ! command -v helm &> /dev/null; then
+                    echo \"Helm no encontrado, instalando...\"
+                    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+                  else
+                    echo \"Helm ya está instalado.\"
+                  fi
                   
-                  # Ejecutar Helm desde dentro de la VM
-                  helm upgrade --install expressops /tmp/expressops-chart/helm \
+                  echo \"Creando directorio para el chart: $REMOTE_EXTRACT_PATH...\"
+                  mkdir -p $REMOTE_EXTRACT_PATH
+                  
+                  echo \"Desempaquetando chart en $REMOTE_EXTRACT_PATH...\"
+                  tar -xzf $REMOTE_CHART_PATH -C $REMOTE_EXTRACT_PATH
+                  
+                  echo \"Ejecutando helm upgrade para la imagen tag: ${{ env.LATEST_TAG }}...\"
+                  helm upgrade --install expressops $REMOTE_EXTRACT_PATH/helm \
                     --namespace default \
-                    -f /tmp/expressops-chart/helm/values.yaml \
+                    -f $REMOTE_EXTRACT_PATH/helm/values.yaml \
                     --set image.tag=${{ env.LATEST_TAG }} \
-                    --create-namespace
+                    --create-namespace \
+                    --debug # Añadido para más logs de Helm
                   
-                  # Limpiar
-                  rm -rf /tmp/expressops-chart.tar.gz /tmp/expressops-chart
+                  echo \"Limpiando archivos temporales en la VM...\"
+                  rm -f $REMOTE_CHART_PATH
+                  rm -rf $REMOTE_EXTRACT_PATH
+                  
+                  echo \"¡Helm upgrade completado con éxito en la VM! :marca_de_verificación_blanca:\"
                 "
+              echo "Comandos en la VM ejecutados."
             '
+          echo "Proceso de despliegue en Docker finalizado. ¡Todo OK! :marca_de_verificación_blanca:"
