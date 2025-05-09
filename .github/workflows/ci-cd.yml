@@ -70,6 +70,12 @@ jobs:
             -v $(pwd)/credentials:/gcp-key:ro \
             -v $(pwd)/expressops-chart.tar.gz:/workspace/expressops-chart.tar.gz:ro \
             -e GOOGLE_APPLICATION_CREDENTIALS=/gcp-key/key.json \
+            -e GCP_PROJECT_ID=$GCP_PROJECT_ID \
+            -e GCP_ZONE=$GCP_ZONE \
+            -e GCP_VM_INSTANCE_NAME=$GCP_VM_INSTANCE_NAME \
+            -e REMOTE_CHART_PATH=$REMOTE_CHART_PATH \
+            -e REMOTE_EXTRACT_PATH=$REMOTE_EXTRACT_PATH \
+            -e LATEST_TAG=${{ env.LATEST_TAG }} \
             -w /workspace \
             google/cloud-sdk:alpine bash -c '
               set -e # Salir inmediatamente si un comando falla
@@ -108,11 +114,11 @@ jobs:
                   echo \"Desempaquetando chart en $REMOTE_EXTRACT_PATH...\"
                   tar -xzf $REMOTE_CHART_PATH -C $REMOTE_EXTRACT_PATH
                   
-                  echo \"Ejecutando helm upgrade para la imagen tag: ${{ env.LATEST_TAG }}...\"
+                  echo \"Ejecutando helm upgrade para la imagen tag: ${LATEST_TAG}...\"
                   helm upgrade --install expressops $REMOTE_EXTRACT_PATH/helm \
                     --namespace default \
                     -f $REMOTE_EXTRACT_PATH/helm/values.yaml \
-                    --set image.tag=${{ env.LATEST_TAG }} \
+                    --set image.tag=${LATEST_TAG} \
                     --create-namespace \
                     --debug # Añadido para más logs de Helm
                   
