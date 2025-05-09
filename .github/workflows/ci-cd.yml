@@ -38,68 +38,36 @@ jobs:
           LATEST_TAG=$(curl -s "https://hub.docker.com/v2/repositories/davidnull/expressops/tags/" | grep -o '"name":"[^"]*' | grep -v latest | sed 's/"name":"//' | head -1)
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
-      - name: Prepare credentials
+      - name: Prepare service account key
         run: |
           mkdir -p ./credentials
-          echo "${{ secrets.GCP_SA_KEY }}" > ./credentials/key.json
+          echo '${{ secrets.GCP_SA_KEY }}' > ./credentials/key.json
           chmod 600 ./credentials/key.json
-
+          cat ./credentials/key.json
+        
       - name: Deploy with Docker container
         run: |
           docker run --rm \
             -v $(pwd):/workspace \
-            -v $(pwd)/credentials:/root/.config/gcloud \
+            -v $(pwd)/credentials:/gcp-key \
+            -e GOOGLE_APPLICATION_CREDENTIALS=/gcp-key/key.json \
             -w /workspace \
             google/cloud-sdk:latest bash -c '
-              export GOOGLE_APPLICATION_CREDENTIALS=/root/.config/gcloud/key.json
-              gcloud auth activate-service-account --key-file=/root/.config/gcloud/key.json
+              cat /gcp-key/key.json
+              gcloud auth activate-service-account --key-file=/gcp-key/key.json
               gcloud config set project fc-it-school-2025
-              
               apt-get update && apt-get install -y curl
               curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
               chmod +x kubectl && mv kubectl /usr/local/bin/
               curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-              
               mkdir -p ~/.kube
-              
-              gcloud compute ssh --zone "europe-west1-d" "it-school-2025-1" \
-                --tunnel-through-iap \
-                --project "fc-it-school-2025" \
-                --ssh-flag="-N -L 6443:127.0.0.1:6443" &
-              SSH_PID=$!
-              
-              sleep 10
-              
-              cat <<EOF > ~/.kube/config
-              apiVersion: v1
-              kind: Config
-              clusters:
-              - cluster:
-                  server: https://localhost:6443
-                  insecure-skip-tls-verify: true
-                name: k8s-cluster
-              contexts:
-              - context:
-                  cluster: k8s-cluster
-                  user: kubernetes-admin
-                name: k8s-context
-              current-context: k8s-context
-              users:
-              - name: kubernetes-admin
-                user:
-                  client-certificate-data: ${{ secrets.K8S_CLIENT_CERT }}
-                  client-key-data: ${{ secrets.K8S_CLIENT_KEY }}
-              EOF
+              echo '"'"'${{ secrets.KUBECONFIG }}'"'"' > ~/.kube/config
               chmod 600 ~/.kube/config
-              
               kubectl cluster-info
               kubectl get nodes
-              
               helm upgrade --install expressops ./helm \
                 --namespace default \
                 -f ./helm/values.yaml \
                 --set image.tag=${{ env.LATEST_TAG }} \
                 --create-namespace
-              
-              kill $SSH_PID || true
             '
