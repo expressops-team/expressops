@@ -43,9 +43,13 @@ jobs:
           mkdir -p ./credentials
           echo '${{ secrets.GCP_SA_KEY }}' > ./credentials/key.json
           chmod 600 ./credentials/key.json
-          cat ./credentials/key.json
         
-      - name: Deploy with Docker container
+      # Empaquetar y copiar el chart de Helm a la VM remota
+      - name: Package Helm Chart
+        run: |
+          tar -czf expressops-chart.tar.gz ./helm
+        
+      - name: Deploy using gcloud SSH
         run: |
           docker run --rm \
             -v $(pwd):/workspace \
@@ -53,21 +57,33 @@ jobs:
             -e GOOGLE_APPLICATION_CREDENTIALS=/gcp-key/key.json \
             -w /workspace \
             google/cloud-sdk:latest bash -c '
-              cat /gcp-key/key.json
+              # Autenticarse con GCP
               gcloud auth activate-service-account --key-file=/gcp-key/key.json
               gcloud config set project fc-it-school-2025
-              apt-get update && apt-get install -y curl
-              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-              chmod +x kubectl && mv kubectl /usr/local/bin/
-              curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-              mkdir -p ~/.kube
-              echo '"'"'${{ secrets.KUBECONFIG }}'"'"' > ~/.kube/config
-              chmod 600 ~/.kube/config
-              kubectl cluster-info
-              kubectl get nodes
-              helm upgrade --install expressops ./helm \
-                --namespace default \
-                -f ./helm/values.yaml \
-                --set image.tag=${{ env.LATEST_TAG }} \
-                --create-namespace
+              
+              # Copiar el chart empaquetado a la VM
+              gcloud compute scp --zone "europe-west1-d" \
+                expressops-chart.tar.gz it-school-2025-1:/tmp/ \
+                --tunnel-through-iap \
+                --project "fc-it-school-2025"
+              
+              # Ejecutar comando Helm directamente en la VM remota
+              gcloud compute ssh it-school-2025-1 --zone "europe-west1-d" \
+                --tunnel-through-iap \
+                --project "fc-it-school-2025" \
+                --command "
+                  # Desempaquetar el chart
+                  mkdir -p /tmp/expressops-chart
+                  tar -xzf /tmp/expressops-chart.tar.gz -C /tmp/expressops-chart
+                  
+                  # Ejecutar Helm desde dentro de la VM
+                  helm upgrade --install expressops /tmp/expressops-chart/helm \
+                    --namespace default \
+                    -f /tmp/expressops-chart/helm/values.yaml \
+                    --set image.tag=${{ env.LATEST_TAG }} \
+                    --create-namespace
+                  
+                  # Limpiar
+                  rm -rf /tmp/expressops-chart.tar.gz /tmp/expressops-chart
+                "
             '
