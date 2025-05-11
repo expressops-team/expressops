@@ -36,7 +36,19 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	address := fmt.Sprintf("%s:%d", cfg.Server.Address, cfg.Server.Port)
 
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		logger.Info("Health check request received")
+		userAgent := r.Header.Get("User-Agent")
+		probeTypeLabel := "manual_curl"
+
+		// Check if the request is from a Kubernetes liveness/readiness probe
+		if strings.HasPrefix(userAgent, "kube-probe/") {
+			probeTypeLabel = "kubernetes_probe"
+		}
+
+		// Log the request
+		logger.Infof("Health check request received on /healthz from User-Agent: %s, identified as: %s", userAgent, probeTypeLabel)
+
+		metrics.IncKubernetesProbe(probeTypeLabel, "/healthz")
+		metrics.IncFlowExecuted("healthz")
 
 		// You could add actual health checks here
 		w.Header().Set("Content-Type", "text/plain")

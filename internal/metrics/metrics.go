@@ -51,6 +51,60 @@ var (
 		},
 		[]string{"resource_type", "mount_point"}, // mount_point will be "" for cpu/mem
 	)
+
+	// Counter for Kubernetes probes (liveness/readiness)
+	kubernetesProbesTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "expressops_kubernetes_probes_total",
+			Help: "Total number of Kubernetes liveness/readiness probes received.",
+		},
+		[]string{"probe_type", "path"}, // "liveness/readiness", "/healthz"
+	)
+
+	// Counter for user creation operations
+	userCreationTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "expressops_user_creation_total",
+			Help: "Total number of user creation operations.",
+		},
+		[]string{"username", "status"}, // status: success, error, simulation
+	)
+
+	// Counter for permission changes
+	permissionsChangesTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "expressops_permissions_changes_total",
+			Help: "Total number of permission changes.",
+		},
+		[]string{"path", "username", "status"}, // status: success, error, simulation
+	)
+
+	// Counter for message formatting operations
+	formattingOperationsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "expressops_formatting_operations_total",
+			Help: "Total number of message formatting operations.",
+		},
+		[]string{"format_type", "status"}, // format_type: health_alert, etc.
+	)
+
+	// Histogram for sleep plugin duration
+	sleepDurationSeconds = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "expressops_sleep_duration_seconds",
+			Help:    "Duration of sleep operations in seconds.",
+			Buckets: []float64{1, 2, 5, 10, 30, 60}, // buckets for different sleep durations
+		},
+	)
+
+	// Counter for test print operations
+	testPrintTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "expressops_test_print_total",
+			Help: "Total number of test print operations.",
+		},
+		[]string{"status"}, // status: success, error
+	)
 )
 
 // --- PUBLIC FUNCTIONS TO ACCESS METRICS FROM OTHER PACKAGES ---
@@ -82,4 +136,34 @@ func SetResourceUsage(resourceType, mountPoint string, usagePercent float64) {
 	} else if resourceType == "disk" && mountPoint != "" {
 		resourceUsageGauge.WithLabelValues(resourceType, mountPoint).Set(usagePercent)
 	}
+}
+
+// IncKubernetesProbe is a convenience function for liveness probes.
+func IncKubernetesProbe(probeType, path string) {
+	kubernetesProbesTotal.WithLabelValues(probeType, path).Inc()
+}
+
+// IncUserCreation records a user creation operation.
+func IncUserCreation(username, status string) {
+	userCreationTotal.WithLabelValues(username, status).Inc()
+}
+
+// IncPermissionsChange records a permission change operation.
+func IncPermissionsChange(path, username, status string) {
+	permissionsChangesTotal.WithLabelValues(path, username, status).Inc()
+}
+
+// IncFormattingOperation records a formatting operation.
+func IncFormattingOperation(formatType, status string) {
+	formattingOperationsTotal.WithLabelValues(formatType, status).Inc()
+}
+
+// ObserveSleepDuration records the duration of a sleep operation.
+func ObserveSleepDuration(seconds float64) {
+	sleepDurationSeconds.Observe(seconds)
+}
+
+// IncTestPrint records a test print operation.
+func IncTestPrint(status string) {
+	testPrintTotal.WithLabelValues(status).Inc()
 }

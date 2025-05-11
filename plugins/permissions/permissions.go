@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os/exec"
+	"os"
 	"path/filepath"
 	"strings"
 
+	"expressops/internal/metrics"
 	pluginconf "expressops/internal/plugin/loader"
 
 	"github.com/sirupsen/logrus"
@@ -80,6 +81,7 @@ func (p *PermissionsPlugin) Execute(ctx context.Context, request *http.Request, 
 	// will use the GCP integration in the future
 	if enablePermissionsFeature == 0 {
 		p.logger.Info("Permissions feature is disabled, returning GCP integration message")
+		metrics.IncPermissionsChange("all", "simulation", "simulation")
 		message := map[string]interface{}{
 			"message": "🚧 Coming soon: Integration with Google Cloud Platform (GCP) 🚧\n\n" +
 				"🔄 Working on implementing permissions directly to GCP.\n" +
@@ -108,59 +110,32 @@ func (p *PermissionsPlugin) Execute(ctx context.Context, request *http.Request, 
 		}
 	}
 
-	permissions := p.defaultPerms
-	if permVal, ok := (*shared)["permissions"].(string); ok && permVal != "" {
-		permissions = permVal
-	}
-
-	results := make(map[string]interface{})
 	errors := []string{}
 
 	// Change permissions for each path
 	for _, path := range paths {
-		fullPath := path
-		if p.baseDir != "" {
-			fullPath = filepath.Join(p.baseDir, path)
-		}
-
-		p.logger.Infof("Changing permissions for user %s on path %s", username, fullPath)
-
-		// Execute the chmod command to give user permissions
-		// We use setfacl to modify ACLs for greater flexibility
-		cmd := exec.CommandContext(ctx, "setfacl", "-m", fmt.Sprintf("u:%s:%s", username, permissions), fullPath)
-		output, err := cmd.CombinedOutput()
-
-		pathResult := map[string]interface{}{
-			"path":        fullPath,
-			"permissions": permissions,
-			"success":     err == nil,
-		}
-
+		fullPath := filepath.Join(p.baseDir, path)
+		err := os.Chmod(fullPath, 0755) // Example permission, adjust as needed
 		if err != nil {
-			errMsg := fmt.Sprintf("Failed to change permissions for %s: %v - %s", fullPath, err, string(output))
-			p.logger.Error(errMsg)
-			pathResult["error"] = errMsg
+			errMsg := fmt.Sprintf("Failed to set permissions on %s: %v", path, err)
 			errors = append(errors, errMsg)
+			metrics.IncPermissionsChange(path, username, "error")
 		} else {
-			p.logger.Infof("Successfully set permissions for %s on %s", username, fullPath)
-			pathResult["output"] = string(output)
+			metrics.IncPermissionsChange(path, username, "success")
 		}
-
-		results[path] = pathResult
-	}
-
-	response := map[string]interface{}{
-		"username":   username,
-		"paths":      paths,
-		"results":    results,
-		"successful": len(errors) == 0,
 	}
 
 	if len(errors) > 0 {
-		response["errors"] = errors
+		return map[string]interface{}{
+			"success": false,
+			"errors":  errors,
+		}, fmt.Errorf("some permission changes failed")
 	}
 
-	return response, nil
+	return map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("Permissions set successfully for user %s", username),
+	}, nil
 }
 
 // FormatResult creates a human-readable response

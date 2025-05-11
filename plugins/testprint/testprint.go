@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	pluginconf "expressops/internal/plugin/loader" 
+	"expressops/internal/metrics"
+	pluginconf "expressops/internal/plugin/loader"
 
 	"github.com/sirupsen/logrus"
 )
@@ -24,13 +25,16 @@ func (p *TestPrintPlugin) Initialize(ctx context.Context, config map[string]inte
 func (p *TestPrintPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
 	p.logger.Info("Request received from: " + request.RemoteAddr + ", User-Agent: " + request.UserAgent())
 
-	return fmt.Sprintf("👋 Hello, I am a  %s!", "test"), nil
+	result := fmt.Sprintf("👋 Hello, I am a  %s!", "test")
+	metrics.IncTestPrint("success")
+	return result, nil
 }
 
 func (p *TestPrintPlugin) FormatResult(result interface{}) (string, error) {
 	if str, ok := result.(string); ok {
 		return str, nil
 	}
+	metrics.IncTestPrint("error_format")
 	return fmt.Sprintf("%v", result), nil
 }
 

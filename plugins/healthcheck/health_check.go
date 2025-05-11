@@ -96,6 +96,12 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 		worstMountPoint := ""
 
 		for _, part := range parts {
+			// Only consider actual file system partitions, skip others like /dev/loop, /snap
+			if !strings.HasPrefix(part.Device, "/dev/sd") && !strings.HasPrefix(part.Device, "/dev/hd") && !strings.HasPrefix(part.Device, "/dev/nvme") && !strings.HasPrefix(part.Device, "/dev/mapper") && part.Fstype != "fuse.portal" {
+				p.logger.Debugf("Skipping non-standard partition: %s (Device: %s, Fstype: %s)", part.Mountpoint, part.Device, part.Fstype)
+				continue
+			}
+
 			if usage, err := disk.Usage(part.Mountpoint); err == nil {
 				diskInfo[part.Mountpoint] = map[string]interface{}{
 					"total":        usage.Total,
@@ -103,11 +109,22 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 					"free":         usage.Free,
 					"used_percent": usage.UsedPercent,
 				}
+				// <---UPDATE WORST DISK USAGE --->
+				if usage.UsedPercent > maxDiskUsageForGauge {
+					maxDiskUsageForGauge = usage.UsedPercent
+					worstMountPoint = part.Mountpoint
+				}
+				// <--- END UPDATE --->
+			} else {
+				p.logger.Warnf("Could not get disk usage for %s: %v", part.Mountpoint, err)
 			}
 		}
 		result["disk"] = diskInfo
-		if worstMountPoint != "" {
+		if worstMountPoint != "" { // Ensure we have a valid mount point
 			metrics.SetResourceUsage("disk", worstMountPoint, maxDiskUsageForGauge)
+			p.logger.Debugf("Set disk resource usage gauge: Mount='%s', Usage=%.2f%%", worstMountPoint, maxDiskUsageForGauge)
+		} else {
+			p.logger.Debug("No suitable disk mount point found to report for resource usage gauge.")
 		}
 	}
 

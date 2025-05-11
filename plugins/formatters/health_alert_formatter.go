@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"expressops/internal/metrics"
 	pluginconf "expressops/internal/plugin/loader"
 
 	"github.com/sirupsen/logrus"
@@ -91,6 +92,7 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 	input, ok := (*shared)["_input"].(map[string]interface{})
 	if !ok {
 		f.logger.Error("No valid _input received")
+		metrics.IncFormattingOperation("health_alert", "error_input")
 		return "", fmt.Errorf("no valid _input received")
 	}
 
@@ -106,6 +108,7 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 	status, ok := input["health_status"].(map[string]string)
 	if !ok {
 		f.logger.Error("Result without health_status field")
+		metrics.IncFormattingOperation("health_alert", "error_status")
 		return "", fmt.Errorf("health check result must contain a health_status field")
 	}
 
@@ -246,9 +249,11 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 	if hasErrors {
 		logFormatted.WriteString("Status:WARNING")
 		alertFormatted.WriteString("⚠️ Issues detected! Please check the output above.\n")
+		metrics.IncFormattingOperation("health_alert", "warning")
 	} else {
 		logFormatted.WriteString("Status:OK")
 		alertFormatted.WriteString("✅ All systems operational!\n")
+		metrics.IncFormattingOperation("health_alert", "success")
 	}
 
 	// Log the simple one-line format

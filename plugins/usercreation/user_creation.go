@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
+	"expressops/internal/metrics"
 	pluginconf "expressops/internal/plugin/loader"
 
 	"github.com/sirupsen/logrus"
@@ -83,6 +85,7 @@ func (p *UserCreationPlugin) Execute(ctx context.Context, request *http.Request,
 	// Check feature toggle
 	if enableUserCreationFeature == 0 {
 		p.logger.Info("User creation feature is disabled, returning info message")
+		metrics.IncUserCreation("simulation", "simulation")
 		message := map[string]interface{}{
 			"message": "👤 User Account Creation Service 👤\n\n" +
 				"🛠️ Creating user accounts for IT School participants\n" +
@@ -130,48 +133,30 @@ func (p *UserCreationPlugin) Execute(ctx context.Context, request *http.Request,
 	// Build the useradd command
 	groupsStr := strings.Join(groups, ",")
 	cmd := exec.CommandContext(ctx, "useradd",
-		"-m",
-		"-d", fmt.Sprintf("%s/%s", homeDirBase, username),
-		"-s", shell,
-		"-G", groupsStr,
-		username)
+		"-m",                                       // Create home directory
+		"-d", filepath.Join(homeDirBase, username), // Set home directory
+		"-s", shell, // Set shell
+		"-G", groupsStr, // Set groups
+		username,
+	)
 
-	output, err := cmd.CombinedOutput()
-
-	result := map[string]interface{}{
-		"username": username,
-		"groups":   groups,
-		"homedir":  fmt.Sprintf("%s/%s", homeDirBase, username),
-		"shell":    shell,
-		"success":  err == nil,
-	}
-
-	if err != nil {
-		errMsg := fmt.Sprintf("Failed to create user %s: %v - %s", username, err, string(output))
+	if output, err := cmd.CombinedOutput(); err != nil {
+		errMsg := fmt.Sprintf("Failed to create user: %v - %s", err, string(output))
 		p.logger.Error(errMsg)
-		result["error"] = errMsg
-	} else {
-		p.logger.Infof("Successfully created user %s", username)
-		result["output"] = string(output)
-
-		// Set or create a random password (if user creation succeeded)
-		passwdCmd := exec.CommandContext(ctx, "passwd", username)
-		passwdOut, passwdErr := passwdCmd.CombinedOutput()
-
-		if passwdErr != nil {
-			p.logger.Warnf("Failed to set password for user %s: %v - %s", username, passwdErr, string(passwdOut))
-			result["password_set"] = false
-			result["password_error"] = fmt.Sprintf("%v - %s", passwdErr, string(passwdOut))
-		} else {
-			p.logger.Infof("Successfully set password for user %s", username)
-			result["password_set"] = true
-		}
+		metrics.IncUserCreation(username, "error")
+		return nil, fmt.Errorf(errMsg)
 	}
 
-	// Store username in shared context for other plugins to use
-	(*shared)["created_username"] = username
+	p.logger.Infof("Successfully created user %s", username)
+	metrics.IncUserCreation(username, "success")
 
-	return result, nil
+	return map[string]interface{}{
+		"username":   username,
+		"groups":     groups,
+		"home":       filepath.Join(homeDirBase, username),
+		"shell":      shell,
+		"successful": true,
+	}, nil
 }
 
 // FormatResult creates a human-readable response
@@ -193,7 +178,7 @@ func (p *UserCreationPlugin) FormatResult(result interface{}) (string, error) {
 	var sb strings.Builder
 
 	username, _ := resultMap["username"].(string)
-	success, _ := resultMap["success"].(bool)
+	success, _ := resultMap["successful"].(bool)
 
 	sb.WriteString(fmt.Sprintf("👤 User Creation: %s\n\n", username))
 
@@ -204,20 +189,12 @@ func (p *UserCreationPlugin) FormatResult(result interface{}) (string, error) {
 			sb.WriteString(fmt.Sprintf("👥 Groups: %s\n", strings.Join(groups, ", ")))
 		}
 
-		if homedir, ok := resultMap["homedir"].(string); ok {
+		if homedir, ok := resultMap["home"].(string); ok {
 			sb.WriteString(fmt.Sprintf("🏠 Home Directory: %s\n", homedir))
 		}
 
 		if shell, ok := resultMap["shell"].(string); ok {
 			sb.WriteString(fmt.Sprintf("🐚 Shell: %s\n", shell))
-		}
-
-		if passwordSet, ok := resultMap["password_set"].(bool); ok {
-			if passwordSet {
-				sb.WriteString("🔑 Password: Set successfully\n")
-			} else {
-				sb.WriteString("⚠️ Password: Not set - manual setup required\n")
-			}
 		}
 	} else {
 		sb.WriteString("❌ User creation failed!\n\n")

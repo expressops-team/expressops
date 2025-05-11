@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"expressops/internal/metrics"
 	pluginconf "expressops/internal/plugin/loader"
 	"fmt"
 	"net/http"
@@ -33,9 +34,11 @@ func (p *SleepPlugin) Execute(ctx context.Context, req *http.Request, shared *ma
 	select {
 	case <-time.After(duration):
 		p.logger.Info("Sleep Plugin finished successfully")
+		metrics.ObserveSleepDuration(float64(configDuration))
 		return fmt.Sprintf("Slept for %.0f seconds", duration.Seconds()), nil
 	case <-ctx.Done():
 		p.logger.Warn("Sleep Plugin has been cancelled!")
+		metrics.ObserveSleepDuration(0)
 		return nil, ctx.Err()
 	}
 }
