@@ -1,0 +1,102 @@
+daemonset:
+  enabled: true
+  extraVolumeMounts:
+    - name: varlibdockercontainers
+      mountPath: /var/lib/docker/containers
+      readOnly: true
+  extraVolumes:
+    - name: varlibdockercontainers
+      hostPath:
+        path: /var/lib/docker/containers
+
+filebeatConfig:
+  filebeat.yml: |
+    filebeat.autodiscover:
+      providers:
+        - type: kubernetes
+          node: ${NODE_NAME}
+          hints.enabled: true
+          templates:
+            - condition:
+                contains:
+                  kubernetes.namespace: default
+              config:
+                - type: container
+                  paths:
+                    - /var/log/containers/*${data.kubernetes.container.id}.log
+                  processors:
+                    - add_kubernetes_metadata:
+                        host: ${NODE_NAME}
+                        matchers:
+                          - logs_path:
+                              logs_path: "/var/log/containers/"
+            - condition:
+                equals:
+                  kubernetes.labels.app: expressops
+              config:
+                - type: container
+                  paths:
+                    - /var/log/containers/*${data.kubernetes.container.id}.log
+                  processors:
+                    - add_kubernetes_metadata:
+                        host: ${NODE_NAME}
+                        matchers:
+                          - logs_path:
+                              logs_path: "/var/log/containers/"
+                    - dissect:
+                        tokenizer: "%{timestamp} %{log.level} %{message}"
+                        field: "message"
+                        target_prefix: "expressops"
+                        when:
+                          contains:
+                            message: "time="
+
+    processors:
+      - add_cloud_metadata: ~
+      - add_host_metadata: ~
+      - add_kubernetes_metadata:
+          host: ${NODE_NAME}
+          matchers:
+            - logs_path:
+                logs_path: "/var/log/containers/"
+      - timestamp:
+          field: "timestamp"
+          target_field: "@timestamp"
+          layouts:
+            - "2006-01-02T15:04:05.999Z"
+            - "2006-01-02T15:04:05Z"
+          ignore_missing: true
+      - drop_fields:
+          fields: ["timestamp", "stream", "ecs"]
+      
+    output.logstash:
+      hosts: ["logstash.dav-monitoring.svc.cluster.local:5044"]
+      timeout: 15s
+      slow_start: true
+      backoff.init: 1s
+      backoff.max: 60s
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "200Mi"
+  limits:
+    cpu: "300m"
+    memory: "500Mi"
+
+extraEnvs:
+  - name: NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+
+securityContext:
+  runAsUser: 0
+  privileged: false
+
+monitoring:
+  enabled: true
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "5066"

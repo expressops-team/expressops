@@ -1,0 +1,100 @@
+logstashConfig:
+  logstash.yml: |
+    http.host: 0.0.0.0
+    xpack.monitoring.enabled: false
+    pipeline.workers: 2
+    pipeline.batch.size: 125
+    config.reload.automatic: true
+    config.reload.interval: 15s
+
+logstashPipeline:
+  logstash.conf: |
+    input {
+      beats {
+        port => 5044
+      }
+    }
+
+    filter {
+      if [kubernetes][labels][app] == "expressops" {
+        grok {
+          match => { "message" => "(?<timestamp>%{TIMESTAMP_ISO8601})%{SPACE}%{LOGLEVEL:log_level}%{SPACE}%{GREEDYDATA:log_message}" }
+          overwrite => [ "message" ]
+        }
+
+        json {
+          source => "log_message"
+          target => "parsed_json"
+          skip_on_invalid_json => true
+        }
+
+        if [parsed_json] {
+          mutate {
+            rename => { "[parsed_json][error]" => "error" }
+            rename => { "[parsed_json][user]" => "user" }
+            rename => { "[parsed_json][request_id]" => "request_id" }
+          }
+        }
+
+        mutate {
+          add_field => {
+            "application" => "expressops"
+            "environment" => "%{[kubernetes][namespace]}"
+          }
+        }
+
+        mutate {
+          lowercase => [ "log_level" ]
+        }
+
+        date {
+          match => [ "timestamp", "ISO8601" ]
+          target => "@timestamp"
+        }
+      }
+    }
+
+    output {
+      opensearch {
+        hosts => ["opensearch-cluster-master.dav-monitoring.svc.cluster.local:9200"]
+        index => "expressops-logs-%{+YYYY.MM.dd}"
+        user => "${OPENSEARCH_USER}"
+        password => "${OPENSEARCH_PASSWORD}"
+        ssl => false
+        ssl_certificate_verification => false
+      }
+    }
+
+resources:
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "500m"
+    memory: "1Gi"
+
+extraEnvs:
+  - name: OPENSEARCH_USER
+    value: "admin"
+  - name: OPENSEARCH_PASSWORD
+    value: "admin"
+  - name: LS_JAVA_OPTS
+    value: "-Xmx512m -Xms256m"
+
+service:
+  type: ClusterIP
+  ports:
+    - name: beats
+      port: 5044
+      targetPort: 5044
+    - name: http
+      port: 8080
+      targetPort: 8080
+
+persistence:
+  enabled: true
+  size: 2Gi
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9600"
