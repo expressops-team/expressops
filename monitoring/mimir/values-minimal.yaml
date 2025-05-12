@@ -1,0 +1,109 @@
+alertmanager:
+  enabled: false
+ruler:
+  enabled: false
+compactor:
+  enabled: false
+storeGateway:
+  enabled: false
+  zoneAwareReplication:
+    enabled: false
+overridesExporter:
+  enabled: false
+metaMonitoring:
+  serviceMonitor:
+    enabled: false
+
+mimir:
+  config: |
+    multitenancy_enabled: false
+    
+    activity_tracker:
+      filepath: /tmp/activity.log
+    
+    prometheus:
+      wal_directory: /tmp/wal
+    
+    blocks_storage:
+      backend: filesystem
+      filesystem:
+        dir: /tmp/blocks
+    
+    distributor:
+      ring:
+        instance_addr: $(pod_ip)
+        kvstore:
+          store: memberlist
+    
+    ingester:
+      ring:
+        instance_addr: $(pod_ip)
+        kvstore:
+          store: memberlist
+      lifecycler:
+        join_after: 0s
+        final_sleep: 0s
+        num_tokens: 512
+        heartbeat_period: 5s
+        observe_period: 5s
+    
+    limits:
+      accept_ha_samples: true
+      max_global_series_per_user: 0
+      max_global_series_per_metric: 0
+    
+    frontend_worker:
+      frontend_address: mimir-query-frontend-discovery.monitoring.svc:9095
+    
+    store_gateway:
+      sharding_ring:
+        instance_addr: $(pod_ip)
+        zone_awareness_enabled: true
+    
+    prometheus_server:
+      enable_api: true
+      global:
+        scrape_interval: 15s
+        evaluation_interval: 15s
+      
+      scrape_configs:
+        - job_name: expressops-static
+          static_configs:
+            - targets: ['expressops.default.svc.cluster.local:8080']
+          metrics_path: /metrics
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 50Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+minio:
+  enabled: false
+
+ingester:
+  persistentVolume:
+    enabled: false
+  replicas: 1
+  zoneAwareReplication:
+    enabled: false
+
+querier:
+  persistentVolume:
+    enabled: false
+  replicas: 1
+
+distributor:
+  replicas: 1
+
+frontend:
+  persistentVolume:
+    enabled: false
+  replicas: 1
+
+memcached:
+  enabled: false
+memcachedExporter:
+  enabled: false 
