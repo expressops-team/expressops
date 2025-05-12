@@ -14,6 +14,22 @@ metaMonitoring:
   serviceMonitor:
     enabled: false
 
+memberlist:
+  useGroupPrefix: false
+  join: ""
+nginx:
+  enabled: true
+  service:
+    type: ClusterIP
+  config:
+    setRealIPFrom:
+      - 0.0.0.0/0
+    clientMaxBodySize: "1m"
+    serverSnippet: |
+      proxy_connect_timeout 300s;
+      proxy_send_timeout 300s;
+      proxy_read_timeout 300s;
+
 mimir:
   config: |
     multitenancy_enabled: false
@@ -42,10 +58,27 @@ mimir:
           store: memberlist
       lifecycler:
         join_after: 0s
+        min_ready_duration: 0s
         final_sleep: 0s
         num_tokens: 512
         heartbeat_period: 5s
         observe_period: 5s
+    
+    query_scheduler:
+      service_discovery:
+        ring:
+          kvstore:
+            store: memberlist
+          prefix: scheduler/
+    
+    frontend:
+      align_queries_with_step: true
+      log_queries_longer_than: 10s
+      compress_responses: true
+    
+    querier:
+      timeout: 2m
+      max_concurrent: 20
     
     limits:
       accept_ha_samples: true
@@ -75,10 +108,10 @@ mimir:
 resources:
   requests:
     cpu: 10m
-    memory: 50Mi
-  limits:
-    cpu: 100m
     memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
 
 minio:
   enabled: false
@@ -89,21 +122,35 @@ ingester:
   replicas: 1
   zoneAwareReplication:
     enabled: false
+  extraArgs:
+    - "-log.level=debug"
 
 querier:
   persistentVolume:
     enabled: false
   replicas: 1
+  extraArgs:
+    - "-log.level=debug"
 
 distributor:
   replicas: 1
+  extraArgs:
+    - "-log.level=debug"
 
 frontend:
   persistentVolume:
     enabled: false
   replicas: 1
+  extraArgs:
+    - "-log.level=debug"
+
+queryScheduler:
+  enabled: true
+  replicas: 1
+  extraArgs:
+    - "-log.level=debug"
 
 memcached:
   enabled: false
 memcachedExporter:
-  enabled: false 
+  enabled: false
