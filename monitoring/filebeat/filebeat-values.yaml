@@ -76,13 +76,6 @@ filebeatConfig:
       backoff.init: 1s
       backoff.max: 60s
 
-resources:
-  requests:
-    cpu: "100m"
-    memory: "200Mi"
-  limits:
-    cpu: "300m"
-    memory: "500Mi"
 
 extraEnvs:
   - name: NODE_NAME

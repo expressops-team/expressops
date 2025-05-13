@@ -4,13 +4,6 @@ nodeGroup: "master"
 replicas: 1
 minimumMasterNodes: 1
 
-resources:
-  requests:
-    cpu: "200m"
-    memory: "512Mi"
-  limits:
-    cpu: "2"
-    memory: "4Gi"
 
 # depends on java
 opensearchJavaOpts: "-Xmx512m -Xms512m"

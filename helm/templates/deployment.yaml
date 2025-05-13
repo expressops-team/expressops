@@ -58,11 +58,16 @@ spec:
             - configMapRef:
                 name: {{ include "expressops.fullname" . }}-env-config
           env:
+            {{- if .Values.secrets.enabled }}
             - name: SLACK_WEBHOOK_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secrets.secretName }}
                   key: SLACK_WEBHOOK_URL
+            {{- else }}
+            - name: SLACK_WEBHOOK_URL
+              value: "placeholder-webhook-url"
+            {{- end }}
           volumeMounts:
             - name: config-volume
               mountPath: /app/config.yaml

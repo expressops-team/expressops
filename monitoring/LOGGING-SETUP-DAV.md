@@ -25,4 +25,4 @@ kubectl port-forward -n dav-monitoring svc/opensearch-dashboards 5601:5601
 ### 4. En OpenSearch Dashboards CHECKEA
 1. Ve a "Stack Management" > "Index Patterns"
 2. Crea patrón `expressops-logs-*`
-3. Selecciona `@timestamp` como campo de tiempo
+3. Selecciona `@timestamp`
