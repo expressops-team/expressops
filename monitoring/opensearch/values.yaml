@@ -1,0 +1,41 @@
+clusterName: opensearch-cluster
+nodeGroup: single-node
+
+replicas: 1
+
+roles:
+  - master
+  - data
+  - ingest
+
+initialMasterNodes: []  
+
+persistence:
+  enabled: true
+  size: 5Gi
+
+opensearchJavaOpts: "-Xmx512M -Xms512M"
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+security:
+  enabled: true
+
+config:
+  opensearch.yml:
+    cluster.name: "opensearch-cluster"
+    network.host: 0.0.0.0
+    discovery.type: single-node
+
+extraEnvs:
+  - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+    value: "ExpressOps123"
+
+service:
+  type: ClusterIP
