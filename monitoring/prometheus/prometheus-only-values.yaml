@@ -1,0 +1,65 @@
+alertmanager:
+  enabled: false
+
+grafana:
+  enabled: false 
+
+prometheus:
+  enabled: true
+  service:
+    type: ClusterIP
+  
+  prometheusSpec:
+    additionalScrapeConfigs:
+      - job_name: expressops-metrics
+        scrape_interval: 10s
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+            - "expressops.default.svc.cluster.local:8080"
+      
+      - job_name: expressops-pods
+        scrape_interval: 10s
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - default
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: keep
+            regex: expressops.*
+
+kubeApiServer:
+  enabled: false
+
+kubelet:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false
+
+coreDns:
+  enabled: false
+
+kubeEtcd:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+kubeStateMetrics:
+  enabled: false
+
+nodeExporter:
+  enabled: false
+
+prometheusOperator:
+  enabled: true  
+
+defaultRules:
+  create: false 

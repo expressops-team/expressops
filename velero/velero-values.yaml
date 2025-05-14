@@ -1,0 +1,36 @@
+initContainers:
+  - name: velero-plugin-for-gcp
+    image: velero/velero-plugin-for-gcp:v1.7.0
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+
+credentials:
+  existingSecret: gcp-service-account
+
+configuration:
+  backupStorageLocation:
+    - provider: gcp
+      name: default
+      bucket: backups-expressops
+      default: true
+      config:
+        credentialsFile: /credentials/cloud
+  
+  volumeSnapshotLocation:
+    - provider: gcp
+      name: default
+      config:
+        credentialsFile: /credentials/cloud
+
+deployNodeAgent: true
+
+rbac:
+  create: true
+  clusterAdministrator: true
+
+serviceAccount:
+  server:
+    create: true
+    name: velero

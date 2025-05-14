@@ -24,7 +24,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "prometheus-SOLO-SIN-NADA-MAS"
       },
       "description": "CPU Usage Percentage",
       "fieldConfig": {
@@ -80,7 +80,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus-SOLO-SIN-NADA-MAS"
           },
           "editorMode": "builder",
           "expr": "expressops_cpu_usage_percent",
@@ -95,7 +95,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "prometheus-SOLO-SIN-NADA-MAS"
       },
       "description": "Memory Usage in Bytes",
       "fieldConfig": {
@@ -149,7 +149,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus-SOLO-SIN-NADA-MAS"
           },
           "editorMode": "builder",
           "expr": "expressops_memory_usage_bytes",
@@ -164,7 +164,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "prometheus-SOLO-SIN-NADA-MAS"
       },
       "description": "Storage Usage in Bytes",
       "fieldConfig": {
@@ -243,7 +243,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus-SOLO-SIN-NADA-MAS"
           },
           "editorMode": "builder",
           "expr": "expressops_storage_usage_bytes",
@@ -258,7 +258,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "prometheus-SOLO-SIN-NADA-MAS"
       },
       "description": "Number of Concurrent Plugins",
       "fieldConfig": {
@@ -336,7 +336,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus-SOLO-SIN-NADA-MAS"
           },
           "editorMode": "builder",
           "expr": "expressops_concurrent_plugins",
@@ -351,7 +351,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "prometheus-SOLO-SIN-NADA-MAS"
       },
       "description": "Total HTTP Requests by Endpoint and Status",
       "fieldConfig": {
@@ -427,7 +427,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus-SOLO-SIN-NADA-MAS"
           },
           "editorMode": "builder",
           "expr": "expressops_http_requests_total",
@@ -443,7 +443,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "prometheus-SOLO-SIN-NADA-MAS"
       },
       "description": "Flows executed by name and status",
       "fieldConfig": {
@@ -519,7 +519,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "uid": "prometheus-SOLO-SIN-NADA-MAS"
           },
           "editorMode": "builder",
           "expr": "expressops_flows_executed_total",

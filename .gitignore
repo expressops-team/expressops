@@ -28,3 +28,4 @@ terraform/*
 *.swo
 # Google service account key
 key.json
+k3s.yaml
