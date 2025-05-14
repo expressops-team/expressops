@@ -31,11 +31,12 @@ config:
   opensearch.yml:
     cluster.name: "opensearch-cluster"
     network.host: 0.0.0.0
-    discovery.type: single-node
+    
 
 extraEnvs:
   - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
     value: "ExpressOps123"
-
+  - name: DISABLE_INSTALL_DEMO_CONFIG
+    value: "true"
 service:
   type: ClusterIP
