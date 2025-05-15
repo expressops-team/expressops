@@ -1,48 +1,30 @@
-resources:
-  requests:
-    cpu: "100m"
-    memory: "256Mi"
-  limits:
-    cpu: "500m"
-    memory: "512Mi"
+opensearchDashboards:
+  opensearchHosts: "http://opensearch-cluster-master.dav-monitoring.svc.cluster.local:9200"
 
-opensearchHosts: "http://opensearch-cluster-master.dav-monitoring.svc.cluster.local:9200"
+  replicaCount: 1
 
-config:
-  opensearch_dashboards.yml: |
-    server.name: opensearch-dashboards
-    server.host: "0.0.0.0"
-    
-    opensearch.requestTimeout: 60000
-    opensearch.shardTimeout: 60000
-    
-    server.maxPayloadBytes: 1048576
-    
-    opensearch.ssl.verificationMode: none
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
 
-service:
-  type: ClusterIP
-  port: 5601
+  image:
+    repository: opensearchproject/opensearch-dashboards
+    tag: "latest"
+    pullPolicy: IfNotPresent
 
-replicaCount: 1
+  config:
+    opensearch_dashboards.yml: |
+      server.host: "0.0.0.0"
+      opensearch.ssl.verificationMode: none
+      server.rewriteBasePath: false
 
-securityContext:
-  enabled: true
-  runAsUser: 1000
+  service:
+    type: ClusterIP
+    port: 5601
 
-readinessProbe:
-  initialDelaySeconds: 30
-  periodSeconds: 10
-  timeoutSeconds: 5
-  failureThreshold: 10
-livenessProbe:
-  initialDelaySeconds: 60
-  periodSeconds: 30
-  timeoutSeconds: 5
-  failureThreshold: 10
-
-imageTag: "latest"
-imagePullPolicy: "IfNotPresent"
-
-serviceAccount:
-  create: true 
+  tolerations:
+    - operator: "Exists"
