@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opensearch
+  namespace: dav-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opensearch
+  template:
+    metadata:
+      labels:
+        app: opensearch
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: it-school-2025-1
+      containers:
+        - name: opensearch
+          image: opensearchproject/opensearch:3.0.0
+          ports:
+            - containerPort: 9200
+            - containerPort: 9600
+          env:
+            - name: discovery.type
+              value: "single-node"
+            - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opensearch-admin-secret
+                  key: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+            - name: OPENSEARCH_JAVA_OPTS
+              value: "-Xms2g -Xmx2g"
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "2"
+            limits:
+              memory: "4Gi"
+              cpu: "4"
+          volumeMounts:
+            - name: opensearch-data
+              mountPath: /usr/share/opensearch/data
+      volumes:
+        - name: opensearch-data
+          persistentVolumeClaim:
+            claimName: opensearch-data-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: opensearch-data-pvc
+  namespace: dav-monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch
+  namespace: dav-monitoring
+spec:
+  selector:
+    app: opensearch
+  ports:
+    - name: http
+      port: 9200
+      targetPort: 9200
+    - name: metrics
+      port: 9600
+      targetPort: 9600
+  type: ClusterIP

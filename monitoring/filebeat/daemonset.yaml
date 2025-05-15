@@ -1,4 +1,3 @@
-# filebeat.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -13,15 +12,24 @@ spec:
       labels:
         app: filebeat
     spec:
+      serviceAccountName: filebeat
       containers:
         - name: filebeat
-          image: docker.elastic.co/beats/filebeat:8.13.0
+          image: docker.elastic.co/beats/filebeat:7.17.3
+          args: ["-c", "/etc/filebeat.yml", "-e"]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           volumeMounts:
             - name: config
-              mountPath: /usr/share/filebeat/filebeat.yml
+              mountPath: /etc/filebeat.yml
               subPath: filebeat.yml
+              readOnly: true
             - name: varlog
               mountPath: /var/log
+              readOnly: true
       volumes:
         - name: config
           configMap:
