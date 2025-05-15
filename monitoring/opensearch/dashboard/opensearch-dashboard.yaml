@@ -22,7 +22,7 @@ spec:
         - containerPort: 5601
         env:
         - name: OPENSEARCH_HOSTS 
-          value: "https://opensearch-cluster-master.dav-monitoring.svc.cluster.local:9200"
+          value: "https://opensearch.dav-monitoring.svc.cluster.local:9200"
         - name: OPENSEARCH_SSL_VERIFY_MODE
           value: "none"
         - name: DISABLE_SECURITY_DASHBOARDS_PLUGIN

@@ -31,6 +31,12 @@ spec:
                   key: OPENSEARCH_INITIAL_ADMIN_PASSWORD
             - name: OPENSEARCH_JAVA_OPTS
               value: "-Xms2g -Xmx2g"
+            - name: OPENSEARCH_HOSTS
+              value: "https://opensearch.dav-monitoring.svc.cluster.local:9200"
+            - name: plugins.security.ssl.http.enabled
+              value: "true"
+            - name: plugins.security.ssl.transport.enabled
+              value: "true"
           resources:
             requests:
               memory: "2Gi"
