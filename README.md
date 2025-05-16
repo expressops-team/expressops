@@ -1,6 +1,7 @@
 <p align="right">
-  <img src="docs/img/RistrettOps.png" alt="ExpressOps Logo" width="100" />
+  <img src="docs/img/RistrettOps.png" alt="ExpressOps logo" width="180">
 </p>
+
 ## ExpressOps 🚀
 
 ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plugins. It allows you to define operational workflows (such as health checks, formatting, notifications, and logging) via a simple YAML configuration. Each plugin handles one task and flows chain them together.
@@ -8,7 +9,7 @@ ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plug
 ## 📦 Docker Hub
 
 The ExpressOps Docker image is available on Docker Hub at:
-https://hub.docker.com/r/davidnull/expressops
+https://hub.docker.com/r/expressopsfreepik/expressops
 
 You can pull it with:
 ```bash
