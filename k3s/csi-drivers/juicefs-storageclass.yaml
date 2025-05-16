@@ -4,10 +4,12 @@ metadata:
   name: juicefs-gcs-redis
 provisioner: csi.juicefs.com
 parameters:
-
+# Secret para obtener el nombre del volumen y la URL de metadatos (Redis)
   csi.storage.k8s.io/provisioner-secret-name: "juicefs-meta-conf"
   csi.storage.k8s.io/provisioner-secret-namespace: "expressops-dev"
-  csi.storage.k8s.io/node-publish-secret-name: "juicefs-meta-conf"
+
+# Secret para las credenciales de GCS que usará el nodo CSI para montar
+  csi.storage.k8s.io/node-publish-secret-name: "juicefs-gcs-manager-credentials"
   csi.storage.k8s.io/node-publish-secret-namespace: "expressops-dev"
 
   # Opciones de montaje adicionales para JuiceFS (opcionales pero recomendadas).

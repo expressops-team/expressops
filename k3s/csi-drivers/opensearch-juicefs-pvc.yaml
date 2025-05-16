@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: opensearch-data-juicefs-pvc
+  namespace: dav-monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: juicefs-gcs-redis #  'juicefs-gcs-redis' si usas subdirectorio)
