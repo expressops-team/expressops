@@ -32,6 +32,7 @@ CONFIG_MOUNT_PATH ?= /app/config.yaml
 HELM_CHART_DIR ?= k3s/expressops-chart
 HELM_VALUES_FILE ?= $(HELM_CHART_DIR)/values.yaml
 
+
 # Build plugins and application locally
 build:
 	@echo "Cleaning previous plugins..."
@@ -127,6 +128,7 @@ docker-push:
 	docker push expressopsfreepik/$(IMAGE_NAME):$$NEW_TAG; \
 	echo "✅ Image pushed: expressopsfreepik/$(IMAGE_NAME):$$NEW_TAG"
 
+# Deploy Helm chart to namespace expressops-dev
 helm-deploy:
 	@NEW_TAG=$$(cat .docker_tag 2>/dev/null || { echo "$(RED)Error: .docker_tag file not found. Ensure image is built or set tag manually.$(RESET)"; exit 1; }); \
 	echo "🚀 Deploying Helm chart expressops with image tag $$NEW_TAG to namespace expressops-dev..."; \

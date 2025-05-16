@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: juicefs-test-pod
+  namespace: expressops-dev
+spec:
+  containers:
+  - name: my-test-container
+    image: busybox
+    command: ['sh', '-c', 'echo "JuiceFS test successful!" > /mnt/juicefs_test/test.txt && sleep 3600']
+    volumeMounts:
+    - name: my-juicefs-volume
+      mountPath: "/mnt/juicefs_test"
+  volumes:
+  - name: my-juicefs-volume
+    persistentVolumeClaim:
+      claimName: test-juicefs-pvc

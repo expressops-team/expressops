@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: juicefs-format-expressops-main-vol
+  namespace: expressops-dev # Ejecutar en el mismo namespace donde están los secrets
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: juicefs-format
+        image: juicedata/juicefs-csi-driver:v0.20.0 # Usa una versión reciente del cliente/driver JuiceFS
+        command:
+          - "/bin/sh"
+          - "-c"
+        args:
+          - |
+            set -ex
+            echo "Iniciando formateo de JuiceFS..."
+            echo "META_URL: $META_URL"
+            echo "VOLUME_NAME: $VOLUME_NAME"
+            echo "BUCKET_NAME: $BUCKET_NAME"
+            echo "GCP_PROJECT_ID: $GCP_PROJECT_ID"
+
+            
+            juicefs format \
+              --storage gs \
+              --bucket "$BUCKET_NAME" \
+              "${META_URL}" \
+              "${VOLUME_NAME}"
+
+            echo "Formateo completado."
+        env:
+        - name: VOLUME_NAME
+          valueFrom:
+            secretKeyRef:
+              name: juicefs-meta-conf
+              key: name
+        - name: META_URL
+          valueFrom:
+            secretKeyRef:
+              name: juicefs-meta-conf
+              key: metaurl
+        - name: BUCKET_NAME
+          value: "expressops-juicefs"
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: "/gcp-creds/credentials.json"
+        volumeMounts:
+        - name: gcp-credentials
+          mountPath: "/gcp-creds"
+          readOnly: true
+      volumes:
+      - name: gcp-credentials
+        secret:
+          secretName: juicefs-gcs-credentials

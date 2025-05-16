@@ -3,7 +3,7 @@
 replicaCount: 2
 image:
   repository: expressopsfreepik/expressops
-  tag: "v10"
+  tag: "v11"
   # Image pull policy
   pullPolicy: IfNotPresent
   # tag: "v2" # The image tag is controlled by appVersion in Chart.yaml by default
