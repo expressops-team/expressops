@@ -1,8 +1,4 @@
-<p align="right">
-  <img src="docs/img/RistrettOps.png" alt="ExpressOps logo" width="180">
-</p>
-
-## ExpressOps 🚀
+## ExpressOps 🚀 <img src="docs/img/RistrettOps.png" alt="ExpressOps Logo" align="right" width="150" style="margin-top: 20px;">
 
 ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plugins. It allows you to define operational workflows (such as health checks, formatting, notifications, and logging) via a simple YAML configuration. Each plugin handles one task and flows chain them together.
 
