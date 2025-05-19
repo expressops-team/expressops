@@ -2,14 +2,14 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: juicefs-format-expressops-main-vol
-  namespace: expressops-dev # Ejecutar en el mismo namespace donde están los secrets
+  namespace: expressops-dev
 spec:
   template:
     spec:
       restartPolicy: OnFailure
       containers:
       - name: juicefs-format
-        image: juicedata/juicefs-csi-driver:v0.20.0 # Usa una versión reciente del cliente/driver JuiceFS
+        image: juicedata/juicefs-csi-driver:v0.20.0
         command:
           - "/bin/sh"
           - "-c"
@@ -19,13 +19,15 @@ spec:
             echo "Iniciando formateo de JuiceFS..."
             echo "META_URL: $META_URL"
             echo "VOLUME_NAME: $VOLUME_NAME"
-            echo "BUCKET_NAME: $BUCKET_NAME"
-            echo "GCP_PROJECT_ID: $GCP_PROJECT_ID"
+            echo "BUCKET_NAME: $BUCKET_NAME_FROM_SECRET"
+            echo "GOOGLE_APPLICATION_CREDENTIALS: $GOOGLE_APPLICATION_CREDENTIALS_FROM_SECRET"
+
+            export GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_APPLICATION_CREDENTIALS_FROM_SECRET"
 
             
             juicefs format \
               --storage gs \
-              --bucket "$BUCKET_NAME" \
+              --bucket "$BUCKET_NAME_FROM_SECRET" \
               "${META_URL}" \
               "${VOLUME_NAME}"
 
@@ -34,22 +36,25 @@ spec:
         - name: VOLUME_NAME
           valueFrom:
             secretKeyRef:
-              name: juicefs-meta-conf
+              name: juicefs-volume-config
               key: name
         - name: META_URL
           valueFrom:
             secretKeyRef:
-              name: juicefs-meta-conf
+              name: juicefs-volume-config
               key: metaurl
-        - name: BUCKET_NAME
-          value: "expressops-juicefs"
-        - name: GOOGLE_APPLICATION_CREDENTIALS
-          value: "/gcp-creds/credentials.json"
+        - name: BUCKET_NAME_FROM_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: juicefs-volume-config
+              key: bucket
+        - name: GOOGLE_APPLICATION_CREDENTIALS_FROM_SECRET
+          value: "/gcp-creds-for-format/credentials.json" # Ruta donde se montará
         volumeMounts:
-        - name: gcp-credentials
-          mountPath: "/gcp-creds"
+        - name: gcp-credentials-for-format # Nombre del volumen
+          mountPath: "/gcp-creds-for-format" # Ruta de montaje
           readOnly: true
       volumes:
-      - name: gcp-credentials
+      - name: gcp-credentials-for-format
         secret:
-          secretName: juicefs-gcs-credentials
+          secretName: juicefs-gcs-manager-credentials # El secret con el credentials.json

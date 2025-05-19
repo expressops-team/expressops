@@ -4,7 +4,7 @@ loki:
   commonConfig:
     replication_factor: 1
   storage:
-    type: filesystem
+    type: filesystem # JuiceFS se presenta como un filesystem al pod
   schemaConfig:
     configs:
       - from: "2024-04-01"
@@ -18,18 +18,20 @@ singleBinary:
   replicas: 1
   persistence:
     enabled: true
+    storageClassName: "juicefs-gcs-redis-canonica"
     size: 10Gi
+    accessModes:
+      - ReadWriteOnce # Adecuado para SingleBinary
+  # Configuración de seguridad para permitir a Loki escribir en el volumen JuiceFS
+  # El usuario por defecto de Loki en el chart es 10001
+  podSecurityContext:
+    fsGroup: 10001
+  securityContext:
+    runAsUser: 10001
+    runAsGroup: 10001
+
 gateway:
   enabled: true
-monitoring:
-  selfMonitoring:
-    enabled: true
-    grafanaAgent:
-      installOperator: false
-  serviceMonitor:
-    enabled: true
-  lokiCanary:
-    enabled: false
 
 read:
   replicas: 0
@@ -37,3 +39,14 @@ write:
   replicas: 0
 backend:
   replicas: 0
+
+# Opcional: Habilitar serviceMonitor si usas Prometheus Operator
+monitoring:
+  selfMonitoring:
+    enabled: false
+    grafanaAgent:
+      installOperator: false
+  serviceMonitor:
+    enabled: true # Para que Prometheus pueda scrapear Loki
+  lokiCanary:
+    enabled: false

@@ -6,10 +6,10 @@ metadata:
   name: {{ include "expressops-chart.fullname" . }}
   labels:
     {{- include "expressops-chart.labels" . | nindent 4 }}
-#  annotations:
-#    prometheus.io/scrape: "true"
-#    prometheus.io/path: "/metrics"
-#    prometheus.io/port: {{ .Values.service.targetPort | quote }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/metrics"
+    prometheus.io/port: {{ .Values.service.targetPort | quote }}
 
 spec:
   type: {{ .Values.service.type }}

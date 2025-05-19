@@ -1,0 +1,19 @@
+# juicefs-storageclass-canonica.yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: juicefs-gcs-redis-canonica 
+provisioner: csi.juicefs.com
+parameters:
+  # Para el controlador CSI y para el nodo CSI (montaje)
+  # Este único secret contiene toda la configuración, incluyendo cómo obtener las creds de GCS
+  csi.storage.k8s.io/provisioner-secret-name: "juicefs-volume-config"
+  csi.storage.k8s.io/provisioner-secret-namespace: "expressops-dev"
+  csi.storage.k8s.io/node-publish-secret-name: juicefs-volume-config
+  csi.storage.k8s.io/node-publish-secret-namespace: expressops-dev
+
+  # Opciones de montaje para JuiceFS
+  juicefs/mount-options: "subdir=/{{.PV.name}},cache-dir=/var/jfsCache/{{.PV.name}},cache-size=2048,metrics=0.0.0.0:9567"
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: Immediate
