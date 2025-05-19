@@ -17,13 +17,13 @@ spec:
       - name: gcp-creds-for-eso
       containers:
       - name: dashboards
-        image:     europe-west1-docker.pkg.dev/fc-it-school-2025/opensearch-repo/opensearch-dashboards:3.0.0
+        image: europe-west1-docker.pkg.dev/fc-it-school-2025/opensearch-repo/opensearch-dashboards:3.0.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5601
         env:
         - name: OPENSEARCH_HOSTS 
-          value: "https://opensearch.dav-monitoring.svc.cluster.local:9200"
+          value: "http://opensearch-cluster-master.dav-monitoring.svc.cluster.local:9200"
         - name: OPENSEARCH_SSL_VERIFY_MODE
           value: "none"
         - name: DISABLE_SECURITY_DASHBOARDS_PLUGIN
@@ -42,6 +42,8 @@ spec:
           limits:
             memory: "500Mi"
             cpu: "500m"
+      nodeSelector:
+        kubernetes.io/hostname: it-school-2025-1
 ---
 apiVersion: v1
 kind: Service

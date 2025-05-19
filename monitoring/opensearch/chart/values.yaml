@@ -1,60 +1,43 @@
-  replicas: 1
-  clusterName: opensearch
-  nodeGroup: master
+# Configuración mínima para values.yaml
+replicas: 1
+clusterName: opensearch
+nodeGroup: master
 
-  image:
-    repository: europe-west1-docker.pkg.dev/fc-it-school-2025/opensearch-repo/opensearch:3.0.0
-    imagePullPolicy: IfNotPresent
-    tag: "3.0.0"
+image:
+  repository: opensearchproject/opensearch
+  imagePullPolicy: IfNotPresent
+  tag: "3.0.0"
 
-  opensearchJavaOpts: "-Xms2g -Xmx2g"
+opensearchJavaOpts: "-Xms1g -Xmx1g"
 
-  config:
-    opensearch.yml: |
-      discovery.type: single-node
-      plugins.security.ssl.http.enabled: true
-      plugins.security.ssl.transport.enabled: true
-      network.host: 0.0.0.0
-      plugins.security.disabled: false
+config:
+  opensearch.yml: |
+    discovery.type: single-node
+    network.host: 0.0.0.0
+    plugins.security.disabled: true
+    plugins.security.ssl.http.enabled: false
+    plugins.security.ssl.transport.enabled: false
 
-  extraEnvs:
-    - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: opensearch-admin-secret
-          key: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+resources:
+  requests:
+    cpu: "0.5"
+    memory: "512Mi"
+  limits:
+    cpu: "2"
+    memory: "2Gi"
 
-  resources:
-    requests:
-      cpu: "2"
-      memory: "2Gi"
-    limits:
-      cpu: "4"
-      memory: "4Gi"
+nodeSelector:
+ role: opensearch-node
 
-  nodeSelector:
-   role: opensearch-node
+persistence:
+  enabled: false
 
-  persistence:
-    enabled: true
-    size: "50Gi"
-    accessModes:
-      - ReadWriteOnce
+singleNode: true
 
-  service:
-    type: ClusterIP
-    httpPort: 9200
-    metricsPort: 9600
+service:
+  type: ClusterIP
+  httpPort: 9200
+  metricsPort: 9600
 
-  singleNode: true
-
-  security:
-    enabled: true
-    ssl:
-      transport:
-        enabled: true
-      http:
-        enabled: true
-
-  imagePullSecrets:
-    - name: gcp-creds-for-eso
+imagePullSecrets:
+  - name: gcp-creds-for-eso

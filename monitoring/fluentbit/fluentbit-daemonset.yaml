@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluentbit
+  namespace: dav-monitoring
+  labels:
+    app.kubernetes.io/name: fluentbit
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fluentbit
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fluentbit
+    spec:
+      serviceAccountName: fluentbit
+      terminationGracePeriodSeconds: 10
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - name: fluentbit
+        image: fluent/fluent-bit:2.2.2
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 2020
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        resources:
+          limits:
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+        - name: fluentbit-config-volume
+          mountPath: /fluent-bit/etc/
+        - name: fluentbit-tail-db
+          mountPath: /fluent-bit/tail_db
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: fluentbit-config-volume
+        configMap:
+          name: fluentbit-config
+      - name: fluentbit-tail-db
+        hostPath:
+          path: /var/lib/fluentbit/tail_db
+          type: DirectoryOrCreate

@@ -7,6 +7,7 @@ spec:
   selector:
     app: logstash
   ports:
-    - protocol: TCP
-      port: 5044
-      targetPort: 5044
+  - port: 5044
+    targetPort: 5044
+    protocol: TCP
+    name: beats 
