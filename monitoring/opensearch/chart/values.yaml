@@ -1,10 +1,9 @@
-# Configuración mínima para values.yaml
 replicas: 1
 clusterName: opensearch
 nodeGroup: master
 
 image:
-  repository: opensearchproject/opensearch
+  repository: europe-west1-docker.pkg.dev/fc-it-school-2025/opensearch-repo/opensearch
   imagePullPolicy: IfNotPresent
   tag: "3.0.0"
 
@@ -14,9 +13,20 @@ config:
   opensearch.yml: |
     discovery.type: single-node
     network.host: 0.0.0.0
-    plugins.security.disabled: true
-    plugins.security.ssl.http.enabled: false
-    plugins.security.ssl.transport.enabled: false
+    
+    plugins.security.disabled: false
+    
+    plugins.security.ssl.http.enabled: true
+    plugins.security.ssl.transport.enabled: true
+    
+    plugins.security.ssl.http.pemcert_filepath: /usr/share/opensearch/config/certs/node.pem
+    plugins.security.ssl.http.pemkey_filepath: /usr/share/opensearch/config/certs/node-key.pem
+    plugins.security.ssl.http.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
+    plugins.security.ssl.transport.pemcert_filepath: /usr/share/opensearch/config/certs/node.pem
+    plugins.security.ssl.transport.pemkey_filepath: /usr/share/opensearch/config/certs/node-key.pem
+    plugins.security.ssl.transport.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
+    
+    plugins.security.allow_default_init_securityindex: true
 
 resources:
   requests:
@@ -27,10 +37,12 @@ resources:
     memory: "2Gi"
 
 nodeSelector:
- role: opensearch-node
+  role: opensearch-node
 
 persistence:
-  enabled: false
+  enabled: true
+  storageClass: "standard"
+  size: 10Gi
 
 singleNode: true
 
@@ -39,5 +51,27 @@ service:
   httpPort: 9200
   metricsPort: 9600
 
+extraVolumes:
+  - name: certs
+    secret:
+      secretName: opensearch-certs
+
+extraVolumeMounts:
+  - name: certs
+    mountPath: /usr/share/opensearch/config/certs
+    readOnly: true
+
+extraEnvs:
+  - name: OPENSEARCH_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: opensearch-credentials-secure
+        key: username
+  - name: OPENSEARCH_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: opensearch-credentials-secure
+        key: password
+
 imagePullSecrets:
-  - name: gcp-creds-for-eso
+  - name: opensearch-registry-creds

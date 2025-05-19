@@ -29,28 +29,43 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
+        - name: OPENSEARCH_USER
+          valueFrom:
+            secretKeyRef:
+              name: opensearch-credentials
+              key: username
+        - name: OPENSEARCH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: opensearch-credentials
+              key: password
         resources:
           limits:
-            memory: 200Mi
+            memory: 512Mi
           requests:
             cpu: 100m
-            memory: 100Mi
+            memory: 128Mi
         volumeMounts:
-        - name: varlog
-          mountPath: /var/log
-          readOnly: true
-        - name: fluentbit-config-volume
+        - name: config
           mountPath: /fluent-bit/etc/
         - name: fluentbit-tail-db
           mountPath: /fluent-bit/tail_db
+        - name: varlog
+          mountPath: /var/log
+        - name: varlibkubeletpods
+          mountPath: /var/lib/kubelet/pods
+          readOnly: true
       volumes:
-      - name: varlog
-        hostPath:
-          path: /var/log
-      - name: fluentbit-config-volume
+      - name: config
         configMap:
           name: fluentbit-config
       - name: fluentbit-tail-db
         hostPath:
           path: /var/lib/fluentbit/tail_db
           type: DirectoryOrCreate
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibkubeletpods
+        hostPath:
+          path: /var/lib/kubelet/pods

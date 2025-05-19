@@ -246,10 +246,6 @@ The application will be accessible at http://localhost:8080 after port forwardin
 
 ExpressOps includes comprehensive monitoring with Prometheus and Grafana:
 
-### Architecture
-
-![Monitoring Architecture](monitoring/docs/Arquitectura_Monitoring\ .jpg)
-
 ### Key Metrics
 
 - CPU and memory usage

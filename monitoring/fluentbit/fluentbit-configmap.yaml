@@ -48,9 +48,9 @@ data:
         Logstash_Format   On
         Logstash_Prefix   expressops-logs
         Suppress_Type_Name On
-        HTTP_User         ""
-        HTTP_Passwd       ""
-        tls               Off
+        HTTP_User         ${OPENSEARCH_USER}
+        HTTP_Passwd       ${OPENSEARCH_PASSWORD}
+        tls               On
         tls.verify        Off
         Retry_Limit       5
 
