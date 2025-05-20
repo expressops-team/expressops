@@ -36,8 +36,10 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	address := fmt.Sprintf("%s:%d", cfg.Server.Address, cfg.Server.Port)
 
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		startTime := time.Now()
 		userAgent := r.Header.Get("User-Agent")
 		probeTypeLabel := "manual_curl"
+		httpStatusCode := http.StatusOK
 
 		// Check if the request is from a Kubernetes liveness/readiness probe
 		if strings.HasPrefix(userAgent, "kube-probe/") {
@@ -48,11 +50,17 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 		logger.Infof("Health check request received on /healthz from User-Agent: %s, identified as: %s", userAgent, probeTypeLabel)
 
 		metrics.IncKubernetesProbe(probeTypeLabel, "/healthz")
-		metrics.IncFlowExecuted("healthz")
+		metrics.IncFlowExecuted("healthz", "success")
 
-		// You could add actual health checks here
+		// You could add actual health checks here. If they fail, set status to "error" and httpStatusCode accordingly.
+		// For now, always success.
 		w.Header().Set("Content-Type", "text/plain")
 		w.Write([]byte("OK"))
+
+		duration := time.Since(startTime).Seconds()
+		metrics.ObserveFlowDuration("healthz", "success", duration) // Flow duration for healthz
+		metrics.IncHttpRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
+		metrics.ObserveHttpRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
 	})
 
 	timeout := time.Duration(cfg.Server.TimeoutSec) * time.Second
@@ -78,25 +86,48 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 // dynamicFlowHandler handles requests to /flow and executes configured flows
 func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+
+		metrics.IncActiveFlowHandlers()
+		defer metrics.DecActiveFlowHandlers()
+
+		startTime := time.Now()
+		httpStatusCode := http.StatusOK
+		var flowStatusLabel string
+
 		ctx, cancel := context.WithTimeout(r.Context(), timeout) // if it takes more than 4 seconds, it will be killed
 
 		defer cancel()
 
 		flowName := r.URL.Query().Get("flowName")
 		if flowName == "" {
-			http.Error(w, "Must indicate flowName", http.StatusBadRequest)
+			httpStatusCode = http.StatusBadRequest
+			errMsg := "Must indicate flowName"
+			http.Error(w, errMsg, httpStatusCode)
+
+			duration := time.Since(startTime).Seconds()
+			flowStatusLabel = "error_bad_request"
+
+			metrics.IncHttpRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
+			metrics.ObserveHttpRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
+
 			return
 		}
 
 		flow, exists := flowRegistry[flowName]
 		if !exists {
-			http.Error(w, fmt.Sprintf("Flow '%s' not found", flowName), http.StatusNotFound)
+			httpStatusCode = http.StatusNotFound
+			errMsg := fmt.Sprintf("Flow '%s' not found", flowName)
+			http.Error(w, errMsg, httpStatusCode)
+
+			// Errors Metrics
+			duration := time.Since(startTime).Seconds()
+			flowStatusLabel = "error_flow_not_found"
+			metrics.IncFlowExecuted(flowName, flowStatusLabel)
+			metrics.ObserveFlowDuration(flowName, flowStatusLabel, duration)
+			metrics.IncHttpRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
+			metrics.ObserveHttpRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
 			return
 		}
-
-		// Increment the flow execution counter
-		metrics.IncFlowExecuted(flowName)
-		// End Increase
 
 		logger.WithFields(logrus.Fields{
 			"flow":       flowName,
@@ -117,13 +148,33 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 			"count":   len(results),
 		}
 
+		flowSucceeded := true
 		for _, res := range results {
 			if result, ok := res.(map[string]interface{}); ok {
 				if _, hasError := result["error"]; hasError {
-					response["success"] = false
+					flowSucceeded = false
 					break
 				}
 			}
+		}
+		response["success"] = flowSucceeded
+
+		if flowSucceeded {
+			flowStatusLabel = "success"
+		} else {
+			flowStatusLabel = "error"
+		}
+
+		duration := time.Since(startTime).Seconds()
+
+		metrics.IncFlowExecuted(flowName, flowStatusLabel)
+		metrics.ObserveFlowDuration(flowName, flowStatusLabel, duration)
+
+		metrics.IncHttpRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
+		metrics.ObserveHttpRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
+
+		if httpStatusCode != http.StatusOK {
+			w.WriteHeader(httpStatusCode)
 		}
 
 		json.NewEncoder(w).Encode(response)
@@ -164,6 +215,10 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 			continue
 		}
 
+		// Plugin duration metrics
+		pluginStartTime := time.Now()
+		var pluginStatusLabel string // State plugin: success or error
+
 		plugin, err := pluginManager.GetPlugin(step.PluginRef)
 		if err != nil {
 			logger.Errorf("Plugin not found: %s - %v", step.PluginRef, err)
@@ -174,8 +229,10 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 
 			// --- Increase Executed Plugin Metric (CASE: Plugin NOT FOUND) ---
 			// We consider "plugin not found" as a type of plugin execution error.
-			metrics.IncPluginExecuted(step.PluginRef, "error_plugin_not_found") // 0 a generic "error" status
-			// --- End increase ---
+			pluginStatusLabel = "error_plugin_not_found"
+			metrics.IncPluginExecuted(step.PluginRef, pluginStatusLabel)
+			pluginDuration := time.Since(pluginStartTime).Seconds()
+			metrics.ObservePluginDuration(step.PluginRef, pluginStatusLabel, pluginDuration) // --- End increase ---
 
 			continue
 		}
@@ -189,21 +246,22 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 		shared["_input"] = lastResult
 
 		logger.Infof("Executing plugin: %s", step.PluginRef)
-		res, err := plugin.Execute(ctx, r, &shared) // Call to the plugin
+		res, errPluginExecute := plugin.Execute(ctx, r, &shared) // Call to the plugin
 
-		//  =========== Increase Executed Plugin Metric (CASE: Execution DONE) ====================
-		statusLabel := "success"
-		if err != nil {
-			statusLabel = "error"
+		if errPluginExecute != nil {
+			pluginStatusLabel = "error_execution"
+		} else {
+			pluginStatusLabel = "success"
 		}
-		metrics.IncPluginExecuted(step.PluginRef, statusLabel)
-		// --- End increase ---
+		metrics.IncPluginExecuted(step.PluginRef, pluginStatusLabel)
+		pluginDuration := time.Since(pluginStartTime).Seconds()
+		metrics.ObservePluginDuration(step.PluginRef, pluginStatusLabel, pluginDuration)
 
-		if err != nil {
-			logger.Errorf("Error executing plugin: %s - %v", step.PluginRef, err)
+		if errPluginExecute != nil {
+			logger.Errorf("Error executing plugin: %s - %v", step.PluginRef, errPluginExecute)
 			results = append(results, map[string]interface{}{
 				"plugin": step.PluginRef,
-				"error":  fmt.Sprintf("Error: %v", err),
+				"error":  fmt.Sprintf("Error: %v", errPluginExecute),
 			})
 			continue
 		}
@@ -219,26 +277,31 @@ func executeFlow(ctx context.Context, flow v1alpha1.Flow, additionalParams map[s
 		}
 
 		// Add result to results array
-		result := map[string]interface{}{
+		resultMap := map[string]interface{}{
 			"plugin": step.PluginRef,
 			"result": res,
 		}
 
 		// Only add formatted_result if it exists
 		if formattedResult != "" {
-			result["formatted_result"] = formattedResult
+			resultMap["formatted_result"] = formattedResult
 		}
 
-		results = append(results, result)
+		results = append(results, resultMap)
+
+		logMsg := fmt.Sprintf("Result from %s: ", step.PluginRef)
+
 		if step.PluginRef == "formatter-plugin" {
-			logger.Infof("Result from %s: [long output, check the slack channel ;D]", step.PluginRef)
+
+			logMsg += "[long output, check the slack channel ;D]"
 		} else {
 			if len(formattedResult) > 100 {
-				logger.Infof("Result from %s: %s...", step.PluginRef, formattedResult[:100])
+				logMsg += formattedResult[:100] + "..."
 			} else {
-				logger.Infof("Result from %s: %s", step.PluginRef, formattedResult)
+				logMsg += formattedResult
 			}
 		}
+		logger.Info(logMsg)
 
 		lastResult = res
 	}

@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"fmt"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -12,7 +14,17 @@ var (
 			Name: "expressops_flows_executed_total", // Metric name
 			Help: "Total number of flows executed.", // Descriptive help
 		},
-		[]string{"flowName"}, // Labels that the metric will have
+		[]string{"flowName", "status"}, // Labels that the metric will have
+	)
+
+	// Histogram for flow execution duration
+	flowExecutionDurationSeconds = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "expressops_flow_execution_duration_seconds",
+			Help:    "Duration of flow executions in seconds.",
+			Buckets: prometheus.DefBuckets, // Puedes usar prometheus.ExponentialBuckets(0.001, 2, 15) para más granularidad
+		},
+		[]string{"flowName", "status"},
 	)
 
 	// Counter for total plugin executions, with 'pluginRef' and 'status' tags (success/error)
@@ -20,6 +32,16 @@ var (
 		prometheus.CounterOpts{
 			Name: "expressops_plugins_executed_total",
 			Help: "Total number of plugin executions attempted.",
+		},
+		[]string{"pluginRef", "status"},
+	)
+
+	// Histogram for plugin execution duration
+	pluginExecutionDurationSeconds = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "expressops_plugin_execution_duration_seconds",
+			Help:    "Duration of plugin executions in seconds.",
+			Buckets: prometheus.DefBuckets,
 		},
 		[]string{"pluginRef", "status"},
 	)
@@ -105,18 +127,53 @@ var (
 		},
 		[]string{"status"}, // status: success, error
 	)
+	// Histogram for HTTP request duration
+	httpRequestDurationSeconds = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "expressops_http_request_duration_seconds",
+			Help:    "Duration of HTTP requests.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"path", "method", "code"},
+	)
+
+	// Counter for total HTTP requests
+	httpRequestsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "expressops_http_requests_total",
+			Help: "Total number of HTTP requests.",
+		},
+		[]string{"path", "method", "code"},
+	)
+
+	// Gauge for active flow handlers
+	activeFlowHandlersGauge = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "expressops_active_flow_handlers_gauge",
+			Help: "Number of currently active flow handlers.",
+		},
+	)
 )
 
 // --- PUBLIC FUNCTIONS TO ACCESS METRICS FROM OTHER PACKAGES ---
 
 // IncFlowExecuted records the execution of a flow.
-func IncFlowExecuted(flowName string) {
-	flowsExecutedTotal.WithLabelValues(flowName).Inc()
+func IncFlowExecuted(flowName, status string) {
+	flowsExecutedTotal.WithLabelValues(flowName, status).Inc()
+}
+
+func ObserveFlowDuration(flowName, status string, durationSeconds float64) {
+	flowExecutionDurationSeconds.WithLabelValues(flowName, status).Observe(durationSeconds)
 }
 
 // IncPluginExecuted records the execution of a plugin.
 func IncPluginExecuted(pluginRef, status string) {
 	pluginsExecutedTotal.WithLabelValues(pluginRef, status).Inc()
+}
+
+// ObservePluginDuration records the duration of a plugin execution
+func ObservePluginDuration(pluginRef, status string, durationSeconds float64) {
+	pluginExecutionDurationSeconds.WithLabelValues(pluginRef, status).Observe(durationSeconds)
 }
 
 // IncSlackNotification records a Slack notification.
@@ -166,4 +223,24 @@ func ObserveSleepDuration(seconds float64) {
 // IncTestPrint records a test print operation.
 func IncTestPrint(status string) {
 	testPrintTotal.WithLabelValues(status).Inc()
+}
+
+// ObserveHttpRequestDuration records the duration of an HTTP request.
+func ObserveHttpRequestDuration(path, method string, code int, durationSeconds float64) {
+	httpRequestDurationSeconds.WithLabelValues(path, method, fmt.Sprintf("%d", code)).Observe(durationSeconds)
+}
+
+// IncHttpRequestsTotal increments the counter for HTTP requests.
+func IncHttpRequestsTotal(path, method string, code int) {
+	httpRequestsTotal.WithLabelValues(path, method, fmt.Sprintf("%d", code)).Inc()
+}
+
+// IncActiveFlowHandlers increments the gauge for active flow handlers.
+func IncActiveFlowHandlers() {
+	activeFlowHandlersGauge.Inc()
+}
+
+// DecActiveFlowHandlers decrements the gauge for active flow handlers.
+func DecActiveFlowHandlers() {
+	activeFlowHandlersGauge.Dec()
 }
