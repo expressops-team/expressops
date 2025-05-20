@@ -32,12 +32,12 @@ spec:
         - name: OPENSEARCH_USER
           valueFrom:
             secretKeyRef:
-              name: opensearch-credentials
+              name: opensearch-credentials-secure
               key: username
         - name: OPENSEARCH_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: opensearch-credentials
+              name: opensearch-credentials-secure
               key: password
         resources:
           limits:

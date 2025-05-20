@@ -75,3 +75,12 @@ extraEnvs:
 
 imagePullSecrets:
   - name: opensearch-registry-creds
+
+extraPlugins:
+  - opensearch-performance-analyzer
+  - opensearch-alerting
+  - opensearch-anomaly-detection
+  - opensearch-index-management
+
+# TODO:
+#snapshot repository
