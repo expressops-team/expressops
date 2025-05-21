@@ -1,0 +1,17 @@
+{
+  "name": "system_metrics_clusters",
+  "algorithm": "kmeans",
+  "parameters": {
+    "centroids": 3,
+    "iterations": 10,
+    "distance_type": "EUCLIDEAN"
+  },
+  "input_query": {
+    "query": {
+      "match_all": {}
+    },
+    "_source": ["cpu_usage", "memory_usage", "host", "service"],
+    "size": 1000
+  },
+  "input_index": ["system-metrics"]
+} 
