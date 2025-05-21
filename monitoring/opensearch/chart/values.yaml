@@ -27,6 +27,8 @@ config:
     plugins.security.ssl.transport.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
     
     plugins.security.allow_default_init_securityindex: true
+    
+    plugins.query.datasources.encryption.masterkey: "A1B2C3D4E5F6G7H8"
 
 resources:
   requests:
@@ -78,9 +80,16 @@ imagePullSecrets:
 
 extraPlugins:
   - opensearch-performance-analyzer
+  - opensearch-knn
+  - opensearch-saml
   - opensearch-alerting
   - opensearch-anomaly-detection
   - opensearch-index-management
+  - opensearch-sql
+  - opensearch-prometheus
+  - opensearch-machine-learning
 
 # TODO:
 #snapshot repository
+
+# opensearch-sql --> prometheus metrics
