@@ -88,6 +88,10 @@ extraPlugins:
   - opensearch-sql
   - opensearch-prometheus
   - opensearch-machine-learning
+  - opensearch-observability
+  - opensearch-reports
+  - opensearch-gantt-chart
+  - opensearch-visualizations
 
 # TODO:
 #snapshot repository
