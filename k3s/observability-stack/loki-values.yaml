@@ -18,7 +18,7 @@ singleBinary:
   replicas: 1
   persistence:
     enabled: true
-    storageClassName: "juicefs-gcs-redis-canonica"
+    storageClass: "juicefs-gcs-redis-canonica"
     size: 10Gi
     accessModes:
       - ReadWriteOnce # Adecuado para SingleBinary
