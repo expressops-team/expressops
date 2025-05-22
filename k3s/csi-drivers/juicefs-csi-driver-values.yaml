@@ -8,22 +8,39 @@
 
 # Puedes ajustar los recursos para los pods del driver si es necesario,
 # pero los valores por defecto suelen ser adecuados para empezar.
-# controller:
-#   resources:
-#     limits:
-#       cpu: 200m
-#       memory: 200Mi
-#     requests:
-#       cpu: 100m
-#       memory: 100Mi
-# node:
-#   resources:
-#     limits:
-#       cpu: 1000m # Puede necesitar más CPU si el uso es intensivo
-#       memory: 1Gi   # Y más memoria para el caché en RAM del cliente JuiceFS
-#     requests:
-#       cpu: 100m
-#       memory: 100Mi
+# juicefs-csi-driver-values.yaml
+
+# Recursos para los pods del controlador CSI
+controller:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi 
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Recursos para los pods de nodo (CSI node) (Daemonset)
+node:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Patch dinámico para los Mount Pods (volúmenes JuiceFS)
+# Mount Pods (uno por PVC)
+globalConfig:
+  mountPodPatch:
+    - resources:
+        requests:
+          cpu: 75m 
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 1.5Gi
 
 # Si quieres habilitar el caché en disco para los nodos JuiceFS (mejora el rendimiento)
 # Esto se configura globalmente aquí o por StorageClass/PV.
