@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-config
+  namespace: dav-monitoring
+data:
+  filebeat.yml: |-
+    filebeat.inputs:
+    - type: container
+      paths:
+        - /var/log/pods/default_expressops-*/expressops/*.log
+      exclude_files: ['\.gz$']
+    
+    # processors:
+    #   - add_kubernetes_metadata:
+    #       host: "${NODE_NAME}"
+    #       in_cluster: true 
+    #       default_indexers.enabled: false
+    #       indexers:
+    #         - pod_uid:
+    #       default_matchers.enabled: false
+    #       matchers:
+    #         - logs_path:
+    #             logs_path: "/var/log/pods/"
+    #             resource_type: "pod"
+    #             lookup_fields: ["kubernetes.pod.uid"]
+
+    #   - drop_event.when.not:
+    #       equals:
+    #         kubernetes.namespace: "default" 
+    #   - drop_event.when.not:
+    #       regexp:
+    #         kubernetes.pod.name: "expressops.*" 
+      
+    #   - add_cloud_metadata: ~
+    #   - add_host_metadata: ~
+
+    processors:
+      - add_kubernetes_metadata: {}
+
+    setup.template.enabled: false
+    setup.ilm.enabled: false 
+
+    output.elasticsearch:
+      hosts: ["http://opensearch-cluster-master.dav-monitoring.svc.cluster.local:9200"]
+      index: "expressops-logs-%{+YYYY.MM.dd}"
+      ssl:
+        enabled: false
+     # worker: 1
+      # bulk_max_size: 1
+
+    logging.level: debug
+    logging.selectors: ["*"] 
+    logging.metrics.enabled: false 

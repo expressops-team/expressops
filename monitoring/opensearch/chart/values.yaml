@@ -1,0 +1,99 @@
+replicas: 1
+clusterName: opensearch
+nodeGroup: master
+
+image:
+  repository: europe-west1-docker.pkg.dev/fc-it-school-2025/opensearch-repo/opensearch
+  imagePullPolicy: IfNotPresent
+  tag: "3.0.0"
+
+opensearchJavaOpts: "-Xms1g -Xmx1g"
+
+config:
+  opensearch.yml: |
+    discovery.type: single-node
+    network.host: 0.0.0.0
+    
+    plugins.security.disabled: false
+    
+    plugins.security.ssl.http.enabled: true
+    plugins.security.ssl.transport.enabled: true
+    
+    plugins.security.ssl.http.pemcert_filepath: /usr/share/opensearch/config/certs/node.pem
+    plugins.security.ssl.http.pemkey_filepath: /usr/share/opensearch/config/certs/node-key.pem
+    plugins.security.ssl.http.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
+    plugins.security.ssl.transport.pemcert_filepath: /usr/share/opensearch/config/certs/node.pem
+    plugins.security.ssl.transport.pemkey_filepath: /usr/share/opensearch/config/certs/node-key.pem
+    plugins.security.ssl.transport.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
+    
+    plugins.security.allow_default_init_securityindex: true
+    
+    plugins.query.datasources.encryption.masterkey: "A1B2C3D4E5F6G7H8"
+
+resources:
+  requests:
+    cpu: "0.5"
+    memory: "512Mi"
+  limits:
+    cpu: "2"
+    memory: "2Gi"
+
+nodeSelector:
+  role: opensearch-node
+
+persistence:
+  enabled: true
+  storageClass: "standard"
+  size: 10Gi
+
+singleNode: true
+
+service:
+  type: ClusterIP
+  httpPort: 9200
+  metricsPort: 9600
+
+extraVolumes:
+  - name: certs
+    secret:
+      secretName: opensearch-certs
+
+extraVolumeMounts:
+  - name: certs
+    mountPath: /usr/share/opensearch/config/certs
+    readOnly: true
+
+extraEnvs:
+  - name: OPENSEARCH_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: opensearch-credentials-secure
+        key: username
+  - name: OPENSEARCH_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: opensearch-credentials-secure
+        key: password
+
+imagePullSecrets:
+  - name: opensearch-registry-creds
+
+extraPlugins:
+  - opensearch-performance-analyzer
+  - opensearch-knn
+  - opensearch-saml
+  - opensearch-alerting
+  - opensearch-anomaly-detection
+  - opensearch-index-management
+  - opensearch-sql
+  - opensearch-prometheus
+  - opensearch-machine-learning
+  - opensearch-observability
+  - opensearch-reports
+  - opensearch-gantt-chart
+  - opensearch-visualizations
+
+# TODO:
+#snapshot repository
+
+# opensearch-sql --> prometheus metrics

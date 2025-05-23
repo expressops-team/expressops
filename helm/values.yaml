@@ -1,12 +1,11 @@
 replicaCount: 1
 
 image:
-  repository: davidnull/expressops
+  repository: europe-west1-docker.pkg.dev/fc-it-school-2025/expressops-repo/expressops
   tag: 1.1.5
   pullPolicy: IfNotPresent
 
 imagePullSecrets: [] 
-nameOverride: ""
 fullnameOverride: "" 
 
 # Liveness Probe Configuration

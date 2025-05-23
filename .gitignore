@@ -29,3 +29,4 @@ terraform/*
 # Google service account key
 key.json
 k3s.yaml
+key_artifact.json
