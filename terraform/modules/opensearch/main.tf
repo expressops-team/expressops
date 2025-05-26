@@ -6,11 +6,13 @@ resource "helm_release" "opensearch" {
   namespace  = var.namespace
 
   values = [
-    templatefile("${path.root}/../monitoring/opensearch/opensearch.yaml", {
+  templatefile(abspath("${path.module}/../../files/opensearch_values.yaml"), {
       opensearch_image_tag = var.opensearch_image_tag,
       secrets_name         = var.secrets_name,
       credentials_name     = var.credentials_name
     })
   ]
 
-  depends_on = [] 
+  depends_on = [
+  ]
+} 
