@@ -1,0 +1,92 @@
+// PASO 0: Si es la primera vez borra el indice
+DELETE test-knn-index
+{
+  "acknowledged": true 
+}
+
+// Paso 1: Crear un Índice de Prueba k-NN
+PUT test-knn-index
+{
+  "settings": {
+    "index.knn": true 
+  },
+  "mappings": {
+    "properties": {
+      "my_simple_vector": {
+        "type": "knn_vector",
+        "dimension": 2,
+        "method": {
+          "name": "hnsw",
+          "space_type": "l2",
+          "engine": "lucene"
+        }
+      },
+      "description": {
+        "type": "text"
+      }
+    }
+  }
+}
+
+// Paso 2: Indexar algunos Documentos de Prueba
+POST test-knn-index/_doc/1
+{
+  "my_simple_vector": [1.0, 2.0],
+  "description": "Documento A - Cerca del vector [1,1]"
+}
+// { ..., "result": "created", ..., "_id": "1", ...}
+
+POST test-knn-index/_doc/2
+{
+  "my_simple_vector": [1.2, 1.8],
+  "description": "Documento B - También cerca del vector [1,1]"
+}
+// { ..., "result": "created", ..., "_id": "2", ...}
+
+POST test-knn-index/_doc/3
+{
+  "my_simple_vector": [5.0, 5.0],
+  "description": "Documento C - Lejos del vector [1,1]"
+}
+// { ..., "result": "created", ..., "_id": "3", ...}
+
+POST test-knn-index/_doc/4
+{
+  "my_simple_vector": [4.5, 5.5],
+  "description": "Documento D - También lejos del vector [1,1], pero cerca de C"
+}
+// { ..., "result": "created", ..., "_id": "4", ...}
+
+// Paso 3: Refrescar el índice (para asegurar que los datos estén buscables)
+POST test-knn-index/_refresh
+{
+  "_shards": { "total": 2, "successful": 1, "failed": 0 } 
+}
+
+
+// Paso 4: Ejecutar una Búsqueda k-NN Simple
+// (Buscamos vectores cercanos a [1.1, 1.9])
+GET test-knn-index/_search
+{
+  "size": 2,
+  "query": {
+    "knn": {
+      "my_simple_vector": {
+        "vector": [1.1, 1.9],
+        "k": 2 
+      }
+    }
+  },
+  "_source": ["description", "my_simple_vector"] 
+}
+// Deberías ver en "hits.hits" los documentos con descripción "Documento A..." y "Documento B...".
+// Ejemplo:
+// {
+//   "_index": "test-knn-index",
+//   "_id": "1", 
+//   "_score": 0.9523809, 
+//   "_source": {
+//     "my_simple_vector": [1.0, 2.0], 
+//     "description": "Documento A - Cerca del vector [1,1]" 
+//   }
+// }

@@ -1,0 +1,189 @@
+INSTRUCCIONES PARA LA INSTALACIÓN COMPLETA DEL STACK DE MONITOREO CON TERRAFORM
+
+Este documento describe los pasos para desplegar OpenSearch, OpenSearch Dashboards y Fluent Bit
+en un clúster de Kubernetes utilizando la configuración de Terraform proporcionada.
+
+========================
+I. PRERREQUISITOS
+========================
+
+1.  **Herramientas CLI Instaladas:**
+    *   `terraform` (Versión 1.0.0 o superior recomendada)
+    *   `kubectl` (Configurado para acceder a tu clúster de Kubernetes)
+    *   `helm` (CLI de Helm v3)
+    *   `openssl` (Para la generación de certificados, generalmente preinstalado en Linux/macOS)
+
+2.  **Acceso al Clúster de Kubernetes:**
+    *   Asegúrate de que tu `kubectl` está configurado con el contexto correcto apuntando al clúster donde deseas realizar el despliegue.
+
+3.  **(Opcional) Proyecto GCP y Credenciales:**
+    *   Si planeas integrar secretos gestionados por Google Cloud Secret Manager (como se infiere de algunas variables en el `main.tf` raíz no relacionadas directamente con este stack de monitoreo), asegúrate de tener un proyecto GCP y las credenciales configuradas para que Terraform pueda acceder.
+        Para este stack de monitoreo específico, los secretos de OpenSearch se gestionan localmente o mediante variables de Terraform.
+
+========================
+II. CONFIGURACIÓN DEL PROYECTO TERRAFORM
+========================
+
+1.  **Estructura de Directorios:**
+    *   Asegúrate de tener la estructura de directorios de Terraform como se ha desarrollado:
+      ```
+      terraform/
+      ├── files/
+      │   ├── generate_certs.sh
+      │   ├── opensearch_values.yaml
+      │   ├── opensearch_dashboards_values.yaml
+      │   ├── fluentbit_daemonset.yaml (referencia)
+      │   └── secrets.tfvars.example
+      ├── modules/
+      │   ├── fluentbit/
+      │   ├── kubernetes_secrets/
+      │   ├── opensearch/
+      │   └── opensearch_dashboards/
+      ├── main.tf
+      ├── variables.tf
+      ├── outputs.tf
+      └── providers.tf
+      ```
+
+2.  **Permisos del Script de Certificados:**
+    *   Navega al directorio `terraform/files/`.
+    *   Otorga permisos de ejecución al script de generación de certificados:
+      ```bash
+      chmod +x generate_certs.sh
+      ```
+
+3.  **Configuración de Secretos y Variables de Terraform:**
+    *   En el directorio `terraform/files/`, tienes un archivo `secrets.tfvars.example`.
+        Cópialo a `secrets.tfvars` (o el nombre que prefieras para tu archivo de variables, por ejemplo `production.tfvars`):
+      ```bash
+      cp terraform/files/secrets.tfvars.example terraform/files/secrets.tfvars
+      ```
+    *   Edita tu nuevo archivo `.tfvars`. Este archivo te permite definir valores para las variables declaradas en `terraform/variables.tf`.
+        Revisa todas las variables comentadas en `secrets.tfvars.example` y descomenta y ajusta las que necesites. Como mínimo, debes configurar una contraseña segura para OpenSearch:
+
+      ```terraform
+      # terraform/files/secrets.tfvars (o como lo hayas llamado)
+
+      # === Variables for the OpenSearch Monitoring Stack ===
+
+      # namespace = "dav-monitoring-prod" # Puedes cambiar el namespace si lo deseas.
+      # Default: "dav-monitoring"
+
+      # opensearch_certs_path = "./opensearch-certs-generated-prod" # Puedes cambiar la ruta donde se generan los certs.
+      # Default: "./opensearch-certs-generated"
+
+      # opensearch_admin_username = "customadmin" # Puedes cambiar el nombre de usuario admin.
+      # Default: "admin"
+
+      opensearch_admin_password = "TuContraseñaSuperSeguraYUnicaAqui123!"
+      # Default: "admin" (¡ES IMPORTANTE CAMBIAR ESTO!)
+
+      # === Variables para GCP (Descomenta y configura si estás utilizando los recursos de GCP del main.tf raíz) ===
+      # Actualmente, los recursos de GCP en el main.tf raíz están comentados, por lo que estas variables
+      # no tendrían efecto a menos que descomentes dichos recursos.
+
+      # slack_webhook_url = "https://hooks.slack.com/services/TU/SLACK/WEBHOOK_URL"
+      # service_account_email = "tu-cuenta-de-servicio@tu-proyecto-gcp.iam.gserviceaccount.com"
+
+      # === Variables Generales de Kubernetes (Revisa si son relevantes para tu configuración más amplia) ===
+      # Las siguientes variables están definidas en el variables.tf raíz pero no son usadas directamente
+      # por los módulos del stack de monitoreo tal como están configurados.
+
+      # deploy_k8s_resources = false
+      # k8s_namespace = "default"
+      ```
+    *   **IMPORTANTE:** No guardes contraseñas reales o información sensible directamente en archivos `.tf` que se suban a repositorios de código. El archivo `.tfvars` con los secretos no debería ser comiteado. Asegúrate de que esté en tu `.gitignore`.
+
+4.  **Etiquetado de Nodos de Kubernetes (Importante para OpenSearch):**
+    *   La configuración de OpenSearch (`terraform/files/opensearch_values.yaml`) utiliza un `nodeSelector` para programar los pods de OpenSearch en nodos con la etiqueta `role: opensearch-node`.
+    *   Si tus nodos aún no tienen esta etiqueta, debes aplicarla. Para cada nodo que quieras dedicar a OpenSearch (o si tienes un clúster pequeño y quieres usar un nodo específico):
+      ```bash
+      kubectl label node <tu-nombre-de-nodo> role=opensearch-node
+      ```
+    *   Puedes listar tus nodos con `kubectl get nodes --show-labels`.
+
+========================
+III. DESPLIEGUE CON TERRAFORM
+========================
+
+1.  **Navegar al Directorio Raíz de Terraform:**
+    ```bash
+    cd /ruta/a/tu/proyecto/expressops/terraform 
+    ```
+    (Asegúrate de estar en el directorio que contiene `main.tf`, `providers.tf`, etc.)
+
+2.  **Inicializar Terraform:**
+    *   Este comando descarga los plugins de los proveedores necesarios (Kubernetes, Helm, Local, TLS, Google).
+      ```bash
+      terraform init
+      ```
+
+3.  **Planificar el Despliegue:**
+    *   Este comando crea un plan de ejecución. Revisa la salida para entender qué recursos creará, modificará o destruirá Terraform.
+      ```bash
+      terraform plan -var-file="files/secrets.tfvars"
+      ```
+
+4.  **Aplicar la Configuración:**
+    *   Este comando aplica los cambios definidos en el plan. Se te pedirá confirmación antes de proceder.
+      ```bash
+      terraform apply -var-file="files/secrets.tfvars"
+      ```
+    *   Cuando se te pregunte "Do you want to perform these actions?", escribe `yes` y presiona Enter.
+
+========================
+IV. VERIFICACIÓN POST-DESPLIEGUE
+========================
+
+1.  **Comprobar el Namespace y los Pods:**
+    *   Verifica que el namespace `dav-monitoring` (o el que hayas configurado) se haya creado.
+    *   Comprueba el estado de los pods. Deberías ver pods para OpenSearch, OpenSearch Dashboards y Fluent Bit (uno por nodo donde corra el DaemonSet).
+      ```bash
+      kubectl get ns
+      kubectl get pods -n dav-monitoring -w
+      ```
+    *   Espera a que todos los pods estén en estado `Running` o `Completed`.
+
+2.  **Comprobar los Servicios:**
+    *   Verifica los servicios creados:
+      ```bash
+      kubectl get svc -n dav-monitoring
+      ```
+    *   Deberías ver servicios para `opensearch-cluster-master` y `opensearch-dashboards` (entre otros que Helm pueda crear).
+
+3.  **Acceder a OpenSearch Dashboards:**
+    *   La URL de salida de Terraform (`opensearch_dashboards_url`) te indicará cómo acceder. Normalmente, para un servicio `ClusterIP` (que es el tipo por defecto en la configuración), necesitarás usar `port-forward`:
+      ```bash
+      kubectl port-forward svc/opensearch-dashboards -n dav-monitoring 5601:5601
+      ```
+    *   Luego, abre tu navegador y ve a `http://localhost:5601`.
+    *   Deberías poder iniciar sesión con el usuario y contraseña que configuraste (ej. `admin` y la contraseña de `secrets.tfvars`).
+
+4.  **Acceder a OpenSearch (API):**
+    *   Similar a Dashboards, puedes usar `port-forward` para acceder a la API de OpenSearch si es necesario:
+      ```bash
+      kubectl port-forward svc/opensearch-cluster-master -n dav-monitoring 9200:9200
+      ```
+    *   Luego puedes hacer peticiones a `https://localhost:9200` (usando `curl -k` para ignorar la validación del certificado auto-firmado, o configurando curl para usar el `root-ca.pem` generado).
+      ```bash
+      curl -k -u admin:<tu_contraseña> https://localhost:9200
+      ```
+
+========================
+V. GESTIÓN DE LA CONFIGURACIÓN
+========================
+
+*   **Modificaciones:** Si necesitas cambiar alguna configuración, modifica los archivos `.tf` o los `values.yaml` correspondientes, y luego ejecuta `terraform plan` y `terraform apply` nuevamente.
+*   **Destrucción:** Para eliminar todos los recursos creados por esta configuración de Terraform:
+    ```bash
+    terraform destroy -var-file="files/secrets.tfvars"
+    ```
+
+========================
+VI. PASOS ADICIONALES (CONFIGURACIÓN DE APLICACIÓN)
+========================
+
+*   **Importar Dashboards/Visualizaciones:** La configuración actual de Terraform despliega OpenSearch Dashboards, pero no importa dashboards o visualizaciones predefinidas (como `expressops-dashboard.json` o las visualizaciones Vega). Esto se haría como un paso posterior, ya sea manualmente a través de la interfaz de OpenSearch Dashboards ("Saved Objects") o usando scripts que interactúen con la API de OpenSearch Dashboards.
+*   **Configurar Conectores de Datos/ML:** Cualquier configuración específica de Machine Learning (como la del script `deploy-ml.sh`) o la ingesta de datos de Prometheus (si no se hace a través de Fluent Bit para logs) también serían pasos posteriores a este despliegue de infraestructura.
+
+¡Buena suerte con tu despliegue! 

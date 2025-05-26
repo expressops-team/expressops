@@ -13,8 +13,8 @@ logs/*.zip
 
 # Kubernetes secrets
 k8s/secrets/fake-clustersecretstore.yaml  
-# Terraform
-terraform/*
+# Terraform -> TODO: Add terraform to the repo
+# terraform/*
 
 
 # Local environment files

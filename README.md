@@ -152,6 +152,13 @@ make grafana-port-forward PROMETHEUS_NAMESPACE=monitoring-david GRAFANA_RELEASE=
 
 Grafana credentials: admin/admin123
 
+## Terraform
+
+This project also supports deployment of its monitoring stack (OpenSearch, OpenSearch Dashboards, Fluent Bit) using Terraform. The Terraform configuration can be found in the `terraform/` directory.
+
+
+![Terraform](terraform/Esquema%20Terraform.png)
+
 ## Configuration Example
 
 ```yaml
