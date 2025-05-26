@@ -6,14 +6,11 @@ resource "helm_release" "opensearch" {
   namespace  = var.namespace
 
   values = [
-    templatefile(var.opensearch_values_file, {
+    templatefile("${path.root}/../monitoring/opensearch/opensearch.yaml", {
       opensearch_image_tag = var.opensearch_image_tag,
       secrets_name         = var.secrets_name,
       credentials_name     = var.credentials_name
     })
   ]
 
-  depends_on = [
-    # Ensure secrets are created before helm release
-  ]
-} 
+  depends_on = [] 

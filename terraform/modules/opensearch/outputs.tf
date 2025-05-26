@@ -4,6 +4,9 @@ output "opensearch_url" {
 }
 
 output "opensearch_service_name" {
-    description = "Name of the OpenSearch cluster master service."
-    value = "${helm_release.opensearch.name}-cluster-master" 
+    value = "${helm_release.opensearch.name}-cluster-master" # Default from chart
+}
+
+output "debug_opensearch_values_file_exists" {
+  value       = fileexists(var.opensearch_values_file)
 } 
