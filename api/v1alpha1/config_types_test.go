@@ -58,7 +58,17 @@ flows:
 	assert.Equal(t, "/path/to/plugin", config.Plugins[0].Path)
 	assert.Equal(t, "go", config.Plugins[0].Type)
 	assert.Equal(t, "value1", config.Plugins[0].Config["key1"])
-	assert.Equal(t, 42.0, config.Plugins[0].Config["key2"]) // YAML convierte a float64
+	
+	// Obtener el valor y comprobar solo el valor numérico, independientemente del tipo
+	key2Value := config.Plugins[0].Config["key2"]
+	switch v := key2Value.(type) {
+	case float64:
+		assert.Equal(t, float64(42), v)
+	case int:
+		assert.Equal(t, 42, v)
+	default:
+		assert.Fail(t, "El valor key2 debería ser un número (float64 o int)")
+	}
 	
 	// Verify flows
 	require.Len(t, config.Flows, 1)

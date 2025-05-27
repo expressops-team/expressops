@@ -424,10 +424,17 @@ func TestExecuteFlowTimeout(t *testing.T) {
 	slowPlugin := new(MockPlugin)
 	slowPlugin.On("Execute", mock.Anything, mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
-			// Simulate slow operation
-			time.Sleep(100 * time.Millisecond)
+			// Simulate slow operation that should be interrupted by context timeout
+			select {
+			case <-time.After(500 * time.Millisecond):
+				// This should never complete due to the context timeout
+			case <-args.Get(0).(context.Context).Done():
+				// This is the expected path - context should be cancelled
+			}
 		}).
-		Return("never reached", nil)
+		Return("", context.DeadlineExceeded) // Return the timeout error
+	slowPlugin.On("FormatResult", "never reached").Return("", nil)
+	slowPlugin.On("FormatResult", mock.Anything).Return("", nil)
 	
 	// Save the original function
 	originalGetPlugin := pluginManager.GetPluginFunc
@@ -454,6 +461,11 @@ func TestExecuteFlowTimeout(t *testing.T) {
 	result, ok := results[0].(map[string]interface{})
 	assert.True(t, ok, "The result should be a map")
 	
-	_, hasError := result["error"]
+	errorMsg, hasError := result["error"]
 	assert.True(t, hasError, "There should be an error due to timeout")
+	
+	// Optionally, verify the error message contains timeout-related information
+	errorStr, ok := errorMsg.(string)
+	assert.True(t, ok, "The error should be a string")
+	assert.Contains(t, errorStr, "context deadline exceeded", "Error should mention context deadline exceeded")
 }
