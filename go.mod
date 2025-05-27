@@ -1,6 +1,8 @@
 module expressops
 
-go 1.24 // latest version rn
+go 1.23.0 // versión estable actual
+
+toolchain go1.23.9
 
 require (
 	github.com/prometheus/client_golang v1.22.0

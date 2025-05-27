@@ -1,5 +1,5 @@
 # .golangci.yml
-version: "2"
+version: "2.0.0"
 
 # Configuración básica
 run:
@@ -27,6 +27,8 @@ linters:
   settings:
     misspell:
       locale: US
+      ignore-rules:
+        - cancelled
     lll:
       line-length: 200
     # Configuración específica de revive para ser más permisivo
