@@ -150,7 +150,6 @@ make local-prometheus-port-forward PROMETHEUS_NAMESPACE=monitoring-david PROMETH
 make grafana-port-forward PROMETHEUS_NAMESPACE=monitoring-david GRAFANA_RELEASE=grafana-david GRAFANA_PORT=3001
 ```
 
-Grafana credentials: admin/admin123
 
 ## Terraform
 

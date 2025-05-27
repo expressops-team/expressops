@@ -1,6 +1,6 @@
-replicas: 1
+replicas: 3
 clusterName: opensearch
-nodeGroup: master
+nodeGroup: standard
 
 image:
   repository: europe-west1-docker.pkg.dev/fc-it-school-2025/opensearch-repo/opensearch
@@ -11,42 +11,56 @@ opensearchJavaOpts: "-Xms1g -Xmx1g"
 
 config:
   opensearch.yml: |
-    discovery.type: single-node
     network.host: 0.0.0.0
     
     plugins.security.disabled: false
-    
     plugins.security.ssl.http.enabled: true
     plugins.security.ssl.transport.enabled: true
-    
     plugins.security.ssl.http.pemcert_filepath: /usr/share/opensearch/config/certs/node.pem
     plugins.security.ssl.http.pemkey_filepath: /usr/share/opensearch/config/certs/node-key.pem
     plugins.security.ssl.http.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
     plugins.security.ssl.transport.pemcert_filepath: /usr/share/opensearch/config/certs/node.pem
     plugins.security.ssl.transport.pemkey_filepath: /usr/share/opensearch/config/certs/node-key.pem
     plugins.security.ssl.transport.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
-    
     plugins.security.allow_default_init_securityindex: true
-    
+
+    node.roles:
+      - cluster_manager
+      - data
+      - ingest
+
+    discovery.seed_hosts: ["opensearch-standard-0.opensearch-standard-headless", "opensearch-standard-1.opensearch-standard-headless", "opensearch-standard-2.opensearch-standard-headless"]
+    cluster.initial_cluster_manager_nodes: ["opensearch-standard-0", "opensearch-standard-1", "opensearch-standard-2"]
+
     plugins.query.datasources.encryption.masterkey: "A1B2C3D4E5F6G7H8"
 
 resources:
   requests:
-    cpu: "0.5"
-    memory: "512Mi"
+    cpu: "500m"
+    memory: "1Gi"
   limits:
     cpu: "2"
-    memory: "2Gi"
+    memory: "4Gi"
 
 nodeSelector:
   role: opensearch-node
 
 persistence:
   enabled: true
-  storageClass: "standard"
+  storageClass: "juicefs-gcs-redis-canonica"
   size: 10Gi
 
-singleNode: true
+singleNode: false
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchLabels:
+            role: opensearch-node
+        topologyKey: "kubernetes.io/hostname"
 
 service:
   type: ClusterIP
