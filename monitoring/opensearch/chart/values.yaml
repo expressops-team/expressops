@@ -15,10 +15,10 @@ config:
     
     plugins.security.disabled: false
     plugins.security.ssl.http.enabled: true
-    plugins.security.ssl.transport.enabled: true
     plugins.security.ssl.http.pemcert_filepath: /usr/share/opensearch/config/certs/node.pem
     plugins.security.ssl.http.pemkey_filepath: /usr/share/opensearch/config/certs/node-key.pem
     plugins.security.ssl.http.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
+    plugins.security.ssl.transport.enabled: true
     plugins.security.ssl.transport.pemcert_filepath: /usr/share/opensearch/config/certs/node.pem
     plugins.security.ssl.transport.pemkey_filepath: /usr/share/opensearch/config/certs/node-key.pem
     plugins.security.ssl.transport.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
@@ -39,8 +39,8 @@ resources:
     cpu: "500m"
     memory: "1Gi"
   limits:
-    cpu: "2"
-    memory: "4Gi"
+    cpu: "1"
+    memory: "2Gi"
 
 nodeSelector:
   role: opensearch-node
@@ -67,6 +67,7 @@ service:
   httpPort: 9200
   metricsPort: 9600
 
+# ==== DOES NOT GENERATE THE CERTS AUTOMATICALLY ====
 extraVolumes:
   - name: certs
     secret:
