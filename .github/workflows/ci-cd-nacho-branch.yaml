@@ -37,7 +37,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v2
+          version: v1.55.2
           args: --timeout=5m
 
       - name: Login to Docker Hub
