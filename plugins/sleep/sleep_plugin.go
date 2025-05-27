@@ -37,7 +37,7 @@ func (p *SleepPlugin) Execute(ctx context.Context, req *http.Request, shared *ma
 		metrics.ObserveSleepDuration(float64(configDuration))
 		return fmt.Sprintf("Slept for %.0f seconds", duration.Seconds()), nil
 	case <-ctx.Done():
-		p.logger.Warn("Sleep Plugin has been cancelled!")
+		p.logger.Warn("Sleep Plugin has been canceled!")
 		metrics.ObserveSleepDuration(0)
 		return nil, ctx.Err()
 	}

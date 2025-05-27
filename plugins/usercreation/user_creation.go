@@ -144,7 +144,7 @@ func (p *UserCreationPlugin) Execute(ctx context.Context, request *http.Request,
 		errMsg := fmt.Sprintf("Failed to create user: %v - %s", err, string(output))
 		p.logger.Error(errMsg)
 		metrics.IncUserCreation(username, "error")
-		return nil, fmt.Errorf(errMsg)
+		return nil, fmt.Errorf("user creation error: %s", errMsg)
 	}
 
 	p.logger.Infof("Successfully created user %s", username)

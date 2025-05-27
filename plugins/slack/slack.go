@@ -22,7 +22,7 @@ type SlackPlugin struct {
 }
 
 // Initialize initializes the plugin with the provided configuration
-func (s *SlackPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
+func (s *SlackPlugin) Initialize(_ context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	s.logger = logger
 	s.logger.Info("Initializing Slack Plugin")
 	webhook, ok := config["webhook_url"].(string)
@@ -137,7 +137,11 @@ func (s *SlackPlugin) Execute(ctx context.Context, _ *http.Request, shared *map[
 		metrics.IncSlackNotification(statusLabel, channelLabel)
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			s.logger.WithError(err).Error("Error closing response body")
+		}
+	}()
 
 	// Check response
 	if resp.StatusCode != http.StatusOK {

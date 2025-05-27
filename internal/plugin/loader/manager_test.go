@@ -4,13 +4,10 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"path/filepath"
-	"os"
-	"io/ioutil"
+	"net/http"
 	
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // Implementing a test plugin to emulate a real plugin
@@ -34,9 +31,10 @@ func (p *TestPlugin) FormatResult(result interface{}) (string, error) {
 // Global variable required for the plugin to be discoverable
 var PluginInstance Plugin = &TestPlugin{}
 
+/* Función comentada por no utilizarse
 func createTestPlugin(t *testing.T) (string, func()) {
 	// Create a temporary directory
-	tmpDir, err := ioutil.TempDir("", "plugin-test")
+	tmpDir, err := os.MkdirTemp("", "plugin-test")
 	require.NoError(t, err)
 	
 	// Generate plugin code
@@ -76,7 +74,7 @@ func createTestPlugin(t *testing.T) (string, func()) {
 	
 	// Writing the code in a Go file
 	pluginFile := filepath.Join(tmpDir, "plugin.go")
-	err = ioutil.WriteFile(pluginFile, []byte(pluginCode), 0644)
+	err = os.WriteFile(pluginFile, []byte(pluginCode), 0644)
 	require.NoError(t, err)
 	
 	// Compile the plugin
@@ -90,11 +88,14 @@ func createTestPlugin(t *testing.T) (string, func()) {
 // by a mock of the plugin.Open function
 	
 	cleanup := func() {
-		os.RemoveAll(tmpDir)
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("Error cleaning up temp dir: %v", err)
+		}
 	}
 	
 	return pluginBinary, cleanup
 }
+*/
 
 func TestGetPlugin(t *testing.T) {
 	// Clean plugin registry before testing

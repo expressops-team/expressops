@@ -21,14 +21,14 @@ type KubeHealthPlugin struct {
 }
 
 // Initialize sets up the plugin with logger and configuration
-func (p *KubeHealthPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
+func (p *KubeHealthPlugin) Initialize(_ context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	p.logger = logger
 	p.logger.Info("Initializing KubeHealth Plugin")
 	return nil
 }
 
 // Execute connects to Kubernetes and retrieves pod status information
-func (p *KubeHealthPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
+func (p *KubeHealthPlugin) Execute(ctx context.Context, _ *http.Request, shared *map[string]any) (interface{}, error) {
 	namespace := "default"
 	if ns, ok := (*shared)["namespace"].(string); ok {
 		namespace = ns

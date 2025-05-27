@@ -16,9 +16,7 @@ import (
 )
 
 type CleanDisk struct {
-	logger  *logrus.Logger
-	request *http.Request
-	shared  *map[string]any
+	logger *logrus.Logger
 	ticker  *time.Ticker // daily
 	done    chan bool
 }
@@ -52,7 +50,7 @@ func (c *CleanDisk) Execute(ctx context.Context, request *http.Request, shared *
 }
 
 // cleanDisk removes temporary and cache files from the system
-func (c *CleanDisk) cleanDisk(logger *logrus.Logger, params map[string]interface{}) error {
+func (c *CleanDisk) cleanDisk(logger *logrus.Logger, _ map[string]interface{}) error {
 	logger.Info("Starting disk cleanup")
 
 	// Clean temp directory
@@ -113,7 +111,7 @@ func (c *CleanDisk) Name() string {
 }
 
 // FormatResult formats the result of the cleanup operation
-func (c *CleanDisk) FormatResult(result interface{}) (string, error) {
+func (c *CleanDisk) FormatResult(_ interface{}) (string, error) {
 	return "", nil
 }
 

@@ -18,6 +18,9 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+// Variables y funciones no utilizadas están comentadas
+// var mockGetPluginFunc func(name string) (pluginManager.Plugin, error)
+
 // MockPlugin implements the Plugin interface for testing
 type MockPlugin struct {
 	mock.Mock
@@ -38,16 +41,16 @@ func (m *MockPlugin) FormatResult(result interface{}) (string, error) {
 	return args.String(0), args.Error(1)
 }
 
-// Registry of mocked plugins for testing
-var mockPluginRegistry = make(map[string]*MockPlugin)
+// Registry of mocked plugins for testing - comentado por no usarse
+// var mockPluginRegistry = make(map[string]*MockPlugin)
 
-// Mock GetPlugin for testing
-func mockGetPlugin(name string) (pluginManager.Plugin, error) {
-	if plugin, ok := mockPluginRegistry[name]; ok {
-		return plugin, nil
-	}
-	return nil, fmt.Errorf("plugin not found")
-}
+// Mock GetPlugin for testing - comentado por no usarse
+// func mockGetPlugin(name string) (pluginManager.Plugin, error) {
+//     if plugin, ok := mockPluginRegistry[name]; ok {
+//         return plugin, nil
+//     }
+//     return nil, fmt.Errorf("plugin not found")
+// }
 
 func TestParseParams(t *testing.T) {
 	tests := []struct {
@@ -157,24 +160,27 @@ func TestDynamicFlowHandler(t *testing.T) {
 	}
 	
 	// Save the original function
-	originalGetPlugin := pluginManager.GetPlugin
+	originalGetPlugin := pluginManager.GetPluginFunc
 	
 	// Create and configure a mock plugin
 	mockPlugin := new(MockPlugin)
 	mockPlugin.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return("result", nil)
 	mockPlugin.On("FormatResult", mock.Anything).Return("formatted result", nil)
 	
-	// Replace GetPlugin with our mock version
-	pluginManager.GetPlugin = func(name string) (pluginManager.Plugin, error) {
+	// Crear una función temporal con la misma firma que pluginManager.GetPlugin
+	tempGetPlugin := func(name string) (pluginManager.Plugin, error) {
 		if name == "test-plugin" {
 			return mockPlugin, nil
 		}
 		return nil, fmt.Errorf("plugin not found")
 	}
 	
+	// Reemplazar temporalmente la función
+	pluginManager.GetPluginFunc = tempGetPlugin
+	
 	// Restore the original function after tests
 	defer func() {
-		pluginManager.GetPlugin = originalGetPlugin
+		pluginManager.GetPluginFunc = originalGetPlugin
 	}()
 	
 	for _, tc := range tests {
@@ -186,7 +192,11 @@ func TestDynamicFlowHandler(t *testing.T) {
 			handler(w, req)
 			
 			resp := w.Result()
-			defer resp.Body.Close()
+			defer func() {
+				if err := resp.Body.Close(); err != nil {
+					t.Logf("Error closing response body: %v", err)
+				}
+			}()
 			
 			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
 			
@@ -291,10 +301,10 @@ func TestExecuteFlow(t *testing.T) {
 	failingPlugin.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(nil, fmt.Errorf("plugin execution failed"))
 	
 	// Save the original function
-	originalGetPlugin := pluginManager.GetPlugin
+	originalGetPlugin := pluginManager.GetPluginFunc
 	
 	// Replace GetPlugin with our mock version
-	pluginManager.GetPlugin = func(name string) (pluginManager.Plugin, error) {
+	pluginManager.GetPluginFunc = func(name string) (pluginManager.Plugin, error) {
 		switch name {
 		case "simple-plugin":
 			return simplePlugin, nil
@@ -311,7 +321,7 @@ func TestExecuteFlow(t *testing.T) {
 	
 	// Restore the original function after tests
 	defer func() {
-		pluginManager.GetPlugin = originalGetPlugin
+		pluginManager.GetPluginFunc = originalGetPlugin
 	}()
 	
 	// Test cases
@@ -420,10 +430,10 @@ func TestExecuteFlowTimeout(t *testing.T) {
 		Return("never reached", nil)
 	
 	// Save the original function
-	originalGetPlugin := pluginManager.GetPlugin
+	originalGetPlugin := pluginManager.GetPluginFunc
 	
 	// Replace GetPlugin with our mock version
-	pluginManager.GetPlugin = func(name string) (pluginManager.Plugin, error) {
+	pluginManager.GetPluginFunc = func(name string) (pluginManager.Plugin, error) {
 		if name == "slow-plugin" {
 			return slowPlugin, nil
 		}
@@ -432,7 +442,7 @@ func TestExecuteFlowTimeout(t *testing.T) {
 	
 	// Restore the original function after tests
 	defer func() {
-		pluginManager.GetPlugin = originalGetPlugin
+		pluginManager.GetPluginFunc = originalGetPlugin
 	}()
 	
 	req := httptest.NewRequest("GET", "/test", nil)

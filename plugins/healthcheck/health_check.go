@@ -97,7 +97,11 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 
 		for _, part := range parts {
 			// Only consider actual file system partitions, skip others like /dev/loop, /snap
-			if !strings.HasPrefix(part.Device, "/dev/sd") && !strings.HasPrefix(part.Device, "/dev/hd") && !strings.HasPrefix(part.Device, "/dev/nvme") && !strings.HasPrefix(part.Device, "/dev/mapper") && part.Fstype != "fuse.portal" {
+			if !strings.HasPrefix(part.Device, "/dev/sd") && 
+			   !strings.HasPrefix(part.Device, "/dev/hd") && 
+			   !strings.HasPrefix(part.Device, "/dev/nvme") && 
+			   !strings.HasPrefix(part.Device, "/dev/mapper") && 
+			   part.Fstype != "fuse.portal" {
 				p.logger.Debugf("Skipping non-standard partition: %s (Device: %s, Fstype: %s)", part.Mountpoint, part.Device, part.Fstype)
 				continue
 			}
@@ -193,7 +197,7 @@ func (p *HealthCheckPlugin) checkDisk() error {
 		}
 	}
 	if len(highUsageMessages) > 0 {
-		return fmt.Errorf(strings.Join(highUsageMessages, "; "))
+		return fmt.Errorf("high disk usage detected: %s", strings.Join(highUsageMessages, "; "))
 	}
 	return nil
 }
@@ -206,7 +210,7 @@ func (p *HealthCheckPlugin) RegisterCheck(name string, check func() error) {
 }
 
 // simple text output for the health check results
-func (p *HealthCheckPlugin) FormatResult(result interface{}) (string, error) {
+func (p *HealthCheckPlugin) FormatResult(_ interface{}) (string, error) {
 	return "Health check completed", nil
 }
 

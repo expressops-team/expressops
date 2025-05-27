@@ -1,3 +1,4 @@
+// Package metrics provides Prometheus metrics for monitoring the application
 package metrics
 
 import (
@@ -157,11 +158,17 @@ var (
 
 // --- PUBLIC FUNCTIONS TO ACCESS METRICS FROM OTHER PACKAGES ---
 
+// IncFlowExecution records the execution attempt of a flow.
+func IncFlowExecution(flowName, status string) {
+	flowsExecutedTotal.WithLabelValues(flowName, status).Inc()
+}
+
 // IncFlowExecuted records the execution of a flow.
 func IncFlowExecuted(flowName, status string) {
 	flowsExecutedTotal.WithLabelValues(flowName, status).Inc()
 }
 
+// ObserveFlowDuration records the duration of a flow execution with its status
 func ObserveFlowDuration(flowName, status string, durationSeconds float64) {
 	flowExecutionDurationSeconds.WithLabelValues(flowName, status).Observe(durationSeconds)
 }
@@ -225,13 +232,13 @@ func IncTestPrint(status string) {
 	testPrintTotal.WithLabelValues(status).Inc()
 }
 
-// ObserveHttpRequestDuration records the duration of an HTTP request.
-func ObserveHttpRequestDuration(path, method string, code int, durationSeconds float64) {
+// ObserveHTTPRequestDuration records the duration of an HTTP request
+func ObserveHTTPRequestDuration(path, method string, code int, durationSeconds float64) {
 	httpRequestDurationSeconds.WithLabelValues(path, method, fmt.Sprintf("%d", code)).Observe(durationSeconds)
 }
 
-// IncHttpRequestsTotal increments the counter for HTTP requests.
-func IncHttpRequestsTotal(path, method string, code int) {
+// IncHTTPRequestsTotal increments the counter for HTTP requests
+func IncHTTPRequestsTotal(path, method string, code int) {
 	httpRequestsTotal.WithLabelValues(path, method, fmt.Sprintf("%d", code)).Inc()
 }
 

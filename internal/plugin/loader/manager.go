@@ -12,10 +12,12 @@ import (
 var (
 	registry = make(map[string]Plugin)
 	mu       sync.Mutex
+	
+	// GetPluginFunc is a variable that allows mocking the GetPlugin function in tests
+	GetPluginFunc = defaultGetPlugin
 )
 
-// loads a plugin into memory from a .so file
-
+// LoadPlugin loads a plugin into memory from a .so file
 func LoadPlugin(ctx context.Context, path string, name string, config map[string]interface{}, logger *logrus.Logger) error {
 	p, err := plugin.Open(path)
 	if err != nil {
@@ -47,8 +49,8 @@ func LoadPlugin(ctx context.Context, path string, name string, config map[string
 	return nil
 }
 
-// returns a registered plugin by its name
-func GetPlugin(name string) (Plugin, error) {
+// Implementación por defecto de GetPlugin
+func defaultGetPlugin(name string) (Plugin, error) {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -58,4 +60,9 @@ func GetPlugin(name string) (Plugin, error) {
 		return nil, fmt.Errorf("plugin not found")
 	}
 	return p, nil
+}
+
+// GetPlugin returns a registered plugin by its name
+func GetPlugin(name string) (Plugin, error) {
+	return GetPluginFunc(name)
 }

@@ -1,3 +1,4 @@
+// Package server provides HTTP server functionality for the application
 // internal/server/server.go
 package server
 
@@ -30,6 +31,7 @@ func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	}
 }
 
+// StartServer initializes and starts the HTTP server with the provided configuration
 func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	initializeFlowRegistry(cfg, logger)
 
@@ -55,12 +57,14 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 		// You could add actual health checks here. If they fail, set status to "error" and httpStatusCode accordingly.
 		// For now, always success.
 		w.Header().Set("Content-Type", "text/plain")
-		w.Write([]byte("OK"))
+		if _, err := w.Write([]byte("OK")); err != nil {
+			logger.WithError(err).Error("Error writing response")
+		}
 
 		duration := time.Since(startTime).Seconds()
 		metrics.ObserveFlowDuration("healthz", "success", duration) // Flow duration for healthz
-		metrics.IncHttpRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
-		metrics.ObserveHttpRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
+		metrics.IncHTTPRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
+		metrics.ObserveHTTPRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
 	})
 
 	timeout := time.Duration(cfg.Server.TimeoutSec) * time.Second
@@ -92,7 +96,6 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 
 		startTime := time.Now()
 		httpStatusCode := http.StatusOK
-		var flowStatusLabel string
 
 		ctx, cancel := context.WithTimeout(r.Context(), timeout) // if it takes more than 4 seconds, it will be killed
 
@@ -105,10 +108,9 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 			http.Error(w, errMsg, httpStatusCode)
 
 			duration := time.Since(startTime).Seconds()
-			flowStatusLabel = "error_bad_request"
-
-			metrics.IncHttpRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
-			metrics.ObserveHttpRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
+			metrics.IncHTTPRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
+			metrics.ObserveHTTPRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
+			metrics.IncFlowExecution(flowName, "error_bad_request")
 
 			return
 		}
@@ -121,11 +123,10 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 
 			// Errors Metrics
 			duration := time.Since(startTime).Seconds()
-			flowStatusLabel = "error_flow_not_found"
-			metrics.IncFlowExecuted(flowName, flowStatusLabel)
-			metrics.ObserveFlowDuration(flowName, flowStatusLabel, duration)
-			metrics.IncHttpRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
-			metrics.ObserveHttpRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
+			metrics.IncFlowExecuted(flowName, "error_flow_not_found")
+			metrics.ObserveFlowDuration(flowName, "error_flow_not_found", duration)
+			metrics.IncHTTPRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
+			metrics.ObserveHTTPRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
 			return
 		}
 
@@ -160,24 +161,24 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 		response["success"] = flowSucceeded
 
 		if flowSucceeded {
-			flowStatusLabel = "success"
+			metrics.IncFlowExecuted(flowName, "success")
 		} else {
-			flowStatusLabel = "error"
+			metrics.IncFlowExecuted(flowName, "error")
 		}
 
 		duration := time.Since(startTime).Seconds()
+		metrics.ObserveFlowDuration(flowName, "success", duration)
 
-		metrics.IncFlowExecuted(flowName, flowStatusLabel)
-		metrics.ObserveFlowDuration(flowName, flowStatusLabel, duration)
-
-		metrics.IncHttpRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
-		metrics.ObserveHttpRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
+		metrics.IncHTTPRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
+		metrics.ObserveHTTPRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
 
 		if httpStatusCode != http.StatusOK {
 			w.WriteHeader(httpStatusCode)
 		}
 
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			logger.WithError(err).Error("Error encoding JSON response")
+		}
 	}
 }
 

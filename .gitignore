@@ -19,3 +19,4 @@ k3s/*.json
 # Local environment files
 .env
 *.local
+/bin

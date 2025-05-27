@@ -1,0 +1,66 @@
+# .golangci.yml
+version: "2"
+
+# Configuración básica
+run:
+  timeout: 5m
+  go: '1.24'
+
+# Configuración de linters habilitados
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - revive
+    - lll
+  # Deshabilitar algunos linters que pueden ser demasiado estrictos
+  disable:
+    - gosec # Puede ser demasiado estricto para desarrollo
+    - gochecknoglobals # Muchas veces es necesario usar globales
+    - gochecknoinits  # Algunas veces init() es útil
+
+# Configuración específica de linters
+  settings:
+    misspell:
+      locale: US
+    lll:
+      line-length: 200
+    # Configuración específica de revive para ser más permisivo
+    revive:
+      rules:
+        - name: exported
+          severity: warning
+          disabled: true
+        - name: package-comments
+          severity: warning
+          disabled: true
+        - name: unused-parameter
+          severity: warning
+          disabled: true
+# Ignorar errores en ciertos casos
+    errcheck:
+        exclude-functions:
+        - (*github.com/sirupsen/logrus.Logger).Debug
+        - (*github.com/sirupsen/logrus.Logger).Info
+
+# Reglas de exclusión
+  exclusions:
+    rules:
+    - path: _test\.go
+      linters:
+        - lll
+        - funlen # Ignorar funciones largas
+    - path: \.pb\.go$
+      linters:
+        - lll
+        - revive
+# Ignorar algunas comprobaciones en archivos de prueba
+    - path: _test\.go
+      text: "unused parameter|unused-parameter"
+      linters:
+        - revive
+        - unused

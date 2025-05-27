@@ -133,12 +133,12 @@ func TestConfigSerialization(t *testing.T) {
 	require.NoError(t, err)
 	
 	// Deserialize from JSON and verify
-	var configFromJson Config
-	err = json.Unmarshal(jsonData, &configFromJson)
+	var configFromJSON Config
+	err = json.Unmarshal(jsonData, &configFromJSON)
 	require.NoError(t, err)
 	
 	// Verify that the structure is maintained after JSON
-	assert.Equal(t, config.Logging.Level, configFromJson.Logging.Level)
-	assert.Equal(t, config.Plugins[0].Name, configFromJson.Plugins[0].Name)
-	assert.Equal(t, config.Flows[0].Name, configFromJson.Flows[0].Name)
+	assert.Equal(t, config.Logging.Level, configFromJSON.Logging.Level)
+	assert.Equal(t, config.Plugins[0].Name, configFromJSON.Plugins[0].Name)
+	assert.Equal(t, config.Flows[0].Name, configFromJSON.Flows[0].Name)
 }
