@@ -1,0 +1,19 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: opensearch-scaler
+  namespace: dav-monitoring
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: opensearch-standard
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 1
+  maxReplicaCount: 5
+  triggers:
+  - type: cpu
+    metadata:
+      type: Utilization
+      value: "70"       

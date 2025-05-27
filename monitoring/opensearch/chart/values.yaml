@@ -29,8 +29,8 @@ config:
       - data
       - ingest
 
-    discovery.seed_hosts: ["opensearch-standard-0.opensearch-standard-headless", "opensearch-standard-1.opensearch-standard-headless", "opensearch-standard-2.opensearch-standard-headless"]
-    cluster.initial_cluster_manager_nodes: ["opensearch-standard-0", "opensearch-standard-1", "opensearch-standard-2"]
+    discovery.seed_hosts: ["opensearch-standard-headless.dav-monitoring.svc.cluster.local"]
+    cluster.initial_cluster_manager_nodes: ["opensearch-standard-0"]
 
     plugins.query.datasources.encryption.masterkey: "A1B2C3D4E5F6G7H8"
 
