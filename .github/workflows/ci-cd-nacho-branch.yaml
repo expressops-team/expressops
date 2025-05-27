@@ -35,9 +35,9 @@ jobs:
         # Si los tests fallan, el pipeline fallará automáticamente
       
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: v1.55.2
+          version: v2.0.0
           args: --timeout=5m
 
       - name: Login to Docker Hub
