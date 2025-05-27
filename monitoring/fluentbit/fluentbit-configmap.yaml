@@ -38,11 +38,19 @@ data:
         Add                 application expressops
         Add                 environment production
     
+    [FILTER]
+        Name                parser
+        Match               expressops
+        Key_Name            log
+        Parser              expressops_log_format
+        Reserve_Data        On
+        Preserve_Key        On
+    
   outputs.conf: |
     [OUTPUT]
         Name              opensearch
         Match             expressops
-        Host              opensearch-cluster-master.dav-monitoring.svc.cluster.local
+        Host              opensearch-standard.dav-monitoring.svc.cluster.local
         Port              9200
         Index             expressops-logs
         Logstash_Format   On
@@ -67,3 +75,8 @@ data:
         Format      json
         Time_Key    time
         Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+
+    [PARSER]
+        Name        expressops_log_format
+        Format      regex
+        Regex       ^time="(?<original_timestamp>[^"\\]*(?:\\.[^"\\]*)*)" level=(?<log_level>\w+) msg="(?<message>[^"\\]*(?:\\.[^"\\]*)*)"$

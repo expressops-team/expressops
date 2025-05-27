@@ -1,8 +1,5 @@
 #!/bin/bash
 
-cat > deploy-monitoring-stack.sh << 'EOF'
-#!/bin/bash
-
 kubectl create namespace dav-monitoring
 
 mkdir -p opensearch-certs
@@ -364,6 +361,3 @@ kubectl apply -f monitoring/fluentbit/fluentbit-daemonset.yaml
 INSTALLSCRIPTEND
 
 chmod +x install-monitoring.sh
-EOF
-
-chmod +x deploy-monitoring-stack.sh

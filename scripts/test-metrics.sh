@@ -10,13 +10,11 @@ echo "Testing metrics updates at http://$HOST/metrics"
 echo "Interval: $INTERVAL seconds between checks"
 echo "============================================="
 
-# Function to get a specific metric value
 get_metric_value() {
   local metric_name=$1
   curl -s "http://$HOST/metrics" | grep "^$metric_name" | grep -v "#" | awk '{print $2}'
 }
 
-# Function to print a metric with its name
 print_metric() {
   local name=$1
   local value=$(get_metric_value "$name")
@@ -35,7 +33,6 @@ while true; do
   print_metric "expressops_storage_usage_bytes"
   print_metric "expressops_concurrent_plugins"
   
-  # Execute health endpoint to generate metrics
   echo -n "Executing health-check: "
   HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://$HOST/flow?flowName=health-status-no-format")
   if [ "$HTTP_CODE" == "200" ]; then
