@@ -1,39 +1,42 @@
-# docker run -d --name expressops-demo -p 8080:8080 expressops:Vx   <-- for testing
-#      make docker-build   //    make docker-run
-# Common commands:
-#   make build          - Build plugins and app
-#   make run            - Run locally
-#   make docker-build   - Build Docker image (auto-versioned)
-#   make docker-run     - Run Docker container
-#   make docker-clean   - Cleanup Docker
-#   make help           - Show command help
+# ---------------------------------------------
+#  ExpressOps — Makefile                       #
+# ---------------------------------------------
+.DEFAULT_GOAL := help
 
-# make run <===
-GREEN = \033[32m
-RED = \033[31m
-BLUE = \033[34m
+# ---------------------------------------------
+# 🎨 Colors
+GREEN  = \033[32m
+RED    = \033[31m
+BLUE   = \033[34m
 YELLOW = \033[33m
-RESET = \033[0m
-PRINT = @echo 
+RESET  = \033[0m
 
-# Configurable variables (can be overridden with environment variables)
-IMAGE_NAME ?= expressops
+# ---------------------------------------------
+# 🔧 Configurable variables
+IMAGE_NAME        ?= expressops
+CONTAINER_NAME    ?= expressops-app
 NEW_TAG :=
-CONTAINER_NAME ?= expressops-app
-HOST_PORT ?= 8080
-SERVER_PORT ?= 8080
-SERVER_ADDRESS ?= 0.0.0.0
-TIMEOUT_SECONDS ?= 4
-LOG_LEVEL ?= info
-LOG_FORMAT ?= text
-SLACK_WEBHOOK_URL ?= 
-CONFIG_PATH ?= docs/samples/config.yaml
+HOST_PORT         ?= 8080
+SERVER_PORT       ?= 8080
+SERVER_ADDRESS    ?= 0.0.0.0
+TIMEOUT_SECONDS   ?= 4
+LOG_LEVEL         ?= info
+LOG_FORMAT        ?= text
+SLACK_WEBHOOK_URL ?=
+CONFIG_PATH       ?= docs/samples/config.yaml
 CONFIG_MOUNT_PATH ?= /app/config.yaml
-HELM_CHART_DIR ?= k3s/expressops-chart
-HELM_VALUES_FILE ?= $(HELM_CHART_DIR)/values.yaml
+HELM_CHART_DIR    ?= k3s/expressops-chart
+HELM_VALUES_FILE  ?= $(HELM_CHART_DIR)/values.yaml
+DOCKER_TAG_FILE    = .docker_tag
 
+# ---------------------------------------------
+# 📜 Goals (.PHONY)
+.PHONY: build run docker-build docker-run docker-run-build docker-clean \
+        docker-run-sre2 docker-push helm-deploy release help
 
-# Build plugins and application locally
+# ---------------------------------------------
+
+# 🔨 Build plugins and application locally
 build:
 	@echo "Cleaning previous plugins..."
 	@find plugins -name "*.so" -delete
@@ -53,12 +56,14 @@ build:
 	@go build -o expressops ./cmd
 	@echo "✅ Build completed"
 
-# Run the application locally
+# ---------------------------------------------
+# ▶️ Run
 run: build
 	@echo "🚀 Starting ExpressOps"
 	./expressops -config $(CONFIG_PATH)
 
-# Auto-versioned images Docker build
+# ---------------------------------------------
+# 🐳 Auto-versioned images Docker build
 docker-build:
 	@echo "🐳 Checking existing Docker image versions..."
 	@VERSION=$$(docker images --format "{{.Tag}}" $(IMAGE_NAME) | grep -E '^v[0-9]+$$' | sed 's/v//' | sort -n | tail -n1); \
@@ -128,7 +133,8 @@ docker-push:
 	docker push expressopsfreepik/$(IMAGE_NAME):$$NEW_TAG; \
 	echo "✅ Image pushed: expressopsfreepik/$(IMAGE_NAME):$$NEW_TAG"
 
-# Deploy Helm chart to namespace expressops-dev
+# ---------------------------------------------
+# 🚀 Deploy Helm chart to namespace expressops-dev
 helm-deploy:
 	@NEW_TAG=$$(cat .docker_tag 2>/dev/null || { echo "$(RED)Error: .docker_tag file not found. Ensure image is built or set tag manually.$(RESET)"; exit 1; }); \
 	echo "🚀 Deploying Helm chart expressops with image tag $$NEW_TAG to namespace expressops-dev..."; \
@@ -137,41 +143,38 @@ helm-deploy:
 		# O si values.yaml ya está actualizado:
 		# helm upgrade --install expressops $(HELM_CHART_DIR) -n expressops-dev --create-namespace
 
-# Flujo completo: construir, pushear, desplegar
+# ---------------------------------------------
+# 📦 Release end-to-end
 release: docker-build docker-push helm-deploy
 	@echo "✅ Release process completed."
 
 
-
-# Help
+# ---------------------------------------------
+# 📖 Help
 help:
 	@echo "Available commands:"
 	@echo "================================================"
-	@echo "  make help                   - Show this help"
-	@echo "  make build                  - Build plugins and application locally"
-	@echo "  make run                    - Run application locally"
+	@echo "  $(BLUE)Basic Commands:$(RESET)"
+	@echo "    make help                   - Show this help"
+	@echo "    make build                  - Build plugins and application locally"
+	@echo "    make run                    - Run application locally"
 	@echo ""
-	@echo "  $(BLUE)Docker Workflow (updates Helm values.yaml):$(RESET)"
-	@echo "    make docker-build         - Build Docker image (auto-versioned) and updates Helm values.yaml"
-	@echo "    make docker-push          - Tag and push the last built image to Docker Hub"
+	@echo "  $(BLUE)Docker Workflow:$(RESET)"
+	@echo "    make docker-build           - Build Docker image (auto-versioned) and updates Helm values.yaml"
+	@echo "    make docker-run             - Run container with the last built tag"
+	@echo "    make docker-run-build       - Build and run Docker container"
+	@echo "    make docker-clean           - Clean Docker resources (stops/removes container, old tags)"
+	@echo "    make docker-push            - Tag and push the last built image to Docker Hub"
 	@echo ""
 	@echo "  $(BLUE)Helm Deployment Workflow:$(RESET)"
-	@echo "    make helm-deploy          - Deploy/Upgrade Helm chart using tag from values.yaml (or .docker_tag if values not updated yet)"
+	@echo "    make helm-deploy            - Deploy/Upgrade Helm chart using tag from values.yaml"
 	@echo ""
 	@echo "  $(BLUE)Combined Release Workflow:$(RESET)"
 	@echo "    make release                - Full cycle: docker-build, docker-push, helm-deploy"
-	@echo ""
-	@echo "  $(BLUE)Other Docker Commands:$(RESET)"
-	@echo "    make docker-run             - Run container with the last built tag"
-	@echo "    make docker-run-sre2        - Run container with SRE2 configuration"
-	@echo "    make docker-clean           - Clean Docker resources (stops/removes container, old tags)"
 	@echo "================================================"
 	@echo ""
 	@echo "Configurable variables (current values):"
 	@echo "  IMAGE_NAME                = $(IMAGE_NAME)"
-	@echo "  HELM_CHART_DIR            = $(HELM_CHART_DIR)" # Añadido si lo usas
-	@echo "  HELM_VALUES_FILE          = $(HELM_VALUES_FILE)"# Añadido si lo usas
-	@echo "  DOCKER_HUB_REPO           = $(DOCKER_HUB_REPO)" # Añadido si lo usas
 	@echo "  CONTAINER_NAME            = $(CONTAINER_NAME)"
 	@echo "  HOST_PORT                 = $(HOST_PORT)"
 	@echo "  SERVER_PORT               = $(SERVER_PORT)"
@@ -179,8 +182,7 @@ help:
 	@echo "  TIMEOUT_SECONDS           = $(TIMEOUT_SECONDS)"
 	@echo "  LOG_LEVEL                 = $(LOG_LEVEL)"
 	@echo "  LOG_FORMAT                = $(LOG_FORMAT)"
-	@echo "  SLACK_WEBHOOK_URL         = $(SLACK_WEBHOOK_URL)"
 	@echo "  CONFIG_PATH               = $(CONFIG_PATH)"
 	@echo "  CONFIG_MOUNT_PATH         = $(CONFIG_MOUNT_PATH)"
-
-.DEFAULT_GOAL := help
+	@echo "  HELM_CHART_DIR            = $(HELM_CHART_DIR)"
+	@echo "  HELM_VALUES_FILE          = $(HELM_VALUES_FILE)"
