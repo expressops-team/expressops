@@ -10,7 +10,6 @@ import (
 )
 
 func main() {
-	// Initialize basic logger
 	logger := config.InitializeLogger()
 
 	ctx := context.Background() // creates a new context to manage timeouts, cancelaciones, etc.
