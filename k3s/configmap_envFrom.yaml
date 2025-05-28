@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: expressops-env     # solo variables de entorno
-  namespace: expressops-dev
-data:
-  SLEEP_DURATION: "10"
