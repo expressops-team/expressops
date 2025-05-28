@@ -1,6 +1,7 @@
 ## ExpressOps  <img src="docs/img/LOGO_EXPRESSOPS.png" alt="ExpressOps Logo" align="right" width="150" style="margin-top: 20px;">
 
-**ACTIVE DEVELOPMENT** - APIs and features subject to change without notice
+> 🚨 <span style="color:red">**Note: Currently under active development**</span> - API and features may change without notice
+
 
 ExpressOps is a workflow orchestrator built to chain operations across distributed systems. We created it to:
 

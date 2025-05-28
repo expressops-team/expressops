@@ -1,4 +1,4 @@
-replicas: 3
+replicas: 1 # Initial replica count --> KEDA manage scaling from this baseline up to its configured maximum
 clusterName: opensearch
 nodeGroup: standard
 
@@ -72,10 +72,16 @@ extraVolumes:
   - name: certs
     secret:
       secretName: opensearch-certs
+  - name: gcp-creds
+    secret:
+      secretName: gcp-creds-for-eso #  existing secret
 
 extraVolumeMounts:
   - name: certs
     mountPath: /usr/share/opensearch/config/certs
+    readOnly: true
+  - name: gcp-creds 
+    mountPath: /usr/share/opensearch/config/gcs_credentials 
     readOnly: true
 
 extraEnvs:
@@ -89,6 +95,8 @@ extraEnvs:
       secretKeyRef:
         name: opensearch-credentials-secure
         key: password
+  - name: GOOGLE_APPLICATION_CREDENTIALS # Env var for GCS plugin
+    value: /usr/share/opensearch/config/gcs_credentials/key.json # Path to the mounted key file
 
 imagePullSecrets:
   - name: opensearch-registry-creds
@@ -107,6 +115,7 @@ extraPlugins:
   - opensearch-reports
   - opensearch-gantt-chart
   - opensearch-visualizations
+  - opensearch-repository-gcs
 
 # TODO:
 #snapshot repository
