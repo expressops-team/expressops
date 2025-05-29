@@ -1,0 +1,49 @@
+# gitops-argocd/apps/05-expressops-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: expressops
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  # annotations:
+  #   argocd.argoproj.io/sync-wave: "20" # Una ola posterior para tu aplicación principal
+spec:
+  project: default
+  source:
+    # La fuente es tu propio repositorio Git donde reside el chart
+    repoURL: https://github.com/freepik-company/expressops.git
+    targetRevision: rama_nacho # La rama que ArgoCD debe monitorear
+    path: k3s/apps/expressops-app/expressops-chart # Path al directorio de tu chart de Helm
+
+    helm:
+      releaseName: expressops # El nombre que tendrá el release de Helm en el clúster
+      # valueFiles se interpreta relativo al 'path' especificado arriba.
+      # Como 'values.yaml' está en la raíz de 'k3s/apps/expressops-app/expressops-chart/',
+      # solo necesitas referenciarlo por su nombre.
+      valueFiles:
+        - values.yaml
+      # Opcional: Si tuvieras un archivo de values específico para este entorno,
+      # podrías añadirlo aquí y se fusionaría (ej. values-dev.yaml)
+      # - values-dev.yaml
+
+      # ArgoCD puede pasar parámetros específicos que sobrescriban los de valueFiles
+      # o los defaults del chart. Por ejemplo, para forzar una etiqueta de imagen:
+      # parameters:
+      #   - name: "image.tag"
+      #     value: "latest" # O la etiqueta que desees
+      # Sin embargo, tu values.yaml ya define image.tag, así que esto no es necesario
+      # a menos que quieras sobrescribirlo dinámicamente aquí.
+
+  destination:
+    server: 'https://kubernetes.default.svc' # URL del servidor API de Kubernetes
+    # El namespace donde se desplegará tu aplicación expressops.
+    # Asegúrate de que coincida con el namespace que esperas (ej. 'expressops', 'expressops-dev')
+    namespace: expressops-dev # Ajusta si es necesario
+  syncPolicy:
+    automated:
+      prune: true    # Permite a ArgoCD eliminar recursos gestionados que ya no están en Git
+      selfHeal: true # Permite a ArgoCD revertir cambios hechos directamente en el clúster
+    syncOptions:
+      - CreateNamespace=true # Crea el namespace de destino si no existe
+      # - RespectIgnoreDifferences=true # Si usas ignoreDifferences

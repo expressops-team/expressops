@@ -1,0 +1,103 @@
+# argocd/apps/03-juicefs-csi-driver-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: juicefs-csi-driver
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://juicedata.github.io/charts/
+    chart: juicefs-csi-driver
+    targetRevision: '0.28.1'
+    helm:
+      releaseName: juicefs-csi-driver
+      values: | # Valores inline
+        controller:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+        node:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        globalConfig:
+          mountPodPatch:
+            - resources:
+                requests:
+                  cpu: 75m
+                  memory: 512Mi
+                limits:
+                  cpu: 500m
+                  memory: 1.5Gi
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: kube-system
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+
+---
+# argocd/apps/03b-juicefs-storageclass-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: juicefs-storageclass-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/freepik-company/expressops.git
+    targetRevision: rama_nacho
+    path: k3s/infrastructure/csi-drivers
+    directory:
+      include: "juicefs-storageclass-canonica.yaml"
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: kube-system
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+
+---
+# argocd/apps/03c-juicefs-format-job-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: juicefs-format-job
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/freepik-company/expressops.git
+    targetRevision: rama_nacho
+    path: k3s/infrastructure/csi-drivers
+    directory:
+      include: "juicefs-format-job.yaml"
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: expressops-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

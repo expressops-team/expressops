@@ -3,6 +3,11 @@ kind: Job
 metadata:
   name: juicefs-format-expressops-main-vol
   namespace: expressops-dev
+  annotations:
+    # Esta anotación indica que el job es un hook de sincronización
+    argocd.argoproj.io/hook: Sync
+    # Esta anotación indica que el job se eliminará después de completarse con éxito
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
 spec:
   template:
     spec:

@@ -4,7 +4,7 @@ config:
         Name loki
         Match *
         Host loki-gateway.monitoring
-        Port 80
+        Port 3100
         Labels job=fluentbit, k8s_namespace=$kubernetes['namespace_name'], k8s_pod_name=$kubernetes['pod_name'], k8s_container_name=$kubernetes['container_name']
         Label_keys $kubernetes['labels']
         Remove_keys kubernetes,stream,time,tag

@@ -1,0 +1,75 @@
+# gitops-argocd/apps/04-monitoring-stack/04-4-grafana-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  # annotations:
+  #   argocd.argoproj.io/sync-wave: "13" # Después de Prometheus y Loki
+spec:
+  project: default
+  source:
+    # Fuente del chart de Helm
+    # Asume que el repo 'grafana-charts' (https://grafana.github.io/helm-charts) está registrado en ArgoCD.
+    repoURL: https://grafana.github.io/helm-charts
+    chart: grafana 
+    targetRevision: '9.0.0'
+
+    helm:
+      releaseName: grafana
+      values: |
+        # Contenido de tu k3s/observability-stack/grafana-values.yaml
+        persistence:
+          enabled: true
+          type: pvc
+          storageClassName: "juicefs-gcs-redis-canonica"
+          accessModes:
+            - ReadWriteOnce
+          size: 8Gi
+          # existingClaim: "grafana-data-pvc" # Dejar vacío para que Helm cree un nuevo PVC.
+
+        # grafana.ini:
+        #   paths:
+        #     data: /var/lib/grafana/
+        #     logs: /var/log/grafana
+        #     plugins: /var/lib/grafana/plugins
+        #     provisioning: /etc/grafana/provisioning
+
+        podSecurityContext:
+          fsGroup: 472
+        securityContext:
+          runAsUser: 472
+          runAsGroup: 472
+
+        env:
+          GF_LOG_LEVEL: debug
+          # Si tu chart de Grafana soporta 'env' directamente para datasources,
+          # o si 'datasources' es una clave de nivel superior como en tu values.yaml.
+          # La mayoría de los charts modernos usan una clave 'datasources' o 'sidecar.datasources'.
+          # Vamos a asumir que 'datasources' es una clave de nivel superior como en tu values.yaml.
+
+        # Configuración para el datasource de Prometheus
+        datasources:
+          datasources.yaml:
+            apiVersion: 1
+            datasources:
+              - name: Prometheus # Nombre que aparecerá en Grafana
+                type: prometheus
+                # URL del servicio de Prometheus dentro del clúster
+                url: http://prometheus-d-kube-promethe-prometheus.monitoring.svc.cluster.local:9090
+                access: proxy # 'proxy' significa que el backend de Grafana hace las peticiones a Prometheus
+                isDefault: true
+
+        # Si kube-prometheus-stack ya instala Grafana y quieres deshabilitar esa instancia
+        # para usar esta, asegúrate que en los values de kube-prometheus-stack tienes grafana.enabled: false
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

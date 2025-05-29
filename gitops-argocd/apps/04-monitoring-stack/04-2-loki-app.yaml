@@ -1,0 +1,84 @@
+# gitops-argocd/apps/04-monitoring-stack/04-2-loki-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  # annotations:
+  #   argocd.argoproj.io/sync-wave: "11"
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: loki
+    targetRevision: '6.29.0'
+    helm:
+      releaseName: loki
+      values: |
+        deploymentMode: SingleBinary
+
+        loki:
+          auth_enabled: false
+          commonConfig:
+            replication_factor: 1
+          storage: # Define cómo Loki usa el almacenamiento internamente
+            type: filesystem # Loki usará el sistema de archivos (el PVC montado)
+          schemaConfig:
+            configs:
+              - from: "2024-04-01"
+                store: tsdb
+                object_store: filesystem
+                schema: v13
+                index:
+                  prefix: loki_index_
+                  period: 24h
+
+        singleBinary:
+          replicas: 1
+          persistence:
+            enabled: true
+            storageClass: "juicefs-gcs-redis-canonica" # Tu StorageClass para JuiceFS
+            size: 10Gi
+            accessModes:
+              - ReadWriteOnce # Adecuado para SingleBinary
+          # Configuración de seguridad para permitir a Loki escribir en el volumen JuiceFS
+          # El usuario por defecto de Loki en el chart es 10001
+          podSecurityContext:
+            fsGroup: 10001
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+
+        gateway:
+          enabled: true # Revisa si el modo SingleBinary de tu chart necesita/usa un gateway explícito.
+                        # A veces, en SingleBinary, el gateway está integrado o no se usa.
+
+        # Componentes del modo distribuido, deben tener 0 réplicas para SingleBinary
+        read:
+          replicas: 0
+        write:
+          replicas: 0
+        backend:
+          replicas: 0
+
+        # Opcional: Habilitar serviceMonitor si usas Prometheus Operator
+        monitoring:
+          selfMonitoring:
+            enabled: false
+            grafanaAgent:
+              installOperator: false
+          serviceMonitor:
+            enabled: true # Para que Prometheus pueda scrapear Loki
+          lokiCanary:
+            enabled: false
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
