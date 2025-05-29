@@ -1,0 +1,34 @@
+_meta:
+  type: "roles"
+  config_version: 2
+
+log_writer:
+  cluster_permissions:
+    - "cluster_composite_ops"
+    - "indices:data/write/bulk*"
+  index_permissions:
+    - index_patterns:
+        - "expressops-logs-*"
+        - "fluentbit-*"
+        - "logs-*"
+      allowed_actions:
+        - "indices:data/write*"
+        - "indices:create_index"
+        - "indices:manage/ilm*"
+
+dashboard_read_only:
+  cluster_permissions:
+    - "cluster_composite_ops_ro"
+  index_permissions:
+    - index_patterns:
+        - "expressops-logs-*"
+        - "fluentbit-*"
+        - "logs-*"
+        - ".kibana*"
+        - ".opensearch_dashboards*"
+      allowed_actions:
+        - "read"
+        - "search"
+        - "indices:data/read*"
+  # Tenant permissions <-- for Dashboards multi-tenancy if needed IN FUTURE
+ 

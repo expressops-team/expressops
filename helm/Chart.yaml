@@ -3,7 +3,7 @@ name: expressops
 description: A Helm chart for ExpressOps API
 type: application
 version: 0.1.0
-appVersion: "1.1.1"
+appVersion: "1.1.2"
 icon: https://freeimage.host/i/3WpZkUG
 keywords:
   - expressops

@@ -1,0 +1,15 @@
+_meta:
+  type: "rolesmapping"
+  config_version: 2
+
+log_writer:
+  reserved: false
+  users:
+    - "fluentbit_user"
+  description: "Maps fluentbit_user to log_writer role"
+
+dashboard_read_only:
+  reserved: false
+  users:
+    - "dashboard_viewer"
+  description: "Maps dashboard_viewer to dashboard_read_only role"

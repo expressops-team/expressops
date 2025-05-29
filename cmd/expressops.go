@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"expressops/internal/config"  // imports the internal/config package
-	"expressops/internal/metrics" // import metrics package
+	"expressops/internal/config" // imports the internal/config package
+	"expressops/internal/metrics"
 	"expressops/internal/server"  // imports the server package
+	"expressops/internal/tracing" // Import the tracing package
 	"flag"
 	"runtime"
 	//logger
@@ -24,14 +25,24 @@ func init() {
 	metrics.UpdateConcurrentPlugins(0)
 
 	// Log initialization
-	// This ensures all metrics are registered with the Prometheus registry
 }
 
 func main() {
 	// Initialize basic logger
-	logger := config.InitializeLogger()
+	logger := config.InitializeLogger() // Mantén tu logger inicial para config y errores tempranos
 
 	ctx := context.Background() // creates a new context to manage timeouts, cancelaciones, etc.
+
+	// Initialize OpenTelemetry TracerProvider
+	tp, err := tracing.InitTracerProvider("expressops-service") // Define the name of your service
+	if err != nil {
+		logger.Fatalf("Failed to initialize tracer provider: %v", err)
+	}
+	defer func() {
+		if err := tp.Shutdown(ctx); err != nil {
+			logger.Printf("Error shutting down tracer provider: %v", err)
+		}
+	}() // Ensure Shutdown
 
 	// Parse the command line flags to get the config file path
 	var configPath string

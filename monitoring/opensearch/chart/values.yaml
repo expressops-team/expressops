@@ -23,6 +23,8 @@ config:
     plugins.security.ssl.transport.pemkey_filepath: /usr/share/opensearch/config/certs/node-key.pem
     plugins.security.ssl.transport.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
     plugins.security.allow_default_init_securityindex: true
+    plugins.security.authcz.admin_dn: 
+      - "CN=opensearch"
 
     node.roles:
       - cluster_manager
@@ -51,6 +53,24 @@ persistence:
   size: 10Gi
 
 singleNode: false
+
+#opensearchDashboards:
+#  enabled: true
+#  image:
+#    repository: opensearchproject/opensearch-dashboards
+#    imagePullPolicy: IfNotPresent
+#    tag: "3.0.0"
+#  opensearchHosts: "https://opensearch-standard.dav-monitoring.svc.cluster.local:9200"
+#  config:
+#    opensearch_dashboards.yml: |
+#      server.name: opensearch-dashboards
+#      server.host: "0.0.0.0"
+#      opensearch.hosts: ["https://opensearch-standard.dav-monitoring.svc.cluster.local:9200"]
+#      opensearch.ssl.verificationMode: none
+#      opensearch.username: ${OPENSEARCH_USERNAME}
+#      opensearch.password: ${OPENSEARCH_PASSWORD}
+#      opensearch.requestHeadersAllowlist: ["Authorization", "X-Security-Tenant", "securitytenant"]
+#      opensearch_security.enabled: true
 
 affinity:
   podAntiAffinity:
