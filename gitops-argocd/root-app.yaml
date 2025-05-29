@@ -1,0 +1,26 @@
+# gitops-argocd/root-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-app 
+  namespace: argocd 
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default 
+  source:
+    repoURL: https://github.com/freepik-company/expressops.git 
+    targetRevision: rama_nacho
+    path: gitops-argocd/apps
+    # subdirectorios (como monitoring-stack):
+    directory:
+      recurse: true
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true # Permite que ArgoCD elimine recursos que ya no están en Git
+      selfHeal: true # Permite que ArgoCD corrija desviaciones del estado deseado
+    syncOptions:
+      - CreateNamespace=true # Puede ser útil si alguna app no lo especifica
