@@ -34,33 +34,42 @@ type FormatterPlugin struct {
 func (f *FormatterPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	f.logger = logger
 	f.config = config
-	f.logger.Info("Initializing Health Formatter Plugin")
+	pluginName := "HealthAlertFormatterPlugin" // Definir nombre para logs
 
-	// Initialize thresholds with defaults
+	logFields := logrus.Fields{
+		"pluginName": pluginName,
+		"action":     "Initialize",
+	}
+
 	f.thresholds = make(map[string]ThresholdLevels)
 	for k, v := range DefaultThresholds {
 		f.thresholds[k] = v
 	}
 
-	// Override with config if provided
 	if thresholdsConfig, ok := config["thresholds"].(map[string]interface{}); ok {
+		logFields["thresholdsConfigured"] = true
 		for metricType, thresholdValues := range thresholdsConfig {
 			if values, ok := thresholdValues.(map[string]interface{}); ok {
 				threshold := ThresholdLevels{}
-
 				if warning, ok := values["warning"].(float64); ok {
 					threshold.Warning = warning
 				}
-
 				if critical, ok := values["critical"].(float64); ok {
 					threshold.Critical = critical
 				}
-
 				f.thresholds[metricType] = threshold
+				f.logger.WithFields(logFields).WithFields(logrus.Fields{
+					"metricType":        metricType,
+					"warningThreshold":  threshold.Warning,
+					"criticalThreshold": threshold.Critical,
+				}).Debug("Umbral personalizado configurado")
 			}
 		}
+	} else {
+		logFields["thresholdsConfigured"] = false
 	}
 
+	f.logger.WithFields(logFields).Info("HealthAlertFormatterPlugin inicializado")
 	return nil
 }
 
@@ -88,60 +97,75 @@ func (f *FormatterPlugin) formatSize(value uint64) string {
 
 // Execute formats health data for display and notification
 func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
-	f.logger.Info("Formatting health check results")
+	pluginName := "HealthAlertFormatterPlugin"
+	flowName := request.URL.Query().Get("flowName")
+	baseLogFields := logrus.Fields{
+		"pluginName": pluginName,
+		"action":     "Execute",
+		"flowName":   flowName,
+	}
+	f.logger.WithFields(baseLogFields).Info("Formateando resultados de health check")
 
-	// Always start with a default message in case something fails
 	defaultMessage := "Health status check completed"
 	(*shared)["message"] = defaultMessage
 
-	// First check for direct messages to pass through
 	if msg, ok := (*shared)["message"].(string); ok && msg != "" && msg != defaultMessage {
-		f.logger.Info("Using existing message from previous plugin")
+		f.logger.WithFields(baseLogFields).Info("Usando mensaje existente de plugin anterior")
 		return msg, nil
 	}
 
-	// Check for Kubernetes health data
+	var (
+		formattedMessage interface{}
+		err              error
+	)
+
 	if kubeResults, ok := (*shared)["kube_health_results"].([]map[string]string); ok {
-		f.logger.Info("Processing Kubernetes health data")
-		return f.formatKubernetesHealth(kubeResults, shared)
-	}
-
-	// Check for previous result
-	if prev, ok := (*shared)["previous_result"]; ok {
-		f.logger.Info("Checking previous result")
-
-		// Handle pod data format (Kubernetes)
+		f.logger.WithFields(baseLogFields).Info("Procesando datos de Kubernetes health")
+		formattedMessage, err = f.formatKubernetesHealth(kubeResults, shared, baseLogFields)
+	} else if prev, ok := (*shared)["previous_result"]; ok {
+		f.logger.WithFields(baseLogFields).Info("Procesando 'previous_result'")
 		if podResults, ok := prev.([]map[string]string); ok {
-			f.logger.Info("Processing pod results from previous plugin")
-			return f.formatKubernetesHealth(podResults, shared)
+			f.logger.WithFields(baseLogFields).Info("Procesando resultados de pod desde plugin anterior")
+			formattedMessage, err = f.formatKubernetesHealth(podResults, shared, baseLogFields)
+		} else if healthMap, ok := prev.(map[string]interface{}); ok {
+			f.logger.WithFields(baseLogFields).Info("Procesando datos generales de health desde plugin anterior")
+			formattedMessage, err = f.formatHealthData(healthMap, shared, baseLogFields)
+		} else {
+			errMsg := "Formato de 'previous_result' no reconocido"
+			f.logger.WithFields(baseLogFields).WithField("previousResultType", fmt.Sprintf("%T", prev)).Error(errMsg)
+			formattedMessage = defaultMessage
+			(*shared)["message"] = defaultMessage
+			(*shared)["severity"] = "info" // Reset severity
 		}
-
-		// Handle general health data format (CPU, Mem, Disk from health-check-plugin)
-		if healthMap, ok := prev.(map[string]interface{}); ok {
-			f.logger.Info("Processing general health data from previous plugin result")
-			return f.formatHealthData(healthMap, shared)
-		}
+	} else {
+		f.logger.WithFields(baseLogFields).Info("No se encontraron datos de health específicos, usando mensaje por defecto.")
+		formattedMessage = defaultMessage
+		(*shared)["message"] = defaultMessage
+		(*shared)["severity"] = "info"
 	}
 
-	// Fallback to a simple message if nothing else worked
-	message := "Health check completed successfully"
-	(*shared)["message"] = message
-	return message, nil
+	if err != nil {
+		return nil, err
+	}
+
+	f.logger.WithFields(baseLogFields).WithField("formattedMessageLength", len(formattedMessage.(string))).Info("Formateo completado")
+	return formattedMessage, nil
 }
 
 // formatHealthData formats general health check data
-func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared *map[string]any) (interface{}, error) {
-	// Simple log format (single line)
+func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared *map[string]any, baseLogFields logrus.Fields) (interface{}, error) {
 	var logFormatted strings.Builder
 	logFormatted.WriteString("Health check: ")
-
-	// Rich format for alerts/display
 	var alertFormatted strings.Builder
 	alertFormatted.WriteString("\n✨ Health Status Report ✨\n\n")
-
 	hasErrors := false
 
-	// Process health status checks if available
+	sectionLogFields := make(logrus.Fields)
+	for k, v := range baseLogFields {
+		sectionLogFields[k] = v
+	}
+	sectionLogFields["dataType"] = "generalHealth"
+
 	if status, ok := input["health_status"].(map[string]string); ok {
 		checksOK := true
 		alertFormatted.WriteString("🔍 Health Checks:\n")
@@ -152,16 +176,13 @@ func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared 
 				checksOK = false
 				hasErrors = true
 				alertFormatted.WriteString(fmt.Sprintf("  %s: ❌ %s\n", k, v))
+				f.logger.WithFields(sectionLogFields).WithFields(logrus.Fields{"checkName": k, "checkStatus": v}).Warn("Health check fallido")
 			}
 		}
-
-		if checksOK {
-			logFormatted.WriteString("Checks:OK ")
-		} else {
-			logFormatted.WriteString("Checks:FAIL ")
-		}
+		logFormatted.WriteString(fmt.Sprintf("Checks:%s ", map[bool]string{true: "OK", false: "FAIL"}[checksOK]))
 		alertFormatted.WriteString("\n")
 	} else {
+		f.logger.WithFields(sectionLogFields).Debug("No hay datos de 'health_status' disponibles")
 		alertFormatted.WriteString("🔍 Health Checks: No check data available\n\n")
 	}
 
@@ -207,32 +228,22 @@ func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared 
 		alertFormatted.WriteString("💽 Disk Usage:\n")
 		maxDiskUsage := 0.0
 		var criticalMount string
-		for mount, usage := range diskInfo {
+		for mount, usageData := range diskInfo {
 			if strings.HasPrefix(mount, "/snap") {
 				continue
 			}
-			if u, ok := usage.(map[string]interface{}); ok {
+			if u, ok := usageData.(map[string]interface{}); ok {
 				alertFormatted.WriteString(fmt.Sprintf("  %s:\n", mount))
-				usedPercent, hasPercent := u["used_percent"].(float64)
-				if hasPercent {
+				if usedPercent, hasPercent := u["used_percent"].(float64); hasPercent {
 					diskThreshold := f.thresholds["disk"]
 					if usedPercent > maxDiskUsage {
 						maxDiskUsage = usedPercent
 						criticalMount = mount
-						if usedPercent >= diskThreshold.Critical || usedPercent >= diskThreshold.Warning {
-							hasErrors = true
-						}
 					}
-					diskPercentVal := usedPercent
-					var diskLine string
-					if diskPercentVal >= diskThreshold.Critical {
-						diskLine = fmt.Sprintf("    Usage: %.2f%% 🔴 CRITICAL\n", diskPercentVal)
-					} else if diskPercentVal >= diskThreshold.Warning {
-						diskLine = fmt.Sprintf("    Usage: %.2f%% 🟠 WARNING\n", diskPercentVal)
-					} else {
-						diskLine = fmt.Sprintf("    Usage: %.2f%%\n", diskPercentVal)
+					if usedPercent >= diskThreshold.Critical || usedPercent >= diskThreshold.Warning {
+						hasErrors = true
 					}
-					alertFormatted.WriteString(diskLine)
+					alertFormatted.WriteString(fmt.Sprintf("    Usage: %s\n", f.formatPercentage(usedPercent, "disk", false)))
 				}
 				if total, ok := u["total"].(uint64); ok {
 					alertFormatted.WriteString(fmt.Sprintf("    Total: %s\n", f.formatSize(total)))
@@ -243,7 +254,7 @@ func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared 
 			}
 		}
 		if maxDiskUsage > 0 {
-			logFormatted.WriteString(fmt.Sprintf("Disk:%s:%.1f%% ", criticalMount, maxDiskUsage))
+			logFormatted.WriteString(fmt.Sprintf("Disk(%s):%.1f%% ", criticalMount, maxDiskUsage))
 		}
 	}
 
@@ -251,48 +262,58 @@ func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared 
 	if hasErrors {
 		logFormatted.WriteString("Status:WARNING")
 		alertFormatted.WriteString("⚠️ Issues detected! Please check the output above.\n")
+		(*shared)["severity"] = "warning"
+		f.logger.WithFields(sectionLogFields).Warn("Problemas de health detectados en el formateo")
 	} else {
 		logFormatted.WriteString("Status:OK")
 		alertFormatted.WriteString("✅ All systems operational!\n")
+		(*shared)["severity"] = "info"
+		f.logger.WithFields(sectionLogFields).Info("Health formateado, todo OK")
 	}
 
 	message := alertFormatted.String()
 	(*shared)["message"] = message
 
-	if hasErrors {
-		(*shared)["severity"] = "warning"
-	} else {
-		(*shared)["severity"] = "info"
-	}
+	f.logger.WithFields(sectionLogFields).WithFields(logrus.Fields{
+		"logSummary":    logFormatted.String(),
+		"finalSeverity": (*shared)["severity"],
+	}).Debug("Resumen de log de health")
 
 	return message, nil
 }
 
 // formatKubernetesHealth formats Kubernetes health check results
-func (f *FormatterPlugin) formatKubernetesHealth(kubeResults []map[string]string, shared *map[string]any) (interface{}, error) {
+func (f *FormatterPlugin) formatKubernetesHealth(kubeResults []map[string]string, shared *map[string]any, baseLogFields logrus.Fields) (interface{}, error) {
 	var sb strings.Builder
-	hasIssues := false
 	totalPods := len(kubeResults)
 	problemPods := 0
+
+	sectionLogFields := make(logrus.Fields)
+	for k, v := range baseLogFields {
+		sectionLogFields[k] = v
+	}
+	sectionLogFields["dataType"] = "kubernetesHealth"
+
+	f.logger.WithFields(sectionLogFields).WithField("podCount", totalPods).Info("Formateando datos de health de Kubernetes")
 
 	sb.WriteString("\n🚢 Kubernetes Health Report 🚢\n\n")
 	sb.WriteString("Pod Status:\n")
 
-	// Count issues and format each pod
 	for _, pod := range kubeResults {
 		status := pod["status"]
 		emoji := pod["emoji"]
 		name := pod["name"]
-
 		if emoji != "✅" {
-			hasIssues = true
 			problemPods++
+			f.logger.WithFields(sectionLogFields).WithFields(logrus.Fields{
+				"podName":   name,
+				"podStatus": status,
+				"podEmoji":  emoji,
+			}).Warn("Pod de Kubernetes con problemas")
 		}
-
 		sb.WriteString(fmt.Sprintf("  %s: %s %s\n", name, status, emoji))
 	}
 
-	// Add summary
 	sb.WriteString("\nSummary:\n")
 	sb.WriteString(fmt.Sprintf("  Total pods: %d\n", totalPods))
 	sb.WriteString(fmt.Sprintf("  Healthy pods: %d\n", totalPods-problemPods))
@@ -300,34 +321,37 @@ func (f *FormatterPlugin) formatKubernetesHealth(kubeResults []map[string]string
 	if problemPods > 0 {
 		sb.WriteString(fmt.Sprintf("  Problem pods: %d 🔴\n", problemPods))
 		sb.WriteString("\n⚠️ Issues detected! Please check your Kubernetes cluster.\n")
+		(*shared)["severity"] = "warning"
+		f.logger.WithFields(sectionLogFields).WithFields(logrus.Fields{
+			"problemPodCount": problemPods,
+			"finalSeverity":   "warning",
+		}).Warn("Problemas detectados en pods de Kubernetes")
 	} else {
 		sb.WriteString("\n✅ All pods are healthy!\n")
+		(*shared)["severity"] = "info"
+		f.logger.WithFields(sectionLogFields).WithFields(logrus.Fields{
+			"finalSeverity": "info",
+		}).Info("Todos los pods de Kubernetes saludables")
 	}
 
-	// Store in shared context for slack notification
 	message := sb.String()
 	(*shared)["message"] = message
-
-	// Make sure severity is set
-	if hasIssues {
-		(*shared)["severity"] = "warning"
-	} else {
-		(*shared)["severity"] = "info"
-	}
-
 	return message, nil
 }
 
 // FormatResult returns a simple string representation
 func (f *FormatterPlugin) FormatResult(result interface{}) (string, error) {
+	baseLogFields := logrus.Fields{
+		"pluginName": "HealthAlertFormatterPlugin",
+		"action":     "FormatResult",
+	}
+	f.logger.WithFields(baseLogFields).Debug("Formateando resultado")
 	if result == nil {
 		return "No result to format", nil
 	}
-
 	if str, ok := result.(string); ok {
 		return str, nil
 	}
-
 	return fmt.Sprintf("%v", result), nil
 }
 

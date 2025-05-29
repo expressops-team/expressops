@@ -22,123 +22,157 @@ type SlackPlugin struct {
 // Initialize initializes the plugin with the provided configuration
 func (s *SlackPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
 	s.logger = logger
-	s.logger.Info("Initializing Slack Plugin")
+	pluginName := "SlackPlugin" // Definir nombre para logs
+
 	webhook, ok := config["webhook_url"].(string)
-	if !ok {
-		return fmt.Errorf("slack webhook URL required")
+	if !ok || webhook == "" {
+		err := fmt.Errorf("slack webhook URL required")
+		s.logger.WithFields(logrus.Fields{
+			"pluginName": pluginName,
+			"action":     "InitializeFail",
+			"error":      err.Error(),
+		}).Error("Configuración requerida faltante")
+		return err
 	}
 	s.webhook = webhook
+
+	s.logger.WithFields(logrus.Fields{
+		"pluginName":        pluginName,
+		"action":            "Initialize",
+		"webhookConfigured": true, // No loguear la URL completa por seguridad
+	}).Info("SlackPlugin inicializado")
 	return nil
 }
 
 // Execute sends a message to a Slack channel
-func (s *SlackPlugin) Execute(ctx context.Context, _ *http.Request, shared *map[string]any) (interface{}, error) {
+func (s *SlackPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
+	pluginName := "SlackPlugin"
+	flowName := request.URL.Query().Get("flowName") // Obtener flowName si está disponible
+
+	logFields := logrus.Fields{
+		"pluginName": pluginName,
+		"flowName":   flowName,
+	}
+
 	var message string
 
 	// Try to get message from shared context
 	if msgVal, ok := (*shared)["message"]; ok {
 		if msgStr, ok := msgVal.(string); ok {
-			s.logger.Debugf("Message obtained from shared[\"message\"]: %s", msgStr)
+			s.logger.WithFields(logFields).WithField("source", "shared.message").Debugf("Mensaje obtenido: %.50s...", msgStr)
 			message = msgStr
 		} else {
-			s.logger.Warnf("shared[\"message\"] exists but is not a string (type: %T)", msgVal)
+			s.logger.WithFields(logFields).WithField("sourceType", fmt.Sprintf("%T", msgVal)).Warn("shared[\"message\"] existe pero no es string")
 		}
 	}
 
-	// If no message found, try to get it from previous_result
 	if message == "" {
-		s.logger.Debug("shared[\"message\"] not found or empty, checking shared[\"previous_result\"]")
-
+		s.logger.WithFields(logFields).Debug("shared[\"message\"] no encontrado o vacío, verificando shared[\"previous_result\"]")
 		if prevResult, ok := (*shared)["previous_result"]; ok {
 			if prevStr, ok := prevResult.(string); ok {
-				s.logger.Debugf("Message obtained from shared[\"previous_result\"] (was string): %s", prevStr)
+				s.logger.WithFields(logFields).WithField("source", "shared.previous_result_string").Debugf("Mensaje obtenido: %.50s...", prevStr)
 				message = prevStr
 			} else {
-				// Try to convert to string
-				message = fmt.Sprintf("%v", prevResult)
-				s.logger.Debugf("Message obtained from shared[\"previous_result\"] (converted to string): %s", message)
+				message = fmt.Sprintf("%v", prevResult) // Convertir a string
+				s.logger.WithFields(logFields).WithField("source", "shared.previous_result_converted").Debugf("Mensaje obtenido: %.50s...", message)
 			}
 		}
 	}
 
-	// Check if we have a message to send
 	if message == "" {
-		err := fmt.Errorf("no message to send")
-		s.logger.Error(err.Error())
+		err := fmt.Errorf("no hay mensaje para enviar a Slack")
+		s.logger.WithFields(logFields).WithField("error", err.Error()).Error("Mensaje vacío")
 		return nil, err
 	}
 
-	// Get custom channel from shared context (optional)
 	var channel string
 	if channelVal, ok := (*shared)["channel"]; ok {
 		if channelStr, ok := channelVal.(string); ok {
 			channel = channelStr
+			logFields["targetChannel"] = channel
 		} else {
-			s.logger.Warnf("shared[\"channel\"] exists but is not a string (type: %T), using default webhook channel", channelVal)
+			s.logger.WithFields(logFields).WithField("channelType", fmt.Sprintf("%T", channelVal)).Warn("shared[\"channel\"] existe pero no es string, se usará el canal por defecto del webhook")
 		}
 	} else {
-		s.logger.Debug("shared[\"channel\"] not found, using default webhook channel")
+		s.logger.WithFields(logFields).Debug("shared[\"channel\"] no encontrado, se usará el canal por defecto del webhook")
 	}
 
-	// Get severity from shared context (optional)
-	severity := "info"
+	severity := "info" // Default severity
 	if severityVal, ok := (*shared)["severity"]; ok {
 		if severityStr, ok := severityVal.(string); ok {
 			severity = severityStr
 		} else {
-			s.logger.Warnf("shared[\"severity\"] exists but is not a string (type: %T), using '%s'", severityVal, severity)
+			s.logger.WithFields(logFields).WithField("severityType", fmt.Sprintf("%T", severityVal)).Warnf("shared[\"severity\"] no es string, se usará '%s'", severity)
 		}
-	} else {
-		s.logger.Debugf("shared[\"severity\"] not found, using '%s'", severity)
 	}
+	logFields["severity"] = severity
 
-	s.logger.Infof("Sending to Slack: Channel='%s', Severity='%s', Message='%.50s...'", channel, severity, message) // Log before sending
+	s.logger.WithFields(logFields).WithField("messageLength", len(message)).Info("Intentando enviar notificación a Slack")
 
-	// Create payload
-	payload := map[string]interface{}{
-		"text": message,
-	}
-
+	payload := map[string]interface{}{"text": message}
 	if channel != "" {
 		payload["channel"] = channel
 	}
 
-	// Convert payload to JSON
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		s.logger.Errorf("Error encoding JSON payload for Slack: %v", err)
+		s.logger.WithFields(logFields).WithFields(logrus.Fields{
+			"action": "ExecuteFail",
+			"step":   "MarshalPayload",
+			"error":  err.Error(),
+		}).Error("Error codificando payload JSON para Slack")
 		return nil, err
 	}
 
-	// Create request
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.webhook, bytes.NewBuffer(payloadBytes))
 	if err != nil {
-		s.logger.Errorf("Error creating request for Slack: %v", err)
+		s.logger.WithFields(logFields).WithFields(logrus.Fields{
+			"action": "ExecuteFail",
+			"step":   "CreateRequest",
+			"error":  err.Error(),
+		}).Error("Error creando petición para Slack")
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// Send the request
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		s.logger.Errorf("Error sending message to Slack: %v", err)
+		s.logger.WithFields(logFields).WithFields(logrus.Fields{
+			"action": "ExecuteFail",
+			"step":   "SendRequest",
+			"error":  err.Error(),
+		}).Error("Error enviando mensaje a Slack")
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	// Check response
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		s.logger.Errorf("Error in Slack API response: %s - Body: %s", resp.Status, string(bodyBytes))
-		return nil, fmt.Errorf("slack API error: %s", resp.Status)
+		errMsg := fmt.Sprintf("Slack API devolvió error: %s", resp.Status)
+		s.logger.WithFields(logFields).WithFields(logrus.Fields{
+			"action":       "ExecuteFail",
+			"step":         "CheckResponse",
+			"statusCode":   resp.StatusCode,
+			"responseBody": string(bodyBytes), // Cuidado con cuerpos de respuesta grandes
+			"error":        errMsg,
+		}).Error("Error en la respuesta de la API de Slack")
+		return nil, fmt.Errorf(errMsg)
 	}
 
+	s.logger.WithFields(logFields).WithFields(logrus.Fields{
+		"action":     "ExecuteSuccess",
+		"statusCode": resp.StatusCode,
+	}).Info("Mensaje enviado a Slack exitosamente")
 	return "Message sent to Slack", nil
 }
 
 // FormatResult follows the original implementation
 func (s *SlackPlugin) FormatResult(result interface{}) (string, error) {
+	s.logger.WithFields(logrus.Fields{
+		"pluginName": "SlackPlugin",
+		"action":     "FormatResult",
+	}).Debug("Formateando resultado")
 	if resultMap, ok := result.(map[string]interface{}); ok {
 		return fmt.Sprintf("Slack Result: Status=%v", resultMap["status"]), nil
 	}

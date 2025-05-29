@@ -10,7 +10,7 @@ PRINT = @echo
 
 # Common variables
 IMAGE_REPOSITORY ?= davidnull/expressops
-IMAGE_TAG ?= 1.1.5
+IMAGE_TAG ?= 1.1.6
 PLUGINS_PATH ?= plugins
 CONTAINER_NAME ?= expressops-app
 HOST_PORT ?= 8081

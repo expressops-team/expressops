@@ -14,7 +14,7 @@ ExpressOps is a workflow orchestrator built to chain operations across distribut
 Grab our image from Docker Hub:
 
 ```bash
-docker pull davidnull/expressops:1.1.5
+docker pull davidnull/expressops:1.1.6
 ```
 
 *Note: This is a temporary location. We'll move to expressopsfreepik/expressops soon*
