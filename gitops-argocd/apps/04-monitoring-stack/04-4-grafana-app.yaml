@@ -30,13 +30,6 @@ spec:
           size: 8Gi
           # existingClaim: "grafana-data-pvc" # Dejar vacío para que Helm cree un nuevo PVC.
 
-        # grafana.ini:
-        #   paths:
-        #     data: /var/lib/grafana/
-        #     logs: /var/log/grafana
-        #     plugins: /var/lib/grafana/plugins
-        #     provisioning: /etc/grafana/provisioning
-
         podSecurityContext:
           fsGroup: 472
         securityContext:
@@ -45,10 +38,6 @@ spec:
 
         env:
           GF_LOG_LEVEL: debug
-          # Si tu chart de Grafana soporta 'env' directamente para datasources,
-          # o si 'datasources' es una clave de nivel superior como en tu values.yaml.
-          # La mayoría de los charts modernos usan una clave 'datasources' o 'sidecar.datasources'.
-          # Vamos a asumir que 'datasources' es una clave de nivel superior como en tu values.yaml.
 
         # Configuración para el datasource de Prometheus
         datasources:
@@ -62,8 +51,6 @@ spec:
                 access: proxy # 'proxy' significa que el backend de Grafana hace las peticiones a Prometheus
                 isDefault: true
 
-        # Si kube-prometheus-stack ya instala Grafana y quieres deshabilitar esa instancia
-        # para usar esta, asegúrate que en los values de kube-prometheus-stack tienes grafana.enabled: false
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: monitoring
