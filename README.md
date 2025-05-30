@@ -3,11 +3,10 @@
 > 🚨 <span style="color:red">**Note: Currently under active development**</span> - API and features may change without notice
 
 
-ExpressOps is a workflow orchestrator built to chain operations across distributed systems. We created it to:
-
-- Load Go plugins (.so) at runtime
-- Run flows configured through YAML
-- Keep each capability in its own plugin
+ExpressOps: A lightweight flow orchestrator that:
+- Loads plugins dynamically
+- Chains plugins into workflows via YAML config
+- Each plugin = one task (health checks, formatting, notifications, etc.)
 
 ## Docker
 
