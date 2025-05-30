@@ -1,4 +1,8 @@
 argo-cd:
+  # Configuración global
+  global:
+    storageClass: "juicefs-gcs-redis-canonica"
+
   # Configuración del servidor de repositorios de Argo CD
   repoServer:
     persistence:
@@ -7,6 +11,14 @@ argo-cd:
       accessModes:
         - ReadWriteOnce
       size: "10Gi"
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    replicas: 1
 
   # Configuración de Dex (Servicio de Identidad OIDC)
   dex:
@@ -35,4 +47,57 @@ argo-cd:
 
   # Configuración para Redis HA (Alta Disponibilidad)
   redis-ha:
-    enabled: false 
+    enabled: false
+
+  # Configuración del servidor
+  server:
+    persistence:
+      enabled: true
+      storageClass: "juicefs-gcs-redis-canonica"
+      accessModes:
+        - ReadWriteOnce
+      size: "2Gi"
+      name: argocd-server-data
+      mountPath: /app/config/server/tls
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi
+
+  # Configuración del controlador de aplicaciones
+  controller:
+    persistence:
+      enabled: true
+      storageClass: "juicefs-gcs-redis-canonica"
+      accessModes:
+        - ReadWriteOnce
+      size: "5Gi"
+      name: argocd-controller-data
+      mountPath: /app/config/controller
+    resources:
+      limits:
+        cpu: 100m
+        memory: 256Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi
+
+  # Configuración para el controlador de notificaciones
+  notifications:
+    enabled: true
+    persistence:
+      enabled: true
+      storageClass: "juicefs-gcs-redis-canonica"
+      accessModes:
+        - ReadWriteOnce
+      size: "2Gi"
+    resources:
+      limits:
+        cpu: 50m
+        memory: 64Mi
+      requests:
+        cpu: 10m
+        memory: 32Mi 
