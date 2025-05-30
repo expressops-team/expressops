@@ -4,53 +4,20 @@ kind: Application
 metadata:
   name: grafana
   namespace: argocd
-annotations:
+  annotations:
     argocd.argoproj.io/sync-wave: "9"
-finalizers:
+  finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    # Fuente del chart de Helm
-    # Asume que el repo 'grafana-charts' (https://grafana.github.io/helm-charts) está registrado en ArgoCD.
-    repoURL: https://grafana.github.io/helm-charts
-    chart: grafana 
-    targetRevision: '9.0.0'
-
+    repoURL: git@github.com:freepik-company/expressops.git
+    targetRevision: rama_nacho
+    path: k3s/vendor-charts/grafana
     helm:
       releaseName: grafana
-      values: |
-        # Contenido de tu k3s/observability-stack/grafana-values.yaml
-        persistence:
-          enabled: true
-          type: pvc
-          storageClassName: "juicefs-gcs-redis-canonica"
-          accessModes:
-            - ReadWriteOnce
-          size: 8Gi
-          # existingClaim: "grafana-data-pvc" # Dejar vacío para que Helm cree un nuevo PVC.
-
-        podSecurityContext:
-          fsGroup: 472
-        securityContext:
-          runAsUser: 472
-          runAsGroup: 472
-
-        env:
-          GF_LOG_LEVEL: debug
-
-        # Configuración para el datasource de Prometheus
-        datasources:
-          datasources.yaml:
-            apiVersion: 1
-            datasources:
-              - name: Prometheus # Nombre que aparecerá en Grafana
-                type: prometheus
-                # URL del servicio de Prometheus dentro del clúster
-                url: http://prometheus-d-kube-promethe-prometheus.monitoring.svc.cluster.local:9090
-                access: proxy # 'proxy' significa que el backend de Grafana hace las peticiones a Prometheus
-                isDefault: true
-
+      valueFiles:
+        - values.yaml
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: monitoring

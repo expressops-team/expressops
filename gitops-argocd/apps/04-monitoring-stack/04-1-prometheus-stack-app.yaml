@@ -11,30 +11,13 @@ metadata:
 spec:
   project: default
   source:
-    # El chart viene de un repo Helm externo
-    repoURL: 'https://prometheus-community.github.io/helm-charts' # URL del repo del chart
-    chart: kube-prometheus-stack # Nombre del chart en ese repo
-    targetRevision: '72.5.0' # Versión del chart
+    repoURL: git@github.com:freepik-company/expressops.git
+    targetRevision: rama_nacho
+    path: k3s/vendor-charts/prometheus-stack
     helm:
       releaseName: prometheus-d
-      values: |
-        grafana:
-          enabled: false
-
-        prometheus:
-          prometheusSpec:
-            podSecurityContext:
-              fsGroup: 65534
-              runAsNonRoot: true
-            storageSpec:
-              volumeClaimTemplate:
-                spec:
-                  storageClassName: "juicefs-gcs-redis-canonica"
-                  accessModes: ["ReadWriteOnce"]
-                  resources:
-                    requests:
-                      storage: 30Gi
-
+      valueFiles:
+        - values.yaml
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: monitoring

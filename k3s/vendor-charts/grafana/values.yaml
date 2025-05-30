@@ -1,0 +1,30 @@
+grafana:
+  persistence:
+    enabled: true
+    type: pvc
+    storageClassName: "juicefs-gcs-redis-canonica"
+    accessModes:
+      - ReadWriteOnce
+    size: 8Gi
+    # existingClaim: "grafana-data-pvc" # Dejar vacío para que Helm cree un nuevo PVC.
+
+  podSecurityContext:
+    fsGroup: 472
+  securityContext:
+    runAsUser: 472
+    runAsGroup: 472
+
+  env:
+    GF_LOG_LEVEL: debug
+
+  # Configuración para el datasource de Prometheus
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus # Nombre que aparecerá en Grafana
+          type: prometheus
+          # URL del servicio de Prometheus dentro del clúster
+          url: http://prometheus-d-kube-promethe-prometheus.monitoring.svc.cluster.local:9090
+          access: proxy # 'proxy' significa que el backend de Grafana hace las peticiones a Prometheus
+          isDefault: true 

@@ -11,37 +11,13 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://juicedata.github.io/charts/
-    chart: juicefs-csi-driver
-    targetRevision: '0.28.1'
+    repoURL: git@github.com:freepik-company/expressops.git
+    targetRevision: rama_nacho
+    path: k3s/vendor-charts/juicefs-csi-driver
     helm:
       releaseName: juicefs-csi-driver
-      values: | # Valores inline
-        controller:
-          resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 200m
-              memory: 256Mi
-        node:
-          resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
-        globalConfig:
-          mountPodPatch:
-            - resources:
-                requests:
-                  cpu: 75m
-                  memory: 512Mi
-                limits:
-                  cpu: 500m
-                  memory: 1.5Gi
+      valueFiles:
+        - values.yaml
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: kube-system

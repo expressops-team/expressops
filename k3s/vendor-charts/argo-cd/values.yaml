@@ -1,0 +1,38 @@
+argo-cd:
+  # Configuración del servidor de repositorios de Argo CD
+  repoServer:
+    persistence:
+      enabled: true
+      storageClassName: "juicefs-gcs-redis-canonica"
+      accessModes:
+        - ReadWriteOnce
+      size: "10Gi"
+
+  # Configuración de Dex (Servicio de Identidad OIDC)
+  dex:
+    enabled: true
+    persistence:
+      enabled: true
+      storageClass: "juicefs-gcs-redis-canonica"
+      accessModes:
+        - ReadWriteOnce
+      size: "2Gi"
+
+  # Configuración de Redis
+  redis:
+    enabled: true
+    master:
+      persistence:
+        enabled: true
+        storageClass: "juicefs-gcs-redis-canonica"
+        accessModes:
+          - ReadWriteOnce
+        size: "8Gi"
+    replica:
+      replicaCount: 0
+      persistence:
+        enabled: false
+
+  # Configuración para Redis HA (Alta Disponibilidad)
+  redis-ha:
+    enabled: false 

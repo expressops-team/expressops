@@ -1,0 +1,10 @@
+apiVersion: v2
+name: juicefs-csi-driver-wrapper
+description: Un chart wrapper para JuiceFS CSI Driver
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+dependencies:
+  - name: juicefs-csi-driver
+    version: "0.19.1"  # Actualiza esta versión según corresponda
+    repository: "https://juicedata.github.io/charts/" 
