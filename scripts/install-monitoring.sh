@@ -249,18 +249,33 @@ data:
         K8S-Logging.Parser  On
         K8S-Logging.Exclude Off
 
+    [FILTER]
+        Name                rewrite_tag
+        Match               kube.*
+        Rule                $kubernetes['namespace_name'] ^default$ $kubernetes['container_name'] ^expressops(.*)$ expressops.logs true
+        Emitter_Name        re_emitted
+
   outputs.conf: |-
     [OUTPUT]
         Name            opensearch
+        Match           expressops.logs
+        Host            opensearch-standard
+        Port            9200
+        HTTP_User       ${OPENSEARCH_USERNAME}
+        HTTP_Passwd     ${OPENSEARCH_PASSWORD}
+        Index           expressops
+        Suppress_Type_Name On
+        tls             On
+        tls.verify      Off
+
+    [OUTPUT]
+        Name            opensearch
         Match           *
-        Host            opensearch-cluster-master
+        Host            opensearch-standard
         Port            9200
         HTTP_User       ${OPENSEARCH_USERNAME}
         HTTP_Passwd     ${OPENSEARCH_PASSWORD}
         Index           logs
-        Suppress_Type_Name On
-        tls             On
-        tls.verify      Off
 
   parsers.conf: |-
     [PARSER]

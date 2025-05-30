@@ -2,6 +2,7 @@
 
 > 🚨 <span style="color:red">**Note: Currently under active development**</span> - API and features may change without notice
 
+
 ExpressOps: A lightweight flow orchestrator that:
 - Loads plugins dynamically
 - Chains plugins into workflows via YAML config
@@ -12,7 +13,7 @@ ExpressOps: A lightweight flow orchestrator that:
 Grab our image from Docker Hub:
 
 ```bash
-docker pull davidnull/expressops:1.1.5
+docker pull davidnull/expressops:1.1.7
 ```
 
 *Note: This is a temporary location. We'll move to expressopsfreepik/expressops soon*
@@ -149,7 +150,13 @@ make local-prometheus-port-forward PROMETHEUS_NAMESPACE=monitoring-david PROMETH
 make grafana-port-forward PROMETHEUS_NAMESPACE=monitoring-david GRAFANA_RELEASE=grafana-david GRAFANA_PORT=3001
 ```
 
-Grafana credentials: admin/admin123
+
+## Terraform
+
+This project also supports deployment of its monitoring stack (OpenSearch, OpenSearch Dashboards, Fluent Bit) using Terraform. The Terraform configuration can be found in the `terraform/` directory.
+
+
+![Terraform](terraform/Esquema%20Terraform.png)
 
 ## Configuration Example
 

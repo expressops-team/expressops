@@ -13,8 +13,7 @@ logs/*.zip
 
 # Kubernetes secrets
 k8s/secrets/fake-clustersecretstore.yaml  
-# Terraform
-terraform/*
+# terraform/*
 
 
 # Local environment files

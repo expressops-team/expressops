@@ -1,6 +1,6 @@
-replicas: 1
+replicas: 1 # Initial replica count --> KEDA manage scaling from this baseline up to its configured maximum
 clusterName: opensearch
-nodeGroup: master
+nodeGroup: standard
 
 image:
   repository: europe-west1-docker.pkg.dev/fc-it-school-2025/opensearch-repo/opensearch
@@ -11,31 +11,43 @@ opensearchJavaOpts: "-Xms1g -Xmx1g"
 
 config:
   opensearch.yml: |
-    discovery.type: single-node
     network.host: 0.0.0.0
     
     plugins.security.disabled: false
-    
     plugins.security.ssl.http.enabled: true
-    plugins.security.ssl.transport.enabled: true
-    
     plugins.security.ssl.http.pemcert_filepath: /usr/share/opensearch/config/certs/node.pem
     plugins.security.ssl.http.pemkey_filepath: /usr/share/opensearch/config/certs/node-key.pem
     plugins.security.ssl.http.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
+    plugins.security.ssl.transport.enabled: true
     plugins.security.ssl.transport.pemcert_filepath: /usr/share/opensearch/config/certs/node.pem
     plugins.security.ssl.transport.pemkey_filepath: /usr/share/opensearch/config/certs/node-key.pem
     plugins.security.ssl.transport.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
-    
     plugins.security.allow_default_init_securityindex: true
-    
+    plugins.security.authcz.admin_dn: 
+      - "CN=opensearch"
+
+    # OIDC Configuration
+    plugins.security.openid_connect_url: https://accounts.google.com/.well-known/openid_configuration
+    plugins.security.openid_connect_idp.enable_ssl: true
+    plugins.security.openid_connect_idp.verify_hostnames: true
+    plugins.security.openid_connect_idp.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
+
+    node.roles:
+      - cluster_manager
+      - data
+      - ingest
+
+    discovery.seed_hosts: ["opensearch-standard-headless.dav-monitoring.svc.cluster.local"]
+    cluster.initial_cluster_manager_nodes: ["opensearch-standard-0"]
+
     plugins.query.datasources.encryption.masterkey: "A1B2C3D4E5F6G7H8"
 
 resources:
   requests:
-    cpu: "0.5"
-    memory: "512Mi"
+    cpu: "500m"
+    memory: "1Gi"
   limits:
-    cpu: "2"
+    cpu: "1"
     memory: "2Gi"
 
 nodeSelector:
@@ -43,24 +55,65 @@ nodeSelector:
 
 persistence:
   enabled: true
-  storageClass: "standard"
+  storageClass: "juicefs-gcs-redis-canonica"
   size: 10Gi
 
-singleNode: true
+singleNode: false
+
+#opensearchDashboards:
+#  enabled: true
+#  image:
+#    repository: opensearchproject/opensearch-dashboards
+#    imagePullPolicy: IfNotPresent
+#    tag: "3.0.0"
+#  opensearchHosts: "https://opensearch-standard.dav-monitoring.svc.cluster.local:9200"
+#  config:
+#    opensearch_dashboards.yml: |
+#      server.name: opensearch-dashboards
+#      server.host: "0.0.0.0"
+#      opensearch.hosts: ["https://opensearch-standard.dav-monitoring.svc.cluster.local:9200"]
+#      opensearch.ssl.verificationMode: none
+#      opensearch.username: ${OPENSEARCH_USERNAME}
+#      opensearch.password: ${OPENSEARCH_PASSWORD}
+#      opensearch.requestHeadersAllowlist: ["Authorization", "X-Security-Tenant", "securitytenant"]
+#      opensearch_security.enabled: true
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchLabels:
+            role: opensearch-node
+        topologyKey: "kubernetes.io/hostname"
 
 service:
   type: ClusterIP
   httpPort: 9200
   metricsPort: 9600
 
+# ==== DOES NOT GENERATE THE CERTS AUTOMATICALLY ====
 extraVolumes:
   - name: certs
     secret:
       secretName: opensearch-certs
+  - name: gcp-creds
+    secret:
+      secretName: gcp-creds-for-eso #  existing secret
+  - name: security-config
+    configMap:
+      name: opensearch-security-config
 
 extraVolumeMounts:
   - name: certs
     mountPath: /usr/share/opensearch/config/certs
+    readOnly: true
+  - name: gcp-creds 
+    mountPath: /usr/share/opensearch/config/gcs_credentials 
+    readOnly: true
+  - name: security-config
+    mountPath: /usr/share/opensearch/config/opensearch-security
     readOnly: true
 
 extraEnvs:
@@ -74,6 +127,18 @@ extraEnvs:
       secretKeyRef:
         name: opensearch-credentials-secure
         key: password
+  - name: GOOGLE_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: google-oidc-credentials
+        key: client_id
+  - name: GOOGLE_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: google-oidc-credentials
+        key: client_secret
+  # - name: GOOGLE_APPLICATION_CREDENTIALS # Env var for GCS plugin
+  #   value: /usr/share/opensearch/config/gcs_credentials/key.json # Path to the mounted key file
 
 imagePullSecrets:
   - name: opensearch-registry-creds
@@ -92,6 +157,7 @@ extraPlugins:
   - opensearch-reports
   - opensearch-gantt-chart
   - opensearch-visualizations
+  #- opensearch-repository-gcs
 
 # TODO:
 #snapshot repository

@@ -1,0 +1,26 @@
+_meta:
+  type: "config"
+  config_version: 2
+
+config:
+  dynamic:
+    authc:
+      google_oidc: 
+        http_enabled: true
+        transport_enabled: false 
+        order: 0 
+        http_authenticator:
+          type: oidc
+          challenge: true 
+          config:
+            connect_url: "https://accounts.google.com/.well-known/openid-configuration"
+            
+            client_id: "88527591198-0j3ubv592bsvqn2l5tl49o43mvpeanf6.apps.googleusercontent.com"
+            client_secret: "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"
+   
+            scope: "openid email profile" 
+            
+            kibana_url: "https://localhost:5601" 
+
+            subject_key: 'email' 
+    

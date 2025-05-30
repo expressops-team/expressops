@@ -1,7 +1,5 @@
-# Kubernetes operations
 .PHONY: k8s-deploy k8s-status k8s-logs k8s-delete k8s-port-forward k8s-install-eso k8s-apply-gcp-secretstore k8s-apply-externalsecret k8s-setup-gcp-secrets k8s-verify-secrets k8s-deploy-with-clustersecretstore k8s-deploy-with-gcp-secretstore setup-with-gcp-credentials
 
-## Kubernetes deployment and management operations
 
 k8s-install-eso: ## Install External Secrets Operator (required before first deployment)
 	@echo "🔄 Installing External Secrets Operator..."
