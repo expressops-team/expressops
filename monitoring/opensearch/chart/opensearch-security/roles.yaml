@@ -31,4 +31,18 @@ dashboard_read_only:
         - "search"
         - "indices:data/read*"
   # Tenant permissions <-- for Dashboards multi-tenancy if needed IN FUTURE
+
+os_google_admins_role:
+  cluster_permissions:
+    - "*"
+  index_permissions:
+    - index_patterns:
+        - "*"
+      allowed_actions:
+        - "*"
+  tenant_permissions:
+    - tenant_patterns:
+        - "*"
+      allowed_actions:
+        - "kibana_all_write"
  

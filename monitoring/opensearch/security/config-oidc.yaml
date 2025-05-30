@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opensearch-security-config
+  namespace: dav-monitoring
+data:
+  config.yml: |
+    _meta:
+      type: "config"
+      config_version: 2
+
+    config:
+      dynamic:
+        filtered_alias_mode: "warn"
+        do_not_fail_on_forbidden: false
+        http:
+          anonymous_auth_enabled: false
+          xff:
+            enabled: false
+        authc:
+          # OIDC como método principal
+          google_oidc_auth_domain:
+            description: "Authenticate via Google OIDC"
+            http_enabled: true
+            transport_enabled: false
+            order: 0
+            http_authenticator:
+              type: openid_connect
+              challenge: false
+              config:
+                openid_connect_url: "https://accounts.google.com/.well-known/openid_configuration"
+                openid_connect_idp:
+                  enable_ssl: true
+                  verify_hostnames: false
+            authentication_backend:
+              type: noop
+          
+          # Fallback internal auth
+          basic_internal_auth_domain:
+            description: "Authenticate using internal users"
+            http_enabled: true
+            transport_enabled: true
+            order: 1
+            http_authenticator:
+              type: basic
+              challenge: true
+            authentication_backend:
+              type: internal
+
+        authz:
+          google_oidc_auth_domain:
+            description: "Authorize via Google OIDC"
+            http_enabled: true
+            transport_enabled: false
+            authorization_backend:
+              type: noop
+
+  roles_mapping.yml: |
+    _meta:
+      type: "rolesmapping"
+      config_version: 2
+
+    all_access:
+      reserved: false
+      backend_roles: []
+      hosts: []
+      users:
+      - "tu-email@gmail.com"  # CAMBIAR POR TU EMAIL REAL
+      description: "Maps admin access to specific Google user"
+
+    kibana_user:
+      reserved: false
+      backend_roles: []
+      hosts: []
+      users:
+      - "*"  # Todos los usuarios autenticados
+      description: "Maps kibana access to all authenticated users"
+
+  internal_users.yml: |
+    _meta:
+      type: "internalusers"
+      config_version: 2
+
+    admin:
+      hash: "$2y$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG"  # admin
+      reserved: true
+      backend_roles:
+      - "admin"
+      description: "Default admin user" 

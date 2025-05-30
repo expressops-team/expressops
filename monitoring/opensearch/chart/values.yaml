@@ -26,6 +26,12 @@ config:
     plugins.security.authcz.admin_dn: 
       - "CN=opensearch"
 
+    # OIDC Configuration
+    plugins.security.openid_connect_url: https://accounts.google.com/.well-known/openid_configuration
+    plugins.security.openid_connect_idp.enable_ssl: true
+    plugins.security.openid_connect_idp.verify_hostnames: true
+    plugins.security.openid_connect_idp.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
+
     node.roles:
       - cluster_manager
       - data
@@ -95,6 +101,9 @@ extraVolumes:
   - name: gcp-creds
     secret:
       secretName: gcp-creds-for-eso #  existing secret
+  - name: security-config
+    configMap:
+      name: opensearch-security-config
 
 extraVolumeMounts:
   - name: certs
@@ -102,6 +111,9 @@ extraVolumeMounts:
     readOnly: true
   - name: gcp-creds 
     mountPath: /usr/share/opensearch/config/gcs_credentials 
+    readOnly: true
+  - name: security-config
+    mountPath: /usr/share/opensearch/config/opensearch-security
     readOnly: true
 
 extraEnvs:
@@ -115,6 +127,16 @@ extraEnvs:
       secretKeyRef:
         name: opensearch-credentials-secure
         key: password
+  - name: GOOGLE_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: google-oidc-credentials
+        key: client_id
+  - name: GOOGLE_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: google-oidc-credentials
+        key: client_secret
   # - name: GOOGLE_APPLICATION_CREDENTIALS # Env var for GCS plugin
   #   value: /usr/share/opensearch/config/gcs_credentials/key.json # Path to the mounted key file
 

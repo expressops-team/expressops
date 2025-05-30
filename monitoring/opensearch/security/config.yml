@@ -1,0 +1,45 @@
+_meta:
+  type: "config"
+  config_version: 2
+
+config:
+  dynamic:
+    filtered_alias_mode: "warn"
+    http:
+      anonymous_auth_enabled: false
+      xff:
+        enabled: false
+        internalProxies: '192\.168\.0\.10|192\.168\.0\.11'
+    authc:
+      oidc_auth_domain:
+        http_enabled: true
+        transport_enabled: true
+        order: 0
+        http_authenticator:
+          type: "openid_connect"
+          challenge: false
+          config:
+            openid_connect_url: "https://accounts.google.com/.well-known/openid_configuration"
+            openid_connect_idp:
+              enable_ssl: true
+              verify_hostnames: true
+              pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
+        authentication_backend:
+          type: "noop"
+      
+      basic_internal_auth_domain:
+        http_enabled: true
+        transport_enabled: true
+        order: 1
+        http_authenticator:
+          type: "basic"
+          challenge: true
+        authentication_backend:
+          type: "internal"
+
+    authz:
+      oidc_auth_domain:
+        http_enabled: true
+        transport_enabled: true
+        authorization_backend:
+          type: "noop"

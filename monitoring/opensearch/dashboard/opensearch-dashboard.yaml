@@ -28,16 +28,22 @@ spec:
           value: "none"
         - name: DISABLE_SECURITY_DASHBOARDS_PLUGIN
           value: "false"
-        - name: OPENSEARCH_USERNAME
+        - name: GOOGLE_CLIENT_ID
           valueFrom:
             secretKeyRef:
-              name: opensearch-credentials-secure
-              key: username
-        - name: OPENSEARCH_PASSWORD
+              name: google-oidc-credentials
+              key: client_id
+        - name: GOOGLE_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: opensearch-credentials-secure
-              key: password
+              name: google-oidc-credentials
+              key: client_secret
+        - name: SERVER_SSL_ENABLED
+          value: "true"
+        - name: SERVER_SSL_CERTIFICATE
+          value: "/usr/share/opensearch-dashboards/config/certs/tls.crt"
+        - name: SERVER_SSL_KEY
+          value: "/usr/share/opensearch-dashboards/config/certs/tls.key"
         resources:
           requests:
             memory: "200Mi"
@@ -45,8 +51,23 @@ spec:
           limits:
             memory: "500Mi"
             cpu: "500m"
+        volumeMounts:
+        - name: tls-certs
+          mountPath: "/usr/share/opensearch-dashboards/config/certs"
+          readOnly: true
+        - name: config
+          mountPath: "/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml"
+          subPath: "opensearch_dashboards.yml"
+          readOnly: true
       nodeSelector:
         kubernetes.io/hostname: it-school-2025-1
+      volumes:
+      - name: tls-certs
+        secret:
+          secretName: opensearch-dashboards-tls-cert
+      - name: config
+        configMap:
+          name: opensearch-dashboards-config
 ---
 apiVersion: v1
 kind: Service
@@ -57,7 +78,7 @@ spec:
   selector:
     app: opensearch-dashboards
   ports:
-  - name: http
+  - name: https
     port: 5601
     targetPort: 5601
   type: ClusterIP

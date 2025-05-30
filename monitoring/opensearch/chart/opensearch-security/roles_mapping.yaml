@@ -13,3 +13,10 @@ dashboard_read_only:
   users:
     - "dashboard_viewer"
   description: "Maps dashboard_viewer to dashboard_read_only role"
+
+os_google_admins_role:
+  reserved: false
+  backend_roles:
+    - "gcp_expressops_admins"
+  users: []
+  description: "Mapea el grupo de Google gcp_expressops_admins al rol interno os_google_admins_role."

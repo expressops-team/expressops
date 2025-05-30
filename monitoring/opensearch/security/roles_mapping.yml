@@ -1,0 +1,27 @@
+_meta:
+  type: "rolesmapping"
+  config_version: 2
+
+all_access:
+  reserved: false
+  backend_roles:
+  - "admin"
+  hosts: []
+  users:
+  - "dcela@freepik.com" 
+
+kibana_user:
+  reserved: false
+  backend_roles: []
+  hosts: []
+  users:
+  - "*.@freepik.com"  # usuarios de freepik
+  
+oidc_users:
+  reserved: false
+  backend_roles: []
+  hosts: []
+  users:
+  - "*"  # autenticados via OIDC
+  and_backend_roles:
+  - "oidc"
