@@ -4,10 +4,10 @@ kind: Application
 metadata:
   name: grafana
   namespace: argocd
-  finalizers:
+annotations:
+    argocd.argoproj.io/sync-wave: "9"
+finalizers:
     - resources-finalizer.argocd.argoproj.io
-  # annotations:
-  #   argocd.argoproj.io/sync-wave: "13" # Después de Prometheus y Loki
 spec:
   project: default
   source:

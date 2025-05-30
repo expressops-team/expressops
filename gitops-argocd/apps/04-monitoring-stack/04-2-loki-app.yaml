@@ -4,10 +4,10 @@ kind: Application
 metadata:
   name: loki
   namespace: argocd
-  finalizers:
+annotations:
+    argocd.argoproj.io/sync-wave: "7"
+finalizers:
     - resources-finalizer.argocd.argoproj.io
-  # annotations:
-  #   argocd.argoproj.io/sync-wave: "11"
 spec:
   project: default
   source:

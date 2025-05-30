@@ -9,7 +9,7 @@ metadata:
 spec:
   project: default 
   source:
-    repoURL: https://github.com/freepik-company/expressops.git 
+    repoURL: git@github.com:freepik-company/expressops.git
     targetRevision: rama_nacho
     path: gitops-argocd/apps
     # subdirectorios (como monitoring-stack):

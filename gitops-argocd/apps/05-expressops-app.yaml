@@ -4,23 +4,22 @@ kind: Application
 metadata:
   name: expressops
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
-  # annotations:
-  #   argocd.argoproj.io/sync-wave: "20" # Una ola posterior para tu aplicación principal
+
 spec:
   project: default
   source:
-    # La fuente es tu propio repositorio Git donde reside el chart
-    repoURL: https://github.com/freepik-company/expressops.git
-    targetRevision: rama_nacho # La rama que ArgoCD debe monitorear
-    path: k3s/apps/expressops-app/expressops-chart # Path al directorio de tu chart de Helm
+
+    repoURL: git@github.com:freepik-company/expressops.git
+    targetRevision: rama_nacho
+    path: k3s/apps/expressops-app/expressops-chart
 
     helm:
-      releaseName: expressops # El nombre que tendrá el release de Helm en el clúster
-      # valueFiles se interpreta relativo al 'path' especificado arriba.
-      # Como 'values.yaml' está en la raíz de 'k3s/apps/expressops-app/expressops-chart/',
-      # solo necesitas referenciarlo por su nombre.
+      releaseName: expressops
+
       valueFiles:
         - values.yaml
       # Opcional: Si tuvieras un archivo de values específico para este entorno,

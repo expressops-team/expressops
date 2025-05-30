@@ -3,10 +3,10 @@ kind: Application
 metadata:
   name: fluent-bit
   namespace: argocd
-  finalizers:
+annotations:
+    argocd.argoproj.io/sync-wave: "8"
+finalizers:
     - resources-finalizer.argocd.argoproj.io
-  # annotations:
-  #   argocd.argoproj.io/sync-wave: "12"
 spec:
   project: default
   source:

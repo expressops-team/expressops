@@ -1,6 +1,6 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-name: expressops
-labels:
-argocd.argoproj.io/managed-by: argocd
+  name: expressops-dev
+  labels:
+    argocd.argoproj.io/managed-by: argocd

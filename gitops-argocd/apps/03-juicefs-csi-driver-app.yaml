@@ -5,7 +5,7 @@ metadata:
   name: juicefs-csi-driver
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-wave: "3"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -56,13 +56,13 @@ metadata:
   name: juicefs-storageclass-config
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "4"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    repoURL: https://github.com/freepik-company/expressops.git
+    repoURL: git@github.com:freepik-company/expressops.git
     targetRevision: rama_nacho
     path: k3s/infrastructure/csi-drivers
     directory:
@@ -81,13 +81,13 @@ metadata:
   name: juicefs-format-job
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "5"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    repoURL: https://github.com/freepik-company/expressops.git
+    repoURL: git@github.com:freepik-company/expressops.git
     targetRevision: rama_nacho
     path: k3s/infrastructure/csi-drivers
     directory:
