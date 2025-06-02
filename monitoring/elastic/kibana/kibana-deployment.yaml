@@ -1,0 +1,184 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kibana-data-juice
+  namespace: dav-monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: juicefs-sc
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kibana-config
+  namespace: dav-monitoring
+  labels:
+    app: kibana
+data:
+  kibana.yml: |
+    server.host: "0.0.0.0"
+    server.port: 5601
+    server.name: "kibana-expressops"
+    
+    # Elasticsearch configuration
+    elasticsearch.hosts: ["http://elasticsearch.dav-monitoring.svc.cluster.local:9200"]
+    elasticsearch.requestTimeout: 60000
+    elasticsearch.shardTimeout: 30000
+    
+    # Security settings
+    elasticsearch.ssl.verificationMode: none
+    
+    # Logging
+    logging.level: info
+    logging.appenders:
+      default:
+        type: console
+        layout:
+          type: pattern
+          pattern: "[%date] [%level] [%logger] %message"
+    
+    # Kibana configuration
+    kibana.index: ".kibana"
+    kibana.defaultAppId: "discover"
+    
+    # Data path
+    path.data: "/usr/share/kibana/data"
+    
+    # Advanced settings
+    server.maxPayload: 1048576
+    elasticsearch.pingTimeout: 1500
+    elasticsearch.requestHeadersWhitelist: ["authorization"]
+    
+    # Index patterns
+    kibana.autocompleteTimeout: 1000
+    kibana.autocompleteTerminateAfter: 100000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kibana
+  namespace: dav-monitoring
+  labels:
+    app: kibana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kibana
+  template:
+    metadata:
+      labels:
+        app: kibana
+    spec:
+      imagePullSecrets:
+      - name: gcp-creds-for-eso
+      containers:
+      - name: kibana
+        image: docker.elastic.co/kibana/kibana:8.11.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5601
+          name: http
+          protocol: TCP
+        env:
+        - name: ELASTICSEARCH_HOSTS
+          value: "http://elasticsearch.dav-monitoring.svc.cluster.local:9200"
+        - name: SERVER_HOST
+          value: "0.0.0.0"
+        - name: SERVER_PORT
+          value: "5601"
+        - name: KIBANA_INDEX
+          value: ".kibana"
+        - name: XPACK_SECURITY_ENABLED
+          value: "false"
+        - name: XPACK_MONITORING_ENABLED
+          value: "false"
+        - name: XPACK_GRAPH_ENABLED
+          value: "false"
+        - name: XPACK_WATCHER_ENABLED
+          value: "false"
+        - name: XPACK_ML_ENABLED
+          value: "false"
+        resources:
+          requests:
+            memory: "500Mi"
+            cpu: "200m"
+          limits:
+            memory: "1.5Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: kibana-data
+          mountPath: /usr/share/kibana/data
+        - name: kibana-config
+          mountPath: /usr/share/kibana/config/kibana.yml
+          subPath: kibana.yml
+          readOnly: true
+        readinessProbe:
+          httpGet:
+            path: /api/status
+            port: 5601
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /api/status
+            port: 5601
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          timeoutSeconds: 10
+          failureThreshold: 3
+      nodeSelector:
+        kubernetes.io/hostname: it-school-2025-4
+      volumes:
+      - name: kibana-data
+        persistentVolumeClaim:
+          claimName: kibana-data-juice
+      - name: kibana-config
+        configMap:
+          name: kibana-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana
+  namespace: dav-monitoring
+  labels:
+    app: kibana
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5601
+    targetPort: 5601
+    protocol: TCP
+    name: http
+  selector:
+    app: kibana
+---
+# INGRESS IS NOT USED rn
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kibana-ingress
+  namespace: dav-monitoring
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  rules:
+  - host: kibana.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kibana
+            port:
+              number: 5601 

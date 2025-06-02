@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluentbit-dual
+  namespace: dav-monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fluentbit-dual-read
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  - pods
+  - pods/logs
+  - nodes
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+  - replicasets
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fluentbit-dual-read-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fluentbit-dual-read
+subjects:
+- kind: ServiceAccount
+  name: fluentbit-dual
+  namespace: dav-monitoring
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fluentbit-dual
+  namespace: dav-monitoring
+  labels:
+    app.kubernetes.io/name: fluentbit-dual
+spec:
+  ports:
+  - port: 2020
+    targetPort: 2020
+    name: http
+  selector:
+    app.kubernetes.io/name: fluentbit-dual
+  type: ClusterIP 
