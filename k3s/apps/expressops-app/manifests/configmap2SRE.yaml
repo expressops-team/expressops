@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: expressops-config-sre2
+data:
+  config_SRE2.yaml: |
+    logging:
+      level: info
+      format: text # bcs logger is initialized with text formatter
+
+    server:
+      port: 8080
+      address: 0.0.0.0
+      timeoutSeconds: 4
+
+      http:
+        protocolVersion: 2
+
+    plugins:
+      - name: slack-notifier
+        path: plugins/slack/slack.so
+        type: notification
+        config:
+          webhook_url: $SLACK_WEBHOOK_URL
+
+      - name: health-check-plugin
+        path: plugins/healthcheck/health_check.so
+        type: health
+        config:
+          thresholds:
+            cpu: 90.0
+            memory: 90.0
+            disk: 85.0
+
+      - name: formatter-plugin
+        path: plugins/formatters/health_alert_formatter.so
+        type: utils
+        config: {}
+
+    flows:
+      - name: sre2-alert-flow
+        description: "Health check with notification"
+        pipeline:
+          - pluginRef: health-check-plugin
+          - pluginRef: formatter-plugin
+          - pluginRef: slack-notifier

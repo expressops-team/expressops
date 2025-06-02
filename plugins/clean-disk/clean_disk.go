@@ -3,14 +3,17 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	pluginconf "expressops/internal/plugin/loader"
 
 	"github.com/sirupsen/logrus"
 )
 
-// Default thresholds and settings
+// DefaultConfig define valores por defecto para el plugin
 var DefaultConfig = struct {
 	ThresholdMB    int64
 	TargetDirPath  string
@@ -18,11 +21,11 @@ var DefaultConfig = struct {
 	DryRun         bool
 	DeletePatterns []string
 }{
-	ThresholdMB:    500,           // 500 MB
-	TargetDirPath:  "/tmp",        // Default target directory
-	AgeThresholdH:  24,            // 24 hours
-	DryRun:         true,          // Default to dry run for safety
-	DeletePatterns: []string{"*"}, // All files by default
+	ThresholdMB:    1000,   // 1GB
+	TargetDirPath:  "/tmp", // Default to clean /tmp
+	AgeThresholdH:  24,     // 24 hours (1 day)
+	DryRun:         false,
+	DeletePatterns: []string{"*.tmp", "*.log.*"},
 }
 
 type CleanDiskPlugin struct {
@@ -94,22 +97,62 @@ func (p *CleanDiskPlugin) Execute(ctx context.Context, request *http.Request, sh
 		DeletedFiles: []string{},
 	}
 
-	// Logic to clean up old files would go here
-	// This is simplified for the example
-	p.logger.Infof("Would clean up files older than %d hours in %s", p.ageThresholdH, p.targetDirPath)
+	// Limpia el directorio objetivo
+	p.logger.Infof("Cleaning files older than %d hours in %s", p.ageThresholdH, p.targetDirPath)
+
+	if p.targetDirPath == "" || p.targetDirPath == "/" {
+		return nil, fmt.Errorf("invalid target directory: %s", p.targetDirPath)
+	}
+
+	err := cleanDirectory(p.targetDirPath, p.logger)
+	if err != nil {
+		p.logger.Errorf("Error cleaning directory %s: %v", p.targetDirPath, err)
+		return nil, err
+	}
 
 	return result, nil
 }
 
-// FormatResult returns a formatted string representation of the result
-func (p *CleanDiskPlugin) FormatResult(result interface{}) (string, error) {
-	if result == nil {
-		return "No cleanup performed", nil
+func cleanDirectory(dir string, logger *logrus.Logger) error {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
 	}
 
-	// Return a formatted string based on the result
-	return "clean-disk", nil
+	for _, entry := range entries {
+		path := filepath.Join(dir, entry.Name())
+		err := os.RemoveAll(path)
+		if err != nil {
+			logger.Warnf("Could not delete %s: %v", path, err)
+		} else {
+			logger.Debugf("Deleted %s", path)
+		}
+	}
+	return nil
 }
 
-// Exported plugin instance
+// FormatResult formats the result of the cleanup operation
+func (p *CleanDiskPlugin) FormatResult(result interface{}) (string, error) {
+	if result == nil {
+		return "No cleanup results", nil
+	}
+
+	if res, ok := result.(struct {
+		DryRun       bool     `json:"dry_run"`
+		FilesDeleted int      `json:"files_deleted"`
+		BytesFreed   int64    `json:"bytes_freed"`
+		DeletedFiles []string `json:"deleted_files,omitempty"`
+	}); ok {
+		if res.DryRun {
+			return fmt.Sprintf("Dry run: Would have deleted %d files, freeing %d bytes", res.FilesDeleted, res.BytesFreed), nil
+		}
+		return fmt.Sprintf("Deleted %d files, freed %d bytes", res.FilesDeleted, res.BytesFreed), nil
+	}
+
+	return fmt.Sprintf("%v", result), nil
+}
+
 var PluginInstance pluginconf.Plugin = &CleanDiskPlugin{}

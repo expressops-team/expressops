@@ -1,3 +1,4 @@
+// Package server provides HTTP server functionality for the application
 // internal/server/server.go
 package server
 
@@ -15,12 +16,15 @@ import (
 	pluginManager "expressops/internal/plugin/loader"
 
 	"github.com/sirupsen/logrus"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // registry of flows
 var flowRegistry map[string]v1alpha1.Flow
 
-// initializeFlowRegistry loads flows defined in the configuration file
+// initializeFlowRegistry loads the flows defined in the configuration file
+
 func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	flowRegistry = make(map[string]v1alpha1.Flow)
 	for _, flow := range cfg.Flows {
@@ -29,6 +33,7 @@ func initializeFlowRegistry(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	}
 }
 
+// StartServer initializes and starts the HTTP server with the provided configuration
 func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	initializeFlowRegistry(cfg, logger)
 
@@ -36,6 +41,36 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	go monitorResourceUsage(logger)
 
 	address := fmt.Sprintf("%s:%d", cfg.Server.Address, cfg.Server.Port)
+
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		startTime := time.Now()
+		userAgent := r.Header.Get("User-Agent")
+		probeTypeLabel := "manual_curl"
+		httpStatusCode := http.StatusOK
+
+		// Check if the request is from a Kubernetes liveness/readiness probe
+		if strings.HasPrefix(userAgent, "kube-probe/") {
+			probeTypeLabel = "kubernetes_probe"
+		}
+
+		// Log the request
+		logger.Infof("Health check request received on /healthz from User-Agent: %s, identified as: %s", userAgent, probeTypeLabel)
+
+		metrics.IncKubernetesProbe(probeTypeLabel, "/healthz")
+		metrics.IncFlowExecuted("healthz", "success")
+
+		// You could add actual health checks here. If they fail, set status to "error" and httpStatusCode accordingly.
+		// For now, always success.
+		w.Header().Set("Content-Type", "text/plain")
+		if _, err := w.Write([]byte("OK")); err != nil {
+			logger.WithError(err).Error("Error writing response")
+		}
+
+		duration := time.Since(startTime).Seconds()
+		metrics.ObserveFlowDuration("healthz", "success", duration) // Flow duration for healthz
+		metrics.IncHTTPRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
+		metrics.ObserveHTTPRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
+	})
 
 	timeout := time.Duration(cfg.Server.TimeoutSec) * time.Second
 
@@ -47,6 +82,10 @@ func StartServer(cfg *v1alpha1.Config, logger *logrus.Logger) {
 
 	logger.Infof("Server listening on http://%s", address)
 	logger.Infof("Prometheus metrics available at http://%s/metrics", address)
+
+	// Prometheus metrics endpoint
+	http.Handle("/metrics", promhttp.Handler())
+	logger.Info("Metrics endpoint registered at /metrics")
 
 	// help for the user
 	logger.Infof("➡️ curl http://%s/flow?flowName=<flow_name> ⬅️", address)
@@ -62,83 +101,80 @@ func monitorResourceUsage(logger *logrus.Logger) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
-			// Execute health-check-plugin to get real metrics
-			plugin, err := pluginManager.GetPlugin("health-check-plugin")
-			if err != nil {
-				logger.Warnf("Error getting health-check-plugin: %v", err)
-				continue
-			}
-
-			// Create a context and dummy request for the plugin
-			ctx := context.Background()
-			req, _ := http.NewRequest("GET", "/metrics", nil)
-			shared := make(map[string]interface{})
-
-			// Execute the plugin to get real metrics
-			result, err := plugin.Execute(ctx, req, &shared)
-			if err != nil {
-				logger.Warnf("Error executing health-check-plugin: %v", err)
-				continue
-			}
-
-			// Convert result to a map
-			healthData, ok := result.(map[string]interface{})
-			if !ok {
-				logger.Warn("Unexpected health check result format")
-				continue
-			}
-
-			// Extract and update CPU metrics
-			if cpuInfo, ok := healthData["cpu"].(map[string]interface{}); ok {
-				if cpuPercent, ok := cpuInfo["usage_percent"].(float64); ok {
-					metrics.RecordCpuUsage(cpuPercent)
-					logger.Debugf("Updated CPU usage: %.2f%%", cpuPercent)
-				}
-			}
-
-			// Extract and update memory metrics
-			if memInfo, ok := healthData["memory"].(map[string]interface{}); ok {
-				if used, ok := memInfo["used"].(uint64); ok {
-					metrics.RecordMemoryUsage(float64(used))
-					logger.Debugf("Updated memory usage: %d bytes", used)
-				}
-			}
-
-			// Extract and update disk metrics
-			if diskInfo, ok := healthData["disk"].(map[string]interface{}); ok {
-				// Sum used space across all partitions
-				var totalUsed uint64 = 0
-				for _, partInfo := range diskInfo {
-					if partData, ok := partInfo.(map[string]interface{}); ok {
-						if used, ok := partData["used"].(uint64); ok {
-							totalUsed += used
-						}
-					}
-				}
-				metrics.UpdateStorageUsage(float64(totalUsed))
-				logger.Debugf("Updated storage usage: %d bytes", totalUsed)
-			}
-
-			// Update active plugins count
-			activePlugins := 0
-			globalPlanMutex.Lock()
-			// Count plugins currently executing
-			for _, steps := range globalStepPlan {
-				for _, step := range steps {
-					if !step.executed {
-						activePlugins++
-					}
-				}
-			}
-			globalPlanMutex.Unlock()
-			metrics.UpdateConcurrentPlugins(activePlugins)
-			metrics.SetActivePlugins(activePlugins)
-
-			logger.Debug("Updated all resource metrics from health-check-plugin")
+	for range ticker.C {
+		// Execute health-check-plugin to get real metrics
+		plugin, err := pluginManager.GetPlugin("health-check-plugin")
+		if err != nil {
+			logger.Warnf("Error getting health-check-plugin: %v", err)
+			continue
 		}
+
+		// Create a context and dummy request for the plugin
+		ctx := context.Background()
+		req, _ := http.NewRequest("GET", "/metrics", nil)
+		shared := make(map[string]interface{})
+
+		// Execute the plugin to get real metrics
+		result, err := plugin.Execute(ctx, req, &shared)
+		if err != nil {
+			logger.Warnf("Error executing health-check-plugin: %v", err)
+			continue
+		}
+
+		// Convert result to a map
+		healthData, ok := result.(map[string]interface{})
+		if !ok {
+			logger.Warn("Unexpected health check result format")
+			continue
+		}
+
+		// Extract and update CPU metrics
+		if cpuInfo, ok := healthData["cpu"].(map[string]interface{}); ok {
+			if cpuPercent, ok := cpuInfo["usage_percent"].(float64); ok {
+				metrics.RecordCpuUsage(cpuPercent)
+				logger.Debugf("Updated CPU usage: %.2f%%", cpuPercent)
+			}
+		}
+
+		// Extract and update memory metrics
+		if memInfo, ok := healthData["memory"].(map[string]interface{}); ok {
+			if used, ok := memInfo["used"].(uint64); ok {
+				metrics.RecordMemoryUsage(float64(used))
+				logger.Debugf("Updated memory usage: %d bytes", used)
+			}
+		}
+
+		// Extract and update disk metrics
+		if diskInfo, ok := healthData["disk"].(map[string]interface{}); ok {
+			// Sum used space across all partitions
+			var totalUsed uint64 = 0
+			for _, partInfo := range diskInfo {
+				if partData, ok := partInfo.(map[string]interface{}); ok {
+					if used, ok := partData["used"].(uint64); ok {
+						totalUsed += used
+					}
+				}
+			}
+			metrics.UpdateStorageUsage(float64(totalUsed))
+			logger.Debugf("Updated storage usage: %d bytes", totalUsed)
+		}
+
+		// Update active plugins count
+		activePlugins := 0
+		globalPlanMutex.Lock()
+		// Count plugins currently executing
+		for _, steps := range globalStepPlan {
+			for _, step := range steps {
+				if !step.executed {
+					activePlugins++
+				}
+			}
+		}
+		globalPlanMutex.Unlock()
+		metrics.UpdateConcurrentPlugins(activePlugins)
+		metrics.SetActivePlugins(activePlugins)
+
+		logger.Debug("Updated all resource metrics from health-check-plugin")
 	}
 }
 
@@ -200,19 +236,44 @@ func (mw *metricsResponseWriter) WriteHeader(code int) {
 // dynamicFlowHandler handles requests to /flow and executes configured flows
 func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), timeout)
+
+		metrics.IncActiveFlowHandlers()
+		defer metrics.DecActiveFlowHandlers()
+
+		startTime := time.Now()
+		httpStatusCode := http.StatusOK
+
+		ctx, cancel := context.WithTimeout(r.Context(), timeout) // if it takes more than 4 seconds, it will be killed
+
 		defer cancel()
 
 		// Validate and get flow
 		flowName := r.URL.Query().Get("flowName")
 		if flowName == "" {
-			http.Error(w, "Must indicate flowName", http.StatusBadRequest)
+			httpStatusCode = http.StatusBadRequest
+			errMsg := "Must indicate flowName"
+			http.Error(w, errMsg, httpStatusCode)
+
+			duration := time.Since(startTime).Seconds()
+			metrics.IncHTTPRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
+			metrics.ObserveHTTPRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
+			metrics.IncFlowExecution(flowName, "error_bad_request")
+
 			return
 		}
 
 		flow, exists := flowRegistry[flowName]
 		if !exists {
-			http.Error(w, fmt.Sprintf("Flow '%s' not found", flowName), http.StatusNotFound)
+			httpStatusCode = http.StatusNotFound
+			errMsg := fmt.Sprintf("Flow '%s' not found", flowName)
+			http.Error(w, errMsg, httpStatusCode)
+
+			// Errors Metrics
+			duration := time.Since(startTime).Seconds()
+			metrics.IncFlowExecuted(flowName, "error_flow_not_found")
+			metrics.ObserveFlowDuration(flowName, "error_flow_not_found", duration)
+			metrics.IncHTTPRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
+			metrics.ObserveHTTPRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
 			return
 		}
 
@@ -231,19 +292,38 @@ func dynamicFlowHandler(logger *logrus.Logger, timeout time.Duration) http.Handl
 			"flow": flowName, "success": true, "count": len(results),
 		}
 
-		// Check for errors
+		flowSucceeded := true
+
 		for _, res := range results {
 			if result, ok := res.(map[string]interface{}); ok {
 				if _, hasError := result["error"]; hasError {
-					response["success"] = false
+					flowSucceeded = false
 					break
 				}
 			}
 		}
+		response["success"] = flowSucceeded
 
-		// Send response
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		if flowSucceeded {
+			metrics.IncFlowExecuted(flowName, "success")
+		} else {
+			metrics.IncFlowExecuted(flowName, "error")
+		}
+
+		duration := time.Since(startTime).Seconds()
+		metrics.ObserveFlowDuration(flowName, "success", duration)
+
+		metrics.IncHTTPRequestsTotal(r.URL.Path, r.Method, httpStatusCode)
+		metrics.ObserveHTTPRequestDuration(r.URL.Path, r.Method, httpStatusCode, duration)
+
+		if httpStatusCode != http.StatusOK {
+			w.WriteHeader(httpStatusCode)
+		}
+
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			logger.WithError(err).Error("Error encoding JSON response")
+		}
+
 	}
 }
 
@@ -310,49 +390,37 @@ func initializeExecutionPlanTrackers(plan []*stepExecution) {
 	}
 }
 
-// Find all steps that depend on the given step
-func findDependentSteps(completedStep *stepExecution, execCtx *executionContext) []*stepExecution {
-	globalPlanMutex.Lock()
-	defer globalPlanMutex.Unlock()
-
-	// Return the list of steps that directly depend on this one
-	return globalDependents[completedStep]
-}
-
-// Build a dependency-aware execution plan from the pipeline
-func buildExecutionPlan(pipeline []v1alpha1.Step, baseShared map[string]interface{}) []*stepExecution {
-	execSteps := make([]*stepExecution, 0, len(pipeline))
+// buildExecutionPlan creates a plan of steps to execute from the flow pipeline
+func buildExecutionPlan(pipeline []v1alpha1.Step, shared map[string]interface{}) []*stepExecution {
+	var execSteps []*stepExecution
 	pluginRefToStep := make(map[string]*stepExecution)
 
-	// First pass: Create step executions
+	// First pass: Create step objects
 	for i, step := range pipeline {
-		// Skip commented plugins
 		if step.PluginRef == "" {
-			continue
+			continue // Skip commented out steps
 		}
 
-		// Create new shared context for this step
-		stepShared := make(map[string]interface{})
-		for k, v := range baseShared {
-			stepShared[k] = v
+		stepCtx := make(map[string]interface{})
+		// Copy the shared context
+		for k, v := range shared {
+			stepCtx[k] = v
 		}
 
-		// Add step parameters to shared context
+		// Copy step parameters
 		for k, v := range step.Parameters {
-			stepShared[k] = v
+			stepCtx[k] = v
 		}
 
-		execStep := &stepExecution{
+		exec := &stepExecution{
 			step:         step,
 			index:        i,
-			sharedCtx:    stepShared,
+			sharedCtx:    stepCtx,
 			dependencies: make([]*stepExecution, 0),
-			executed:     false,
-			hasError:     false,
 		}
 
-		execSteps = append(execSteps, execStep)
-		pluginRefToStep[step.PluginRef] = execStep
+		execSteps = append(execSteps, exec)
+		pluginRefToStep[step.PluginRef] = exec
 	}
 
 	// Second pass: Resolve dependencies
@@ -538,6 +606,20 @@ func triggerDependentSteps(completedStep *stepExecution, execCtx *executionConte
 			go executeStepAsync(step, execCtx)
 		}
 	}
+}
+
+// findDependentSteps returns all steps that depend on the given step
+func findDependentSteps(step *stepExecution, execCtx *executionContext) []*stepExecution {
+	globalPlanMutex.Lock()
+	defer globalPlanMutex.Unlock()
+
+	// Return the steps that depend on this one
+	if deps, exists := globalDependents[step]; exists {
+		return deps
+	}
+
+	// If no dependencies found, return empty slice
+	return []*stepExecution{}
 }
 
 // step by step execution of the flow with dependency management

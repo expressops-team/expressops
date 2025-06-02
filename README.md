@@ -1,7 +1,11 @@
-## ExpressOps  <img src="docs/img/LOGO_EXPRESSOPS.png" alt="ExpressOps Logo" align="right" width="150" style="margin-top: 20px;">
+
+## ExpressOps 🚀 <img src="docs/img/RistrettOps.png" alt="ExpressOps Logo" align="right" width="300" style="margin-top: 20px;">
+
 
 > 🚨 <span style="color:red">**Note: Currently under active development**</span> - API and features may change without notice
 
+
+The ExpressOps Docker image is available on Docker Hub in two similar images:
 
 ExpressOps: A lightweight flow orchestrator that:
 - Loads plugins dynamically
@@ -14,8 +18,12 @@ Grab our image from Docker Hub:
 
 ```bash
 docker pull davidnull/expressops:1.1.7
-```
 
+ or
+
+docker pull expressopsfreepik/expressops:tag
+
+```
 *Note: This is a temporary location. We'll move to expressopsfreepik/expressops soon*
 
 ## Contents
@@ -28,30 +36,53 @@ docker pull davidnull/expressops:1.1.7
 - [Example: Dr. House](#example-dr-house)
 - [Contributing](#contributing)
 - [License](#license)
+docker pull expressopsfreepik/expressops:latest
+```
 
-## Architecture
+## 📜 Table of Contents
 
-![Functional Architecture](docs/img/architecture.png)
+- [Features](#-features)
+- [Architecture](#-architecture-overview)
+- [Requirements](#-requirements)
+- [Installation](#-installation)
+- [Usage](#-usage)
+- [Configuration](#-configuration)
+- [Plugins](#-plugins)
+- [Example Flows](#-example-flows)
+- [Contributing](#-contributing)
+- [License](#-license)
+- [Acknowledgements](#-acknowledgements)
 
-## Available Plugins
+## 🧭 Architecture Overview
+
+![Functional perspective](docs/img/architecture.png)
+
+ExpressOps follows a modular architecture with three main components:
+1. **Core Engine**: Handles configuration loading, plugin management, and server initialization
+2. **Plugin System**: Dynamically loads and executes plugins through a standardized interface
+3. **Flow Orchestration**: Manages the execution of plugin pipelines based on YAML configuration
 
 ExpressOps comes with several ready-to-use plugins:
 
-- **health-check-plugin**: Monitors CPU, memory and disk stats
-- **formatter-plugin**: Transforms health data into readable reports
-- **slack-notifier**: Sends alerts to Slack channels
-- **sleep-plugin**: Simulates delays to test timeouts
-- **test-print-plugin**: Helps with debugging
+- 🔌 Dynamic plugin loading from `.so` files at runtime
+- 🛠️ **Extensive plugin ecosystem**:
+  - **System Operations**: Health checks, disk cleanup, and system monitoring
+  - **Kubernetes**: K8s cluster health and management
+  - **User Management**: User creation and permission management
+  - **Notifications**: Slack integration for alerts and reports
+  - **Utilities**: Data formatting, timeouts, and testing tools
+- ⚙️ YAML-based flow configuration for defining execution pipelines
+- 🌐 HTTP server with endpoints to trigger flows dynamically
+- 📊 Metrics collection for monitoring system performance
+- 📜 Detailed logging for debugging and traceability
 
-## Requirements
-
-- Linux (mandatory due to Go's plugin system)
+- 🐧 ExpressOps runs on Linux (due to the Go plugin system)
 - Go 1.20+
 - Docker (for containerized deployment)
 - Kubernetes (for production)
 - External Secrets Operator (for secret management)
 
-## Installation
+## 🔧 Installation
 
 ```bash
 git clone https://github.com/freepik-company/expressops
@@ -59,7 +90,8 @@ cd expressops
 make build
 ```
 
-Building plugins manually:
+This will build the main application and all available plugins. If you want to build specific plugins manually:
+
 ```bash
 go build -buildmode=plugin -o plugins/slack/slack.so plugins/slack/slack.go
 go build -buildmode=plugin -o plugins/healthcheck/health_check.so plugins/healthcheck/health_check.go
@@ -68,14 +100,61 @@ go build -buildmode=plugin -o plugins/formatters/health_alert_formatter.so plugi
 
 ## Usage
 
-Start the server:
+Start the server with your configuration file:
+
 ```bash
+<<<<<<< HEAD
+./expressops -config path/to/your/config.yaml
+```
+
+Or use the default configuration:
+
+```bash
+./expressops
+```
+
+Trigger a flow:
+
+```bash
+curl "http://localhost:8080/flow?flowName=alert-flow"
+```
+
+## 🛠️ Makefile Commands
+
+ExpressOps includes a comprehensive Makefile with various commands to simplify development, building, and deployment:
+
+### Basic Commands
+- `make build` - Build plugins and application locally
+- `make run` - Run application locally
+- `make help` - Display all available commands and current configuration
+
+### Docker Workflow
+- `make docker-build` - Build Docker image (auto-versioned) and update Helm values
+- `make docker-run` - Run container with the last built tag
+- `make docker-run-build` - Build and run Docker container
+- `make docker-clean` - Clean Docker resources (stops/removes container and old tags)
+- `make docker-push` - Tag and push the last built image to Docker Hub
+
+### Helm Deployment
+- `make helm-deploy` - Deploy/upgrade Helm chart using tag from values.yaml
+
+### Combined Workflow
+- `make release` - Complete release cycle: build, push, and deploy
+
+You can configure various parameters like ports, log levels, and paths by setting environment variables or editing the Makefile.
+
+## ⚙️ Configuration
+
+ExpressOps uses a YAML configuration file that defines logging settings, server configuration, plugins, and flows:
+=======
 ./expressops -config docs/samples/config.yaml
 ```
 
 Run a flow:
 ```bash
 curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
+
+curl "http://localhost:8080/flow?flowName=alert-flow"
 ```
 
 ### Environment Variables
@@ -150,7 +229,6 @@ make local-prometheus-port-forward PROMETHEUS_NAMESPACE=monitoring-david PROMETH
 make grafana-port-forward PROMETHEUS_NAMESPACE=monitoring-david GRAFANA_RELEASE=grafana-david GRAFANA_PORT=3001
 ```
 
-
 ## Terraform
 
 This project also supports deployment of its monitoring stack (OpenSearch, OpenSearch Dashboards, Fluent Bit) using Terraform. The Terraform configuration can be found in the `terraform/` directory.
@@ -161,6 +239,15 @@ This project also supports deployment of its monitoring stack (OpenSearch, OpenS
 ## Configuration Example
 
 ```yaml
+logging:
+  level: info
+  format: text
+
+server:
+  port: 8080
+  address: 0.0.0.0
+  timeoutSeconds: 4
+
 plugins:
   - name: slack-notifier
     path: plugins/slack/slack.so
@@ -170,18 +257,43 @@ plugins:
 
 flows:
   - name: alert-flow
+    description: "Health check with notification"
     pipeline:
       - pluginRef: health-check-plugin
       - pluginRef: formatter-plugin
       - pluginRef: slack-notifier
 ```
 
+## 🔌 Plugins
+
+ExpressOps comes with a variety of plugins:
+
+| Plugin | Type | Description |
+|--------|------|-------------|
+| health-check-plugin | health | Collects CPU, memory, and disk usage stats |
+| kube-health-plugin | k8s | Monitors Kubernetes cluster health |
+| formatter-plugin | utils | Transforms health data into a clean report |
+| slack-notifier | notification | Sends messages to a Slack channel |
+| sleep-plugin | test | Delays flow execution to test timeouts |
+| test-print-plugin | test | Debug plugin that prints test data |
+| permissions-plugin | management | Manages file permissions |
+| user-creation-plugin | management | Creates system users |
+| clean-disk-plugin | maintenance | Handles disk cleanup operations |
+
+## 📋 Example Flows:
+
+### Health Check with Notification (alert-flow)
+
+This flow performs a system health check, formats the results, and sends an alert to Slack:
+
 ## Example: Dr. House
 
 A flow that runs a health check, formats results, and displays a test message:
 
 ```bash
-curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
+curl "http://localhost:8080/flow?flowName=alert-flow"
+
+curl "http://localhost:8080/flow?flowName=dr-house"
 ```
 
 ## Flow Discovery
@@ -196,6 +308,8 @@ curl "http://localhost:8080/flow?flowName=all-flows"
 
 Want to contribute? Make sure to export your plugin as `PluginInstance` implementing the `Plugin` interface:
 
+Please follow the convention of exporting your plugin as PluginInstance, and ensure it implements the Plugin interface:
+
 ```go
 type Plugin interface {
     Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error
@@ -207,4 +321,12 @@ type Plugin interface {
 ## License
 
 Copyright 2025.
-Licensed under the MIT License. See [LICENSE](LICENSE) file for details.
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more information.
+
+## 🙏 Acknowledgements
+
+Thanks to all contributors and plugin authors who made this modular system possible.
+
+
+

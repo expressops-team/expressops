@@ -19,19 +19,18 @@ type KubeHealthPlugin struct {
 	config map[string]interface{}
 }
 
-// Initialize sets up the plugin
-func (p *KubeHealthPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
+// Initialize sets up the plugin with logger and configuration
+func (p *KubeHealthPlugin) Initialize(_ context.Context, config map[string]interface{}, logger *logrus.Logger) error {
+
 	p.logger = logger
 	p.config = config
 	p.logger.Info("Initializing KubeHealth Plugin")
 	return nil
 }
 
-// Execute runs kubectl and formats the output
-func (p *KubeHealthPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
-	p.logger.Info("Checking Kubernetes pods")
+// Execute connects to Kubernetes and retrieves pod status information
+func (p *KubeHealthPlugin) Execute(ctx context.Context, _ *http.Request, shared *map[string]any) (interface{}, error) {
 
-	// Get namespace from config or use default
 	namespace := "default"
 	if ns, ok := p.config["namespace"].(string); ok && ns != "" {
 		namespace = ns

@@ -1,0 +1,31 @@
+clusterName: "opensearch-loggin-cluster"
+nodeGroup: "master" # Para un solo nodo, actuará como master y data
+
+#Configuración de un solo nodo, simplificamos roles y réplicas
+masterOnly: false # Este nodo también almacenará datos
+dataOnly: false   # Este nodo también puede ser master
+
+replicas: 1 # Un solo nodo para empezar
+
+#security:
+ # enabled: false
+
+  # Define recursos (ajusta según la capacidad del clúster)
+resources:
+  requests:
+    cpu: "1"
+    memory: "2Gi"
+  limits:
+    cpu: "2"
+    memory: "4Gi"
+
+  # Configurar persistencia
+persistence:
+  enabled: true
+  storageClass: "" # "" para usar el storageClass por defecto
+                                            
+  size: "10Gi" 
+
+dashboards:
+  enabled: false
+ 

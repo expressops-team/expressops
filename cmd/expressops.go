@@ -1,3 +1,4 @@
+// Package main is the entry point for the ExpressOps application
 package main
 
 import (
@@ -29,8 +30,8 @@ func init() {
 }
 
 func main() {
-	// Initialize basic logger
-	logger := config.InitializeLogger() // Mantén tu logger inicial para config y errores tempranos
+
+	logger := config.InitializeLogger()
 
 	ctx := context.Background() // crea un nuevo contexto
 

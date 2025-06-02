@@ -1,0 +1,118 @@
+argo-cd:
+  # Configuración global
+  global:
+    storageClass: "juicefs-gcs-redis-canonica"
+
+  # Configuración del servidor de repositorios de Argo CD
+  repoServer:
+    nodeSelector:
+      kubernetes.io/hostname: it-school-2025-4
+    persistence:
+      enabled: true
+      storageClassName: "juicefs-gcs-redis-canonica"
+      accessModes:
+        - ReadWriteOnce
+      size: "10Gi"
+    resources:
+      limits:
+        cpu: "1"
+        memory: 3Gi
+      requests:
+        cpu: 300m
+        memory: 1Gi
+    replicas: 1
+
+  # Configuración de Dex (Servicio de Identidad OIDC)
+  dex:
+    enabled: true
+    persistence:
+      enabled: true
+      storageClass: "juicefs-gcs-redis-canonica"
+      accessModes:
+        - ReadWriteOnce
+      size: "2Gi"
+
+  # Configuración de Redis
+  redis:
+    enabled: true
+    master:
+      nodeSelector:
+        kubernetes.io/hostname: it-school-2025-4
+      persistence:
+        enabled: true
+        storageClass: "juicefs-gcs-redis-canonica"
+        accessModes:
+          - ReadWriteOnce
+        size: "8Gi"
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    replica:
+      replicaCount: 0
+      persistence:
+        enabled: false
+
+  # Configuración para Redis HA (Alta Disponibilidad)
+  redis-ha:
+    enabled: false
+
+  # Configuración del servidor
+  server:
+    nodeSelector:
+      kubernetes.io/hostname: it-school-2025-4
+    persistence:
+      enabled: true
+      storageClass: "juicefs-gcs-redis-canonica"
+      accessModes:
+        - ReadWriteOnce
+      size: "2Gi"
+      name: argocd-server-data
+      mountPath: /app/config/server/tls
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi
+
+  # Configuración del controlador de aplicaciones
+  controller:
+    nodeSelector:
+      kubernetes.io/hostname: it-school-2025-4
+    persistence:
+      enabled: true
+      storageClass: "juicefs-gcs-redis-canonica"
+      accessModes:
+        - ReadWriteOnce
+      size: "5Gi"
+      name: argocd-controller-data
+      mountPath: /app/config/controller
+    resources:
+      limits:
+        cpu: "1"
+        memory: 1Gi
+      requests:
+        cpu: 300m
+        memory: 512Mi
+
+  # Configuración para el controlador de notificaciones
+  notifications:
+    enabled: true
+    persistence:
+      enabled: true
+      storageClass: "juicefs-gcs-redis-canonica"
+      accessModes:
+        - ReadWriteOnce
+      size: "2Gi"
+    resources:
+      limits:
+        cpu: 50m
+        memory: 64Mi
+      requests:
+        cpu: 10m
+        memory: 32Mi 

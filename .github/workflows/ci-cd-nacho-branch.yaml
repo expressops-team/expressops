@@ -1,0 +1,92 @@
+name: CI/CD for rama_nacho
+
+on:
+  push:
+    branches:
+      - rama_nacho
+  workflow_dispatch: # Permite ejecutarlo manualmente desde la UI de GitHub Actions
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest # Usar la última versión de Ubuntu disponible para los runners
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 # Acción para descargar el código del repo
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24' # Asegurarse que coincida con la versión en tu Dockerfile
+
+      # Opcional: Cachear dependencias de Go para acelerar builds futuros
+      - name: Go Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      
+      - name: Run tests
+        run: go test ./...
+        # Si los tests fallan, el pipeline fallará automáticamente
+      
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.1.4
+          args: --timeout=5m
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Docker image (using Makefile)
+        id: docker_build # Damos un ID a este paso para referenciar sus outputs
+        run: |
+          make docker-build
+          # Capturar el tag generado por el Makefile
+          echo "image_tag=$(cat .docker_tag)" >> $GITHUB_OUTPUT
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: '${{ env.IMAGE_NAME_WITH_TAG }}' # Nombre de la imagen con tag
+          format: 'table'
+          exit-code: '0' # Continuar incluso si se encuentran vulnerabilidades (para empezar)
+                         # Cambia a '1' para fallar el build si se encuentran vulnerabilidades de CIERTA severidad
+          ignore-unfixed: true # No mostrar vulnerabilidades sin solución disponible
+          vuln-type: 'os,library' # Escanear vulnerabilidades del SO y de bibliotecas de la aplicación
+          severity: 'CRITICAL,HIGH'
+
+        env:
+          IMAGE_NAME_WITH_TAG: expressopsfreepik/expressops:${{ steps.docker_build.outputs.image_tag }}
+
+      - name: Push Docker image (using Makefile)
+        env:
+          DOCKER_HUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }} # Makefile podría necesitarlo si no usa el login global
+        run: |
+          echo "Pushing image with tag: ${{ steps.docker_build.outputs.image_tag }}"
+          make docker-push # Asume que docker-push usa el .docker_tag o el tag del values.yaml
+      
+      # Paso para commitear y pushear el values.yaml si fue modificado
+      - name: Commit and Push Helm values.yaml
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add k3s/apps/expressops-app/expressops-chart/values.yaml
+          # Solo commitea si hay cambios en values.yaml
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: Update Helm chart image tag to ${{ steps.docker_build.outputs.image_tag }}"
+            git push origin rama_nacho
+          else
+            echo "No changes in values.yaml to commit."
+          fi
+        # Condición para ejecutar solo si el commit anterior no fue de este bot
+        # para evitar bucles de commits. Aunque el if anterior ya lo maneja.
+        if: github.actor != 'github-actions[bot]'
