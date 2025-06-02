@@ -48,8 +48,7 @@ tolerations:
 
 resources:
   limits:
-    # cpu: 200m
     memory: 200Mi # Ajusta según la carga de logs
   requests:
-    # cpu: 100m
-    memory: 100Mi
+    cpu: 100m
+    memory: 200Mi

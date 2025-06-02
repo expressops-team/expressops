@@ -14,9 +14,8 @@ replicas: 1 # Un solo nodo para empezar
 resources:
   requests:
     cpu: "1"
-    memory: "2Gi"
+    memory: "4Gi"
   limits:
-    cpu: "2"
     memory: "4Gi"
 
   # Configurar persistencia

@@ -15,11 +15,10 @@ argo-cd:
       size: "10Gi"
     resources:
       limits:
-        cpu: "1"
         memory: 3Gi
       requests:
         cpu: 300m
-        memory: 1Gi
+        memory: 3Gi
     replicas: 1
 
   # Configuración de Dex (Servicio de Identidad OIDC)
@@ -46,11 +45,10 @@ argo-cd:
         size: "8Gi"
       resources:
         limits:
-          cpu: 500m
           memory: 512Mi
         requests:
           cpu: 100m
-          memory: 128Mi
+          memory: 512Mi
     replica:
       replicaCount: 0
       persistence:
@@ -74,11 +72,10 @@ argo-cd:
       mountPath: /app/config/server/tls
     resources:
       limits:
-        cpu: 100m
         memory: 128Mi
       requests:
         cpu: 10m
-        memory: 64Mi
+        memory: 128Mi
 
   # Configuración del controlador de aplicaciones
   controller:
@@ -94,11 +91,10 @@ argo-cd:
       mountPath: /app/config/controller
     resources:
       limits:
-        cpu: "1"
-        memory: 1Gi
+        memory: 2Gi
       requests:
         cpu: 300m
-        memory: 512Mi
+        memory: 2Gi
 
   # Configuración para el controlador de notificaciones
   notifications:
@@ -111,8 +107,7 @@ argo-cd:
       size: "2Gi"
     resources:
       limits:
-        cpu: 50m
         memory: 64Mi
       requests:
         cpu: 10m
-        memory: 32Mi 
+        memory: 64Mi 

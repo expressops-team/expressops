@@ -45,4 +45,5 @@ fluent-bit:
     limits:
       memory: 200Mi # Ajusta según la carga de logs
     requests:
-      memory: 100Mi 
+      cpu: 100m
+      memory: 200Mi 

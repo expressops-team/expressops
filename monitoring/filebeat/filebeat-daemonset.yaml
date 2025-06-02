@@ -45,7 +45,7 @@ spec:
             memory: 200Mi
           requests:
             cpu: 100m
-            memory: 100Mi
+            memory: 200Mi
         volumeMounts:
         - name: config
           mountPath: /etc/filebeat.yml

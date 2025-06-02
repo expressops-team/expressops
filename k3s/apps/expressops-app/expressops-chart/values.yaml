@@ -21,11 +21,10 @@ serviceMonitor:
 # Configuring resources for pods
 resources:
   limits:
-    cpu: "500m"
     memory: "512Mi"
   requests:
     cpu: "100m"
-    memory: "128Mi"
+    memory: "512Mi"
 # --- External Secrets and GCP related settings ---
 
 # Name of the K8s Secret containing the GCP JSON credentials

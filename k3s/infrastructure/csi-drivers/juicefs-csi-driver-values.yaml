@@ -10,56 +10,75 @@
 # pero los valores por defecto suelen ser adecuados para empezar.
 # juicefs-csi-driver-values.yaml
 
-# Configuración de imágenes de sidecar para resolver el problema de ImagePullBackOff
-sidecars:
-  livenessProbeImage:
-    repository: registry.k8s.io/sig-storage/livenessprobe
-    tag: "v2.12.0"
-    pullPolicy: "IfNotPresent"
-  nodeDriverRegistrarImage:
-    repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
-    tag: "v2.9.0"
-    pullPolicy: "IfNotPresent"
-  csiProvisionerImage:
-    repository: registry.k8s.io/sig-storage/csi-provisioner
-    tag: "v2.2.2"
-    pullPolicy: "IfNotPresent"
-  csiResizerImage:
-    repository: registry.k8s.io/sig-storage/csi-resizer
-    tag: "v1.9.0"
+juicefs-csi-driver:
+  # Imagen principal del driver JuiceFS
+  image:
+    repository: juicedata/juicefs-csi-driver
+    tag: "v0.23.4"
     pullPolicy: "IfNotPresent"
 
-# Recursos para los pods del controlador CSI
-controller:
-  resources:
-    requests:
-      cpu: 50m
-      memory: 128Mi 
-    limits:
-      cpu: 200m
-      memory: 256Mi
+  # Configuración para el controlador CSI
+  controller:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        memory: 256Mi
+    # Sidecars del controlador
+    provisioner:
+      image:
+        repository: registry.k8s.io/sig-storage/csi-provisioner
+        tag: "v3.5.0"
+        pullPolicy: "IfNotPresent"
+    resizer:
+      image:
+        repository: registry.k8s.io/sig-storage/csi-resizer
+        tag: "v1.8.0"
+        pullPolicy: "IfNotPresent"
+    livenessProbe:
+      image:
+        repository: registry.k8s.io/sig-storage/livenessprobe
+        tag: "v2.10.0"
+        pullPolicy: "IfNotPresent"
+    serviceAccount:
+      name: "juicefs-csi-controller-sa-v2"
 
-# Recursos para los pods de nodo (CSI node) (Daemonset)
-node:
-  resources:
-    requests:
-      cpu: 50m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
+  # Configuración para los pods de nodo (CSI node) (Daemonset)
+  node:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 512Mi
+      limits:
+        memory: 512Mi
+    # Sidecars del nodo
+    driverRegistrar:
+      image:
+        repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
+        tag: "v2.8.0"
+        pullPolicy: "IfNotPresent"
+    livenessProbe:
+      image:
+        repository: registry.k8s.io/sig-storage/livenessprobe
+        tag: "v2.10.0"
+        pullPolicy: "IfNotPresent"
+    serviceAccount:
+      name: "juicefs-csi-node-sa-v2"
 
-# Patch dinámico para los Mount Pods (volúmenes JuiceFS)
-# Mount Pods (uno por PVC)
-globalConfig:
-  mountPodPatch:
-    - resources:
-        requests:
-          cpu: 75m 
-          memory: 512Mi
-        limits:
-          cpu: 500m
-          memory: 1.5Gi
+  dashboard:
+    serviceAccount:
+      name: "juicefs-csi-dashboard-sa-v2"
+
+  # Patch dinámico para los Mount Pods (volúmenes JuiceFS)
+  globalConfig:
+    mountPodPatch:
+      - resources:
+          requests:
+            cpu: 75m
+            memory: 1.5Gi
+          limits:
+            memory: 1.5Gi
 
 # Si quieres habilitar el caché en disco para los nodos JuiceFS (mejora el rendimiento)
 # Esto se configura globalmente aquí o por StorageClass/PV.

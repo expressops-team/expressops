@@ -4,20 +4,45 @@ juicefs-csi-driver:
     resources:
       requests:
         cpu: 50m
-        memory: 128Mi 
+        memory: 256Mi 
       limits:
-        cpu: 200m
         memory: 256Mi
+    # Especificar versiones más recientes de las imágenes sidecar
+    provisioner:
+      image:
+        repository: registry.k8s.io/sig-storage/csi-provisioner
+        tag: "v3.5.0"
+    resizer:
+      image:
+        repository: registry.k8s.io/sig-storage/csi-resizer
+        tag: "v1.8.0"
+    livenessProbe:
+      image:
+        repository: registry.k8s.io/sig-storage/livenessprobe
+        tag: "v2.10.0"
 
   # Configuración para los pods de nodo (CSI node) (Daemonset)
   node:
     resources:
       requests:
         cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 500m
         memory: 512Mi
+      limits:
+        memory: 512Mi
+    # Especificar versiones más recientes de las imágenes sidecar
+    driverRegistrar:
+      image:
+        repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
+        tag: "v2.8.0"
+    livenessProbe:
+      image:
+        repository: registry.k8s.io/sig-storage/livenessprobe
+        tag: "v2.10.0"
+  
+  # Especificar la versión exacta del driver de JuiceFS
+  image:
+    repository: juicedata/juicefs-csi-driver
+    tag: "v0.23.4"  # Versión específica del driver
 
   # Patch dinámico para los Mount Pods (volúmenes JuiceFS)
   # Mount Pods (uno por PVC)
@@ -26,7 +51,6 @@ juicefs-csi-driver:
       - resources:
           requests:
             cpu: 75m 
-            memory: 512Mi
+            memory: 1.5Gi
           limits:
-            cpu: 500m
             memory: 1.5Gi 
