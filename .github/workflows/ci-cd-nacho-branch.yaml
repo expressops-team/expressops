@@ -65,7 +65,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
         env:
-          IMAGE_NAME_WITH_TAG: expressops:${{ steps.docker_build.outputs.image_tag }}
+          IMAGE_NAME_WITH_TAG: expressopsfreepik/expressops:${{ steps.docker_build.outputs.image_tag }}
 
       - name: Push Docker image (using Makefile)
         env:
