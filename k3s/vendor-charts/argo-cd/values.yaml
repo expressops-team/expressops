@@ -16,10 +16,10 @@ argo-cd:
     resources:
       limits:
         cpu: "1"
-        memory: 2Gi
+        memory: 3Gi
       requests:
         cpu: 300m
-        memory: 512Mi
+        memory: 1Gi
     replicas: 1
 
   # Configuración de Dex (Servicio de Identidad OIDC)

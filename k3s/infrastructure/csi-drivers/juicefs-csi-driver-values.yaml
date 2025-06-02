@@ -10,6 +10,25 @@
 # pero los valores por defecto suelen ser adecuados para empezar.
 # juicefs-csi-driver-values.yaml
 
+# Configuración de imágenes de sidecar para resolver el problema de ImagePullBackOff
+sidecars:
+  livenessProbeImage:
+    repository: registry.k8s.io/sig-storage/livenessprobe
+    tag: "v2.12.0"
+    pullPolicy: "IfNotPresent"
+  nodeDriverRegistrarImage:
+    repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
+    tag: "v2.9.0"
+    pullPolicy: "IfNotPresent"
+  csiProvisionerImage:
+    repository: registry.k8s.io/sig-storage/csi-provisioner
+    tag: "v2.2.2"
+    pullPolicy: "IfNotPresent"
+  csiResizerImage:
+    repository: registry.k8s.io/sig-storage/csi-resizer
+    tag: "v1.9.0"
+    pullPolicy: "IfNotPresent"
+
 # Recursos para los pods del controlador CSI
 controller:
   resources:
