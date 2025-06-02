@@ -5,6 +5,8 @@ argo-cd:
 
   # Configuración del servidor de repositorios de Argo CD
   repoServer:
+    nodeSelector:
+      kubernetes.io/hostname: it-school-2025-4
     persistence:
       enabled: true
       storageClassName: "juicefs-gcs-redis-canonica"
@@ -13,11 +15,11 @@ argo-cd:
       size: "10Gi"
     resources:
       limits:
-        cpu: 200m
-        memory: 256Mi
+        cpu: "1"
+        memory: 2Gi
       requests:
-        cpu: 100m
-        memory: 128Mi
+        cpu: 300m
+        memory: 512Mi
     replicas: 1
 
   # Configuración de Dex (Servicio de Identidad OIDC)
@@ -34,12 +36,21 @@ argo-cd:
   redis:
     enabled: true
     master:
+      nodeSelector:
+        kubernetes.io/hostname: it-school-2025-4
       persistence:
         enabled: true
         storageClass: "juicefs-gcs-redis-canonica"
         accessModes:
           - ReadWriteOnce
         size: "8Gi"
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
     replica:
       replicaCount: 0
       persistence:
@@ -51,6 +62,8 @@ argo-cd:
 
   # Configuración del servidor
   server:
+    nodeSelector:
+      kubernetes.io/hostname: it-school-2025-4
     persistence:
       enabled: true
       storageClass: "juicefs-gcs-redis-canonica"
@@ -69,6 +82,8 @@ argo-cd:
 
   # Configuración del controlador de aplicaciones
   controller:
+    nodeSelector:
+      kubernetes.io/hostname: it-school-2025-4
     persistence:
       enabled: true
       storageClass: "juicefs-gcs-redis-canonica"
@@ -79,11 +94,11 @@ argo-cd:
       mountPath: /app/config/controller
     resources:
       limits:
-        cpu: 100m
-        memory: 256Mi
+        cpu: "1"
+        memory: 1Gi
       requests:
-        cpu: 10m
-        memory: 64Mi
+        cpu: 300m
+        memory: 512Mi
 
   # Configuración para el controlador de notificaciones
   notifications:
