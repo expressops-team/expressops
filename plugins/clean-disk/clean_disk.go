@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
 	pluginconf "expressops/internal/plugin/loader"
 
@@ -36,8 +35,6 @@ type CleanDiskPlugin struct {
 	ageThresholdH int
 	dryRun        bool
 	patterns      []string
-	ticker        *time.Ticker // daily
-	done          chan bool
 }
 
 // Initialize sets up the plugin

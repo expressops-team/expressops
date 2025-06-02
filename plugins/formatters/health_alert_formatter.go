@@ -318,7 +318,7 @@ func (f *FormatterPlugin) formatKubernetesHealth(kubeResults []map[string]string
 				"podName":   name,
 				"podStatus": status,
 				"podEmoji":  emoji,
-			}).Warn("Pod de Kubernetes con problemas")
+			}).Warn("Pod de Kubernetes con problems")
 		}
 		sb.WriteString(fmt.Sprintf("  %s: %s %s\n", name, status, emoji))
 	}
@@ -334,7 +334,7 @@ func (f *FormatterPlugin) formatKubernetesHealth(kubeResults []map[string]string
 		f.logger.WithFields(sectionLogFields).WithFields(logrus.Fields{
 			"problemPodCount": problemPods,
 			"finalSeverity":   "warning",
-		}).Warn("Problemas detectados en pods de Kubernetes")
+		}).Warn("Problems detectados en pods de Kubernetes")
 	} else {
 		sb.WriteString("\n✅ All pods are healthy!\n")
 		(*shared)["severity"] = "info"

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -33,9 +34,9 @@ func init() {
 		// Crear un registry personalizado
 		registry = prometheus.NewRegistry()
 
-		// Registrar el recolector por defecto
-		registry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
-		registry.MustRegister(prometheus.NewGoCollector())
+		// Registrar los colectores por defecto (versión actualizada)
+		registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+		registry.MustRegister(collectors.NewGoCollector())
 
 		// ActivePlugins measures currently active plugins
 		ActivePlugins = prometheus.NewGauge(prometheus.GaugeOpts{

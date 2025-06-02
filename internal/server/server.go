@@ -101,83 +101,80 @@ func monitorResourceUsage(logger *logrus.Logger) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
-			// Execute health-check-plugin to get real metrics
-			plugin, err := pluginManager.GetPlugin("health-check-plugin")
-			if err != nil {
-				logger.Warnf("Error getting health-check-plugin: %v", err)
-				continue
-			}
-
-			// Create a context and dummy request for the plugin
-			ctx := context.Background()
-			req, _ := http.NewRequest("GET", "/metrics", nil)
-			shared := make(map[string]interface{})
-
-			// Execute the plugin to get real metrics
-			result, err := plugin.Execute(ctx, req, &shared)
-			if err != nil {
-				logger.Warnf("Error executing health-check-plugin: %v", err)
-				continue
-			}
-
-			// Convert result to a map
-			healthData, ok := result.(map[string]interface{})
-			if !ok {
-				logger.Warn("Unexpected health check result format")
-				continue
-			}
-
-			// Extract and update CPU metrics
-			if cpuInfo, ok := healthData["cpu"].(map[string]interface{}); ok {
-				if cpuPercent, ok := cpuInfo["usage_percent"].(float64); ok {
-					metrics.RecordCpuUsage(cpuPercent)
-					logger.Debugf("Updated CPU usage: %.2f%%", cpuPercent)
-				}
-			}
-
-			// Extract and update memory metrics
-			if memInfo, ok := healthData["memory"].(map[string]interface{}); ok {
-				if used, ok := memInfo["used"].(uint64); ok {
-					metrics.RecordMemoryUsage(float64(used))
-					logger.Debugf("Updated memory usage: %d bytes", used)
-				}
-			}
-
-			// Extract and update disk metrics
-			if diskInfo, ok := healthData["disk"].(map[string]interface{}); ok {
-				// Sum used space across all partitions
-				var totalUsed uint64 = 0
-				for _, partInfo := range diskInfo {
-					if partData, ok := partInfo.(map[string]interface{}); ok {
-						if used, ok := partData["used"].(uint64); ok {
-							totalUsed += used
-						}
-					}
-				}
-				metrics.UpdateStorageUsage(float64(totalUsed))
-				logger.Debugf("Updated storage usage: %d bytes", totalUsed)
-			}
-
-			// Update active plugins count
-			activePlugins := 0
-			globalPlanMutex.Lock()
-			// Count plugins currently executing
-			for _, steps := range globalStepPlan {
-				for _, step := range steps {
-					if !step.executed {
-						activePlugins++
-					}
-				}
-			}
-			globalPlanMutex.Unlock()
-			metrics.UpdateConcurrentPlugins(activePlugins)
-			metrics.SetActivePlugins(activePlugins)
-
-			logger.Debug("Updated all resource metrics from health-check-plugin")
+	for range ticker.C {
+		// Execute health-check-plugin to get real metrics
+		plugin, err := pluginManager.GetPlugin("health-check-plugin")
+		if err != nil {
+			logger.Warnf("Error getting health-check-plugin: %v", err)
+			continue
 		}
+
+		// Create a context and dummy request for the plugin
+		ctx := context.Background()
+		req, _ := http.NewRequest("GET", "/metrics", nil)
+		shared := make(map[string]interface{})
+
+		// Execute the plugin to get real metrics
+		result, err := plugin.Execute(ctx, req, &shared)
+		if err != nil {
+			logger.Warnf("Error executing health-check-plugin: %v", err)
+			continue
+		}
+
+		// Convert result to a map
+		healthData, ok := result.(map[string]interface{})
+		if !ok {
+			logger.Warn("Unexpected health check result format")
+			continue
+		}
+
+		// Extract and update CPU metrics
+		if cpuInfo, ok := healthData["cpu"].(map[string]interface{}); ok {
+			if cpuPercent, ok := cpuInfo["usage_percent"].(float64); ok {
+				metrics.RecordCpuUsage(cpuPercent)
+				logger.Debugf("Updated CPU usage: %.2f%%", cpuPercent)
+			}
+		}
+
+		// Extract and update memory metrics
+		if memInfo, ok := healthData["memory"].(map[string]interface{}); ok {
+			if used, ok := memInfo["used"].(uint64); ok {
+				metrics.RecordMemoryUsage(float64(used))
+				logger.Debugf("Updated memory usage: %d bytes", used)
+			}
+		}
+
+		// Extract and update disk metrics
+		if diskInfo, ok := healthData["disk"].(map[string]interface{}); ok {
+			// Sum used space across all partitions
+			var totalUsed uint64 = 0
+			for _, partInfo := range diskInfo {
+				if partData, ok := partInfo.(map[string]interface{}); ok {
+					if used, ok := partData["used"].(uint64); ok {
+						totalUsed += used
+					}
+				}
+			}
+			metrics.UpdateStorageUsage(float64(totalUsed))
+			logger.Debugf("Updated storage usage: %d bytes", totalUsed)
+		}
+
+		// Update active plugins count
+		activePlugins := 0
+		globalPlanMutex.Lock()
+		// Count plugins currently executing
+		for _, steps := range globalStepPlan {
+			for _, step := range steps {
+				if !step.executed {
+					activePlugins++
+				}
+			}
+		}
+		globalPlanMutex.Unlock()
+		metrics.UpdateConcurrentPlugins(activePlugins)
+		metrics.SetActivePlugins(activePlugins)
+
+		logger.Debug("Updated all resource metrics from health-check-plugin")
 	}
 }
 
