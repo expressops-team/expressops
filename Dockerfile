@@ -1,10 +1,9 @@
-# Stage 1: Build
-FROM golang:1.24.2-alpine3.21 AS builder
+<<<<<<< HEAD
+# ============= Stage 1: Build ================
+FROM golang:1.24 AS builder  
 
-# Install build dependencies
-RUN apk add --no-cache git build-base ca-certificates gcc musl-dev
+WORKDIR /app
 
-WORKDIR /build
 
 # Copy and download dependencies first (leverage Docker cache)
 COPY go.mod go.sum ./
@@ -27,6 +26,33 @@ RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u
       done \
     done
 
+<<<<<<< HEAD
+
+
+RUN find plugins -name "*.so" | sort
+
+# Compile main application
+RUN go build -ldflags="-s -w" -o expressops ./cmd
+RUN chmod +x /app/expressops
+
+# ============= Runtime stage - using distroless ================
+FROM gcr.io/distroless/base-debian12
+
+# Copy the compiled application and plugins from the builder stage
+WORKDIR /app
+COPY --from=builder /app/expressops /app/
+COPY --from=builder /app/plugins /app/plugins/
+
+
+# Expose port 8080 - this is just documentation, actual port is set via Kubernetes
+EXPOSE 8080
+
+# Run the application
+ENTRYPOINT ["/app/expressops"]
+
+# CMD will be overwritten by k3s
+CMD ["--config", "config.yaml"]
+=======
 # Build main app with optimizations
 RUN go build -ldflags="-s -w" -o expressops ./cmd
 
@@ -59,3 +85,4 @@ USER appuser
 ENTRYPOINT ["./expressops", "-config", "/app/config.yaml"]
 
 # Image size reduced from 1.59GB to 162MB :0
+>>>>>>> master

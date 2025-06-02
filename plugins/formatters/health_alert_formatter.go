@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"expressops/internal/metrics"
 	pluginconf "expressops/internal/plugin/loader"
 
 	"github.com/sirupsen/logrus"
@@ -23,6 +24,9 @@ var DefaultThresholds = map[string]ThresholdLevels{
 	"memory": {Warning: 50, Critical: 80},
 	"disk":   {Warning: 80, Critical: 90},
 }
+
+// Mensaje por defecto cuando no hay datos específicos de health
+var defaultMessage = "No health data available. Please check system logs for more information."
 
 type FormatterPlugin struct {
 	logger     *logrus.Logger
@@ -106,12 +110,10 @@ func (f *FormatterPlugin) Execute(ctx context.Context, request *http.Request, sh
 	}
 	f.logger.WithFields(baseLogFields).Info("Formateando resultados de health check")
 
-	defaultMessage := "Health status check completed"
-	(*shared)["message"] = defaultMessage
-
-	if msg, ok := (*shared)["message"].(string); ok && msg != "" && msg != defaultMessage {
-		f.logger.WithFields(baseLogFields).Info("Usando mensaje existente de plugin anterior")
-		return msg, nil
+	if _, ok := (*shared)["_input"].(map[string]interface{}); !ok {
+		f.logger.Error("No valid _input received")
+		metrics.IncFormattingOperation("health_alert", "error_input")
+		return "", fmt.Errorf("no valid _input received")
 	}
 
 	var (
@@ -158,6 +160,13 @@ func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared 
 	logFormatted.WriteString("Health check: ")
 	var alertFormatted strings.Builder
 	alertFormatted.WriteString("\n✨ Health Status Report ✨\n\n")
+
+	if _, ok := input["health_status"].(map[string]string); !ok {
+		f.logger.Error("Result without health_status field")
+		metrics.IncFormattingOperation("health_alert", "error_status")
+		return "", fmt.Errorf("health check result must contain a health_status field")
+	}
+
 	hasErrors := false
 
 	sectionLogFields := make(logrus.Fields)
@@ -262,13 +271,13 @@ func (f *FormatterPlugin) formatHealthData(input map[string]interface{}, shared 
 	if hasErrors {
 		logFormatted.WriteString("Status:WARNING")
 		alertFormatted.WriteString("⚠️ Issues detected! Please check the output above.\n")
-		(*shared)["severity"] = "warning"
-		f.logger.WithFields(sectionLogFields).Warn("Problemas de health detectados en el formateo")
+
+		metrics.IncFormattingOperation("health_alert", "warning")
 	} else {
 		logFormatted.WriteString("Status:OK")
 		alertFormatted.WriteString("✅ All systems operational!\n")
-		(*shared)["severity"] = "info"
-		f.logger.WithFields(sectionLogFields).Info("Health formateado, todo OK")
+		metrics.IncFormattingOperation("health_alert", "success")
+
 	}
 
 	message := alertFormatted.String()
@@ -309,7 +318,7 @@ func (f *FormatterPlugin) formatKubernetesHealth(kubeResults []map[string]string
 				"podName":   name,
 				"podStatus": status,
 				"podEmoji":  emoji,
-			}).Warn("Pod de Kubernetes con problemas")
+			}).Warn("Pod de Kubernetes con problems")
 		}
 		sb.WriteString(fmt.Sprintf("  %s: %s %s\n", name, status, emoji))
 	}
@@ -325,7 +334,7 @@ func (f *FormatterPlugin) formatKubernetesHealth(kubeResults []map[string]string
 		f.logger.WithFields(sectionLogFields).WithFields(logrus.Fields{
 			"problemPodCount": problemPods,
 			"finalSeverity":   "warning",
-		}).Warn("Problemas detectados en pods de Kubernetes")
+		}).Warn("Problems detectados en pods de Kubernetes")
 	} else {
 		sb.WriteString("\n✅ All pods are healthy!\n")
 		(*shared)["severity"] = "info"

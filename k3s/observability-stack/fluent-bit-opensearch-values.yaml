@@ -1,0 +1,47 @@
+
+config:
+
+  inputs: |
+    [INPUT]
+        Name              tail
+        Path              /var/log/containers/*.log
+        multiline.parser  docker, cri
+        Tag               kube.*
+        Mem_Buf_Limit     5MB
+        Skip_Long_Lines   On
+
+  filters: |
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Kube_Tag_Prefix     kube.var.log.containers.
+        Merge_Log           On
+        Merge_Log_Key       log_processed
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude Off
+        Labels              Off # No necesitamos las labels de K8s como campos separados si Opensearch las indexará
+        Annotations         Off
+
+
+  outputs: |
+    [OUTPUT]
+        Name               opensearch 
+        Match              *
+        Host               opensearch-logging-cluster-master.monitoring.svc.cluster.local
+        Port               9200
+        Index              kubernetes_logs
+        Type               _doc
+
+        # Si se habilita la seguridad en Opensearch, necesitarías configurar HTTP_User, HTTP_Passwd, Tls, etc.
+        # Con security.enabled: false, no son necesarios. (No hacer en producción!)
+        # HTTP_User          user
+        # HTTP_Passwd        password
+        # Tls                Off
+        # Tls.Verify         Off
+
+        Logstash_Format    On
+        Logstash_Prefix    kubernetes
+        Replace_Dots       On

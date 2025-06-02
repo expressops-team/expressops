@@ -1,0 +1,44 @@
+
+persistence:
+  enabled: true
+  type: pvc
+  storageClassName: "juicefs-gcs-redis-canonica"
+  accessModes:
+    - ReadWriteOnce
+  size: 8Gi 
+  #existingClaim: "grafana-data-pvc" # Dejar vacío para que Helm cree un nuevo PVC.
+
+# Para K3s, puede ser necesario deshabilitar el initChownData
+# si hay problemas de permisos al iniciar el pod de Grafana con el volumen CSI.
+# Esto se debe a que el usuario por defecto de Grafana (472) podría no tener
+# permisos para escribir en el volumen montado inicialmente.
+# JuiceFS CSI debería manejar esto, pero si ves errores de permisos, prueba:
+#grafana.ini:
+#  paths:
+#    data: /var/lib/grafana/
+#    logs: /var/log/grafana
+#    plugins: /var/lib/grafana/plugins
+#    provisioning: /etc/grafana/provisioning
+# El siguiente ajuste es importante para que Grafana pueda escribir en el volumen montado por CSI.
+# El pod de Grafana corre como usuario grafana (UID 472).
+# El volumen montado por JuiceFS tendrá permisos basados en el proceso que lo monta (root).
+# Esta configuración asegura que el contenedor de Grafana tenga los permisos correctos.
+podSecurityContext:
+  fsGroup: 472
+securityContext:
+  runAsUser: 472
+  runAsGroup: 472
+env:
+  GF_LOG_LEVEL: debug
+
+  datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus # Nombre que aparecerá en Grafana
+        type: prometheus
+        # URL del servicio de Prometheus dentro del clúster
+        # Formato: http://<nombre-servicio>.<namespace>.svc.cluster.local:<puerto>
+        url: http://prometheus-d-kube-promethe-prometheus.monitoring.svc.cluster.local:9090
+        access: proxy # 'proxy' significa que el backend de Grafana hace las peticiones a Prometheus
+        isDefault: true

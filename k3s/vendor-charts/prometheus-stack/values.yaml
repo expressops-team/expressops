@@ -1,0 +1,17 @@
+kube-prometheus-stack:
+  grafana:
+    enabled: false
+
+  prometheus:
+    prometheusSpec:
+      podSecurityContext:
+        fsGroup: 65534
+        runAsNonRoot: true
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: "juicefs-gcs-redis-canonica"
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 30Gi 

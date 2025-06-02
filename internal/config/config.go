@@ -1,3 +1,4 @@
+// Package config provides functionality for loading and managing configuration files
 package config
 
 import (
@@ -28,7 +29,9 @@ func InitializeLogger() *logrus.Logger {
 	return logger
 }
 
-// LoadConfig loads the configuration from a YAML file
+// LoadConfig loads the configuration from the specified YAML file
+// Load the configuration from YAML
+
 func LoadConfig(ctx context.Context, path string, logger *logrus.Logger) (*v1alpha1.Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -145,7 +148,8 @@ func ApplyEnvironmentOverrides(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	}
 }
 
-// ConfigureLogger configures the logger based on the configuration settings
+// ConfigureLogger sets up the logger based on the provided configuration
+
 func ConfigureLogger(cfg *v1alpha1.Config, logger *logrus.Logger) {
 	// Configure based on config
 	var formatter logrus.Formatter

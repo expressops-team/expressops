@@ -12,6 +12,16 @@ logs/*.log
 logs/*.zip
 
 # Kubernetes secrets
+
+k8s/secrets.yaml
+k3s/secret.yaml
+k3s/*.json
+*.json
+# Local environment files
+.env
+*.local
+/bin
+
 k8s/secrets/fake-clustersecretstore.yaml  
 # terraform/*
 
@@ -29,3 +39,4 @@ k8s/secrets/fake-clustersecretstore.yaml
 key.json
 k3s.yaml
 key_artifact.json
+

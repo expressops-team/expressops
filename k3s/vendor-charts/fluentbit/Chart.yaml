@@ -1,0 +1,10 @@
+apiVersion: v2
+name: fluentbit-wrapper
+description: Un chart wrapper para Fluent Bit
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+dependencies:
+  - name: fluent-bit
+    version: "0.49.0"  # Versión extraída del archivo gitops-argocd
+    repository: "https://fluent.github.io/helm-charts" 

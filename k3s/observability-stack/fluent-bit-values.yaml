@@ -1,0 +1,55 @@
+config:
+  outputs: |
+    [OUTPUT]
+        Name loki
+        Match *
+        Host loki-gateway.monitoring
+        Port 3100
+        Labels job=fluentbit, k8s_namespace=$kubernetes['namespace_name'], k8s_pod_name=$kubernetes['pod_name'], k8s_container_name=$kubernetes['container_name']
+        Label_keys $kubernetes['labels']
+        Remove_keys kubernetes,stream,time,tag
+        Line_Format json
+        Auto_kubernetes_labels On
+
+  service: |
+    [SERVICE]
+        Daemon Off
+        Flush 1
+        Log_Level info
+        Parsers_File parsers.conf
+        Parsers_File custom_parsers.conf
+        HTTP_Server On
+        HTTP_Listen 0.0.0.0
+        HTTP_Port 2020
+
+  inputs: |
+    [INPUT]
+        Name tail
+        Path /var/log/containers/*.log
+        Parser docker
+        Tag kube.*
+        Mem_Buf_Limit 5MB
+        Skip_Long_Lines On
+
+  filters: |
+    [FILTER]
+        Name kubernetes
+        Match kube.*
+        Merge_Log On
+        Keep_Log Off
+        K8S-Logging.Parser On
+        K8S-Logging.Exclude On
+
+serviceMonitor:
+  enabled: true
+
+tolerations:
+  - operator: Exists
+
+resources:
+  limits:
+    # cpu: 200m
+    memory: 200Mi # Ajusta según la carga de logs
+  requests:
+    # cpu: 100m
+    memory: 100Mi
