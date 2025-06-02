@@ -2,6 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: expressops-config
+#some example flows
 data:
   config.yaml: |
     logging:
@@ -20,11 +21,32 @@ data:
         path: plugins/slack/slack.so
         type: notification
         config:
-          webhook_url: \${SLACK_WEBHOOK_URL}
+          webhook_url: ${SLACK_WEBHOOK_URL}
           
       - name: health-check-plugin
-        path: /app/plugins/healthcheck/health_check.so
+        path: plugins/healthcheck/health_check.so
         type: health
+        config: {}
+      
+      - name: formatter-plugin
+        path: plugins/formatters/health_alert_formatter.so
+        type: utils
+        config: {}
+        
+      - name: kube-health-plugin
+        path: plugins/kubehealth/kube_health.so
+        type: k8s
+        config:
+          namespace: "default"
+        
+      - name: test-print-plugin
+        path: plugins/testprint/testprint.so
+        type: test
+        config: {}
+      
+      - name: flow-lister-plugin
+        path: plugins/flowlister/flow_lister.so
+        type: utils
         config: {}
           
       - name: permissions-plugin
@@ -48,14 +70,100 @@ data:
             - "developers"
     
     flows:
+      - name: all-flows
+        description: "List all available flows in the system"
+        customHandler: "Lists all available flows with their plugins and descriptions"
+        pipeline:
+          - pluginRef: flow-lister-plugin
+
+
       - name: create-user
         description: "Create a user in GCP" 
         pipeline:
           - pluginRef: user-creation-plugin
+          - pluginRef: formatter-plugin
+            dependsOn:
+              - user-creation-plugin
           - pluginRef: slack-notifier
+            dependsOn:
+              - formatter-plugin
           
       - name: set-permissions
         description: "Change permissions for a specific user on specified paths in GCP"
         pipeline:
           - pluginRef: permissions-plugin
+          - pluginRef: formatter-plugin
+            dependsOn:
+              - permissions-plugin
           - pluginRef: slack-notifier
+            dependsOn:
+              - formatter-plugin
+      
+      - name: full-user-onboarding
+        description: "Complete user onboarding process"
+        customHandler: "Creates a user and sets appropriate permissions"
+        pipeline:
+          - pluginRef: user-creation-plugin
+          - pluginRef: permissions-plugin
+            dependsOn:
+              - user-creation-plugin
+          - pluginRef: formatter-plugin
+            dependsOn:
+              - user-creation-plugin
+              - permissions-plugin
+          - pluginRef: slack-notifier
+            dependsOn:
+              - formatter-plugin
+
+
+      - name: health-status-no-format
+        description: "Check system health status"
+        customHandler: "Collects system health information"
+        pipeline:
+          - pluginRef: health-check-plugin
+          - pluginRef: test-print-plugin
+
+      - name: alert-health
+        description: "Check health and send notification"
+        customHandler: "Health monitoring with Slack notification"
+        pipeline:
+          - pluginRef: health-check-plugin
+          - pluginRef: formatter-plugin
+            dependsOn:
+              - health-check-plugin
+          - pluginRef: slack-notifier
+            dependsOn:
+              - formatter-plugin
+          
+          
+      - name: debug-test
+        description: "Simple test flow for debugging"
+        customHandler: "Prints test output for debugging purposes"
+        pipeline:
+          - pluginRef: test-print-plugin
+          
+              
+      - name: kube-notify
+        description: "Monitor Kubernetes and notify on Slack"
+        customHandler: "Monitors Kubernetes pods and sends alerts via Slack"
+        pipeline:
+          - pluginRef: kube-health-plugin
+          - pluginRef: slack-notifier
+            dependsOn:
+              - kube-health-plugin
+
+      - name: full-monitoring
+        description: "Complete monitoring of system and Kubernetes"
+        customHandler: "Combines system health check and Kubernetes monitoring"
+        pipeline:
+          - pluginRef: health-check-plugin
+          - pluginRef: kube-health-plugin
+          - pluginRef: formatter-plugin
+            parallel: true
+            dependsOn:
+              - health-check-plugin
+              - kube-health-plugin
+          - pluginRef: slack-notifier
+            parallel: true
+            dependsOn:
+              - formatter-plugin

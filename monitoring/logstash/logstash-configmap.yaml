@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-config
+  namespace: dav-monitoring
+data:
+  logstash.conf: |-
+    input {
+      beats {
+        port => 5044
+      }
+    }
+    
+    filter {
+      if [kubernetes][namespace] == "default" and [kubernetes][pod][name] =~ /expressops.*/ {
+        json {
+          source => "message"
+          target => "parsed_json"
+          skip_on_invalid_json => true
+        }
+        
+        mutate {
+          add_field => { 
+            "application" => "expressops"
+            "environment" => "%{[kubernetes][namespace]}"
+            "pod_name" => "%{[kubernetes][pod][name]}"
+          }
+        }
+        
+        date {
+          match => ["timestamp", "ISO8601"]
+          target => "@timestamp"
+          tag_on_failure => ["_dateparsefailure"]
+          remove_field => ["timestamp"]
+        }
+      }
+    }
+    
+    output {
+      elasticsearch {
+        hosts => ["http://opensearch-cluster-master.dav-monitoring.svc.cluster.local:9200"]
+        index => "expressops-logs-%{+YYYY.MM.dd}"
+        ssl => false
+        ecs_compatibility => disabled 
+        manage_template => false      
+        sniffing => false 
+        http_compression => true 
+      }
+      stdout { codec => rubydebug { metadata => true } }
+    } 

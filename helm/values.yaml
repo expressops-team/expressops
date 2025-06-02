@@ -1,0 +1,107 @@
+replicaCount: 1
+
+image:
+  repository: davidnull/expressops
+  tag: 1.1.8
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: [] 
+fullnameOverride: "" 
+
+# Liveness Probe Configuration
+livenessProbe:
+  enabled: true
+  path: /flow?flowName=all-flows
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+# Readiness Probe Configuration
+readinessProbe:
+  enabled: true
+  path: /flow?flowName=health-status-no-format
+  initialDelaySeconds: 10
+  periodSeconds: 50
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+# Security Contexts
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 8080
+resources:
+  limits:
+    cpu: 200m
+    memory: 512Mi
+  requests: 
+    cpu: 100m
+    memory: 256Mi
+
+# Prometheus Configuration
+prometheus:
+  enabled: true
+  metricsPath: /metrics
+  serviceMonitor:
+    enabled: true
+    namespace: default
+    interval: 15s
+    scrapeTimeout: 10s
+    additionalLabels:
+      release: prometheus
+
+# Node selector for pod assignment
+# Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+nodeSelector: {}
+
+# Affinity for pod assignment
+# Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+affinity: {}
+
+# Tolerations for pod assignment
+# Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+tolerations: []
+
+env:
+  SERVER_PORT: "8080"
+  SERVER_ADDRESS: "0.0.0.0"
+  PLUGINS_PATH: "plugins"
+
+config:
+  # Configure key application settings
+  logging:
+    level: info
+    format: text
+  server:
+    timeoutSeconds: 4
+
+# Using Google Cloud Secret Manager with External Secrets Operator
+secrets:
+  enabled: true
+  refreshInterval: "1h"
+  secretName: "expressops-slack-secret"
+  # GCP Secret Manager Configuration
+  gcp:
+    projectID: "fc-it-school-2025"
+    serviceAccount: "expressops-external-secrets@fc-it-school-2025.iam.gserviceaccount.com"
+    serviceAccountKey: ""
+    secretStoreName: "expressops-external-secrets"
+    secretRefs:
+      - secretKey: "SLACK_WEBHOOK_URL"
+        remoteKey: "projects/88527591198/secrets/slack-webhook"
+        version: "latest"
+        
