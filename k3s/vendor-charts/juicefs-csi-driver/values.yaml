@@ -42,7 +42,7 @@ juicefs-csi-driver:
   # Especificar la versión exacta del driver de JuiceFS
   image:
     repository: juicedata/juicefs-csi-driver
-    tag: "v0.23.4"  # Versión específica del driver
+    tag: "v0.28.1"  # Versión específica del driver
 
   # Patch dinámico para los Mount Pods (volúmenes JuiceFS)
   # Mount Pods (uno por PVC)
