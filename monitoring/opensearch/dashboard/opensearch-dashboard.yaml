@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opensearch-dashboards
+  namespace: dav-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opensearch-dashboards
+  template:
+    metadata:
+      labels:
+        app: opensearch-dashboards
+    spec:
+      imagePullSecrets:
+      - name: gcp-creds-for-eso
+      containers:
+      - name: dashboards
+        image:  opensearchproject/opensearch-dashboards:3.0.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5601
+        env:
+        - name: OPENSEARCH_HOSTS 
+          value: "https://opensearch-standard.dav-monitoring.svc.cluster.local:9200"
+        - name: OPENSEARCH_SSL_VERIFY_MODE
+          value: "none"
+        - name: DISABLE_SECURITY_DASHBOARDS_PLUGIN
+          value: "false"
+        - name: GOOGLE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: google-oidc-credentials
+              key: client_id
+        - name: GOOGLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: google-oidc-credentials
+              key: client_secret
+        - name: SERVER_SSL_ENABLED
+          value: "true"
+        - name: SERVER_SSL_CERTIFICATE
+          value: "/usr/share/opensearch-dashboards/config/certs/tls.crt"
+        - name: SERVER_SSL_KEY
+          value: "/usr/share/opensearch-dashboards/config/certs/tls.key"
+        resources:
+          requests:
+            memory: "200Mi"
+            cpu: "100m"
+          limits:
+            memory: "500Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: tls-certs
+          mountPath: "/usr/share/opensearch-dashboards/config/certs"
+          readOnly: true
+        - name: config
+          mountPath: "/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml"
+          subPath: "opensearch_dashboards.yml"
+          readOnly: true
+      nodeSelector:
+        kubernetes.io/hostname: it-school-2025-1
+      volumes:
+      - name: tls-certs
+        secret:
+          secretName: opensearch-dashboards-tls-cert
+      - name: config
+        configMap:
+          name: opensearch-dashboards-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch-dashboards
+  namespace: dav-monitoring
+spec:
+  selector:
+    app: opensearch-dashboards
+  ports:
+  - name: https
+    port: 5601
+    targetPort: 5601
+  type: ClusterIP

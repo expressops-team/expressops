@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-logstash-config
+  namespace: dav-monitoring
+data:
+  filebeat.yml: |-
+    filebeat.inputs:
+    - type: container
+      paths:
+        - /var/log/pods/default_expressops-*/expressops/*.log
+      exclude_files: ['\.gz$']
+      # json.keys_under_root: true 
+      # json.add_error_key: true
+      # json.message_key: log
+      processors:
+        - add_kubernetes_metadata:
+            host: "${NODE_NAME}"
+            in_cluster: true
+            default_indexers.enabled: false
+            indexers:
+              - pod_uid:
+            default_matchers.enabled: false
+            matchers:
+              - logs_path:
+                  logs_path: "/var/log/pods/"
+                  resource_type: "pod"
+                  lookup_fields: ["kubernetes.pod.uid"]
+
+        - drop_event.when.not:
+            equals:
+              kubernetes.namespace: "default"
+        - drop_event.when.not:
+            regexp:
+              kubernetes.pod.name: "expressops.*"
+        
+        - add_cloud_metadata: ~
+        - add_host_metadata: ~
+
+    logging.level: debug
+    logging.selectors: ["*"]
+    logging.metrics.enabled: false
+
+    output.logstash:
+      hosts: ["logstash.dav-monitoring.svc.cluster.local:5044"]
+      timeout: 15
+      bulk_max_size: 2048 

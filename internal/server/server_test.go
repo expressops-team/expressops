@@ -9,10 +9,10 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-	
+
 	"expressops/api/v1alpha1"
 	pluginManager "expressops/internal/plugin/loader"
-	
+
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -89,7 +89,7 @@ func TestParseParams(t *testing.T) {
 			expected: map[string]interface{}{},
 		},
 	}
-	
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			result := parseParams(tc.input)
@@ -103,7 +103,7 @@ func TestDynamicFlowHandler(t *testing.T) {
 	logger := logrus.New()
 	logger.SetOutput(io.Discard) // Suppress logs during tests
 	timeout := 5 * time.Second
-	
+
 	// Reset flow registry before each test
 	flowRegistry = map[string]v1alpha1.Flow{
 		"test-flow": {
@@ -118,7 +118,7 @@ func TestDynamicFlowHandler(t *testing.T) {
 			},
 		},
 	}
-	
+
 	tests := []struct {
 		name           string
 		url            string
@@ -158,15 +158,15 @@ func TestDynamicFlowHandler(t *testing.T) {
 			},
 		},
 	}
-	
+
 	// Save the original function
 	originalGetPlugin := pluginManager.GetPluginFunc
-	
+
 	// Create and configure a mock plugin
 	mockPlugin := new(MockPlugin)
 	mockPlugin.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return("result", nil)
 	mockPlugin.On("FormatResult", mock.Anything).Return("formatted result", nil)
-	
+
 	// Crear una función temporal con la misma firma que pluginManager.GetPlugin
 	tempGetPlugin := func(name string) (pluginManager.Plugin, error) {
 		if name == "test-plugin" {
@@ -174,40 +174,40 @@ func TestDynamicFlowHandler(t *testing.T) {
 		}
 		return nil, fmt.Errorf("plugin not found")
 	}
-	
+
 	// Reemplazar temporalmente la función
 	pluginManager.GetPluginFunc = tempGetPlugin
-	
+
 	// Restore the original function after tests
 	defer func() {
 		pluginManager.GetPluginFunc = originalGetPlugin
 	}()
-	
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", tc.url, nil)
 			w := httptest.NewRecorder()
-			
+
 			handler := dynamicFlowHandler(logger, timeout)
 			handler(w, req)
-			
+
 			resp := w.Result()
 			defer func() {
 				if err := resp.Body.Close(); err != nil {
 					t.Logf("Error closing response body: %v", err)
 				}
 			}()
-			
+
 			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
-			
+
 			if tc.expectedBody != nil {
 				body, err := io.ReadAll(resp.Body)
 				assert.NoError(t, err)
-				
+
 				var result map[string]interface{}
 				err = json.Unmarshal(body, &result)
 				assert.NoError(t, err)
-				
+
 				// Verify only the expected fields
 				for k, v := range tc.expectedBody {
 					assert.Equal(t, v, result[k])
@@ -222,7 +222,7 @@ func TestExecuteFlow(t *testing.T) {
 	logger := logrus.New()
 	logger.SetOutput(io.Discard) // Suppress logs during tests
 	ctx := context.Background()
-	
+
 	// Simple flow with one step
 	simpleFlow := v1alpha1.Flow{
 		Name: "simple-flow",
@@ -235,7 +235,7 @@ func TestExecuteFlow(t *testing.T) {
 			},
 		},
 	}
-	
+
 	// Flow with multiple steps
 	multiStepFlow := v1alpha1.Flow{
 		Name: "multi-step-flow",
@@ -254,7 +254,7 @@ func TestExecuteFlow(t *testing.T) {
 			},
 		},
 	}
-	
+
 	// Flow with a failing step
 	failingFlow := v1alpha1.Flow{
 		Name: "failing-flow",
@@ -267,7 +267,7 @@ func TestExecuteFlow(t *testing.T) {
 			},
 		},
 	}
-	
+
 	// Flow with a non-existent plugin
 	nonExistentPluginFlow := v1alpha1.Flow{
 		Name: "non-existent-plugin-flow",
@@ -277,16 +277,16 @@ func TestExecuteFlow(t *testing.T) {
 			},
 		},
 	}
-	
+
 	// Create mocks for each plugin
 	simplePlugin := new(MockPlugin)
 	simplePlugin.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return("simple result", nil)
 	simplePlugin.On("FormatResult", mock.Anything).Return("formatted simple result", nil)
-	
+
 	step1Plugin := new(MockPlugin)
 	step1Plugin.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return("step1 result", nil)
 	step1Plugin.On("FormatResult", mock.Anything).Return("formatted step1 result", nil)
-	
+
 	step2Plugin := new(MockPlugin)
 	step2Plugin.On("Execute", mock.Anything, mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
@@ -296,13 +296,13 @@ func TestExecuteFlow(t *testing.T) {
 		}).
 		Return("step2 result", nil)
 	step2Plugin.On("FormatResult", mock.Anything).Return("formatted step2 result", nil)
-	
+
 	failingPlugin := new(MockPlugin)
 	failingPlugin.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(nil, fmt.Errorf("plugin execution failed"))
-	
+
 	// Save the original function
 	originalGetPlugin := pluginManager.GetPluginFunc
-	
+
 	// Replace GetPlugin with our mock version
 	pluginManager.GetPluginFunc = func(name string) (pluginManager.Plugin, error) {
 		switch name {
@@ -318,64 +318,64 @@ func TestExecuteFlow(t *testing.T) {
 			return nil, fmt.Errorf("plugin not found")
 		}
 	}
-	
+
 	// Restore the original function after tests
 	defer func() {
 		pluginManager.GetPluginFunc = originalGetPlugin
 	}()
-	
+
 	// Test cases
 	tests := []struct {
-		name           string
-		flow           v1alpha1.Flow
+		name             string
+		flow             v1alpha1.Flow
 		additionalParams map[string]interface{}
-		expectedCount  int
-		expectedError  bool
+		expectedCount    int
+		expectedError    bool
 	}{
 		{
-			name:           "simple flow execution",
-			flow:           simpleFlow,
+			name:             "simple flow execution",
+			flow:             simpleFlow,
 			additionalParams: map[string]interface{}{},
-			expectedCount:  1,
-			expectedError:  false,
+			expectedCount:    1,
+			expectedError:    false,
 		},
 		{
-			name:           "multi-step flow execution",
-			flow:           multiStepFlow,
+			name:             "multi-step flow execution",
+			flow:             multiStepFlow,
 			additionalParams: map[string]interface{}{},
-			expectedCount:  2,
-			expectedError:  false,
+			expectedCount:    2,
+			expectedError:    false,
 		},
 		{
-			name:           "flow with additional params",
-			flow:           simpleFlow,
+			name:             "flow with additional params",
+			flow:             simpleFlow,
 			additionalParams: map[string]interface{}{"extra": "param"},
-			expectedCount:  1,
-			expectedError:  false,
+			expectedCount:    1,
+			expectedError:    false,
 		},
 		{
-			name:           "flow with failing plugin",
-			flow:           failingFlow,
+			name:             "flow with failing plugin",
+			flow:             failingFlow,
 			additionalParams: map[string]interface{}{},
-			expectedCount:  1,
-			expectedError:  true,
+			expectedCount:    1,
+			expectedError:    true,
 		},
 		{
-			name:           "flow with non-existent plugin",
-			flow:           nonExistentPluginFlow,
+			name:             "flow with non-existent plugin",
+			flow:             nonExistentPluginFlow,
 			additionalParams: map[string]interface{}{},
-			expectedCount:  1,
-			expectedError:  true,
+			expectedCount:    1,
+			expectedError:    true,
 		},
 	}
-	
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/test", nil)
-			results := executeFlow(ctx, tc.flow, tc.additionalParams, req, logger)
-			
+			results := executeFlow(ctx, tc.flow, tc.additionalParams, req, logger, false)
+
 			assert.Equal(t, tc.expectedCount, len(results))
-			
+
 			if tc.expectedError {
 				// Verify that there is an error in the results
 				hasError := false
@@ -405,11 +405,11 @@ func TestExecuteFlowTimeout(t *testing.T) {
 	// Setup
 	logger := logrus.New()
 	logger.SetOutput(io.Discard) // Suppress logs during tests
-	
+
 	// Create a context with a very short timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	
+
 	// Flow with a plugin that takes longer than the timeout
 	slowFlow := v1alpha1.Flow{
 		Name: "slow-flow",
@@ -419,7 +419,7 @@ func TestExecuteFlowTimeout(t *testing.T) {
 			},
 		},
 	}
-	
+
 	// Create mock for the slow plugin
 	slowPlugin := new(MockPlugin)
 	slowPlugin.On("Execute", mock.Anything, mock.Anything, mock.Anything).
@@ -435,10 +435,10 @@ func TestExecuteFlowTimeout(t *testing.T) {
 		Return("", context.DeadlineExceeded) // Return the timeout error
 	slowPlugin.On("FormatResult", "never reached").Return("", nil)
 	slowPlugin.On("FormatResult", mock.Anything).Return("", nil)
-	
+
 	// Save the original function
 	originalGetPlugin := pluginManager.GetPluginFunc
-	
+
 	// Replace GetPlugin with our mock version
 	pluginManager.GetPluginFunc = func(name string) (pluginManager.Plugin, error) {
 		if name == "slow-plugin" {
@@ -446,24 +446,24 @@ func TestExecuteFlowTimeout(t *testing.T) {
 		}
 		return nil, fmt.Errorf("plugin not found")
 	}
-	
+
 	// Restore the original function after tests
 	defer func() {
 		pluginManager.GetPluginFunc = originalGetPlugin
 	}()
-	
+
 	req := httptest.NewRequest("GET", "/test", nil)
-	results := executeFlow(ctx, slowFlow, map[string]interface{}{}, req, logger)
-	
+	results := executeFlow(ctx, slowFlow, map[string]interface{}{}, req, logger, false)
+
 	// Verify that there is an error due to timeout
 	assert.Equal(t, 1, len(results))
-	
+
 	result, ok := results[0].(map[string]interface{})
 	assert.True(t, ok, "The result should be a map")
-	
+
 	errorMsg, hasError := result["error"]
 	assert.True(t, hasError, "There should be an error due to timeout")
-	
+
 	// Optionally, verify the error message contains timeout-related information
 	errorStr, ok := errorMsg.(string)
 	assert.True(t, ok, "The error should be a string")

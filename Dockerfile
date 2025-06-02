@@ -1,19 +1,21 @@
+<<<<<<< HEAD
 # ============= Stage 1: Build ================
 FROM golang:1.24 AS builder  
 
 WORKDIR /app
 
+
 # Copy and download dependencies first (leverage Docker cache)
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the entire codebase
+# Copy source code
 COPY . .
 
-# Clean any pre-existing .so files
+# Clean any existing .so files
 RUN find plugins -name "*.so" -delete
 
-# Compile plugins
+# Build plugins
 RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u); do \
       for gofile in $dir/*.go; do \
         if [ -f "$gofile" ]; then \
@@ -24,6 +26,7 @@ RUN for dir in $(find plugins -type f -name "*.go" -exec dirname {} \; | sort -u
       done \
     done
 
+<<<<<<< HEAD
 
 
 RUN find plugins -name "*.so" | sort
@@ -49,3 +52,37 @@ ENTRYPOINT ["/app/expressops"]
 
 # CMD will be overwritten by k3s
 CMD ["--config", "config.yaml"]
+=======
+# Build main app with optimizations
+RUN go build -ldflags="-s -w" -o expressops ./cmd
+
+# Stage 2: Final tiny image
+FROM alpine:3.21
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata
+
+WORKDIR /app
+
+# Copy binaries and plugins from build stage
+COPY --from=builder /build/expressops .
+COPY --from=builder /build/plugins ./plugins
+RUN find plugins -name "*.go" -delete
+
+# Copy required config
+COPY docs/samples/config.yaml /app/config.yaml
+
+# Environment variables with direct values <=== given in the config.yaml file
+
+
+# Expose port 8080 for server
+EXPOSE 8080
+
+# Run as non-root for security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+
+ENTRYPOINT ["./expressops", "-config", "/app/config.yaml"]
+
+# Image size reduced from 1.59GB to 162MB :0
+>>>>>>> master

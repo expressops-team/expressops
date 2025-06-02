@@ -1,0 +1,24 @@
+_meta:
+  type: "internalusers"
+  config_version: 2
+
+# Default admin/admin user (already exists)
+
+fluentbit_user:
+  hash: "$2y$12$BVC0XKuoNZVoL75x2TayDO6/hHGxJCZXHzdS87xs34EAFJgVH5o/C" # Hash for --> password
+  description: "User for Fluent Bit to write logs"
+
+dashboard_viewer:
+  hash: "$2y$12$BVC0XKuoNZVoL75x2TayDO6/hHGxJCZXHzdS87xs34EAFJgVH5o/C" # Hash for --> password
+  description: "User for read-only access to OpenSearch Dashboards"
+
+# To generate hashes:
+# 1. kubectl exec -it opensearch-master-pod-0 -n dav-monitoring -- bash  
+# 2. /usr/share/opensearch/plugins/opensearch-security/tools/hash.sh -p 'YOUR_SECURE_PASSWORD'
+# 3. Replace with the output
+
+# kubectl create configmap opensearch-security-config \
+#      --from-file=monitoring/opensearch/chart/opensearch-security/internal_users.yaml \
+#      --from-file=monitoring/opensearch/chart/opensearch-security/roles.yaml \
+#      --from-file=monitoring/opensearch/chart/opensearch-security/roles_mapping.yaml \
+#      -n dav-monitoring

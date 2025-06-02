@@ -18,9 +18,9 @@ type LoggingConfig struct {
 
 // ServerConfig represents the server-related configuration options
 type ServerConfig struct {
-	Port       int        `yaml:"port"`
-	Address    string     `yaml:"address"`
-	TimeoutSec int        `yaml:"timeoutSeconds"`
+	Port       int        `yaml:"port" default:"8080"`
+	Address    string     `yaml:"address" default:"0.0.0.0"`
+	TimeoutSec int        `yaml:"timeoutSeconds" default:"4"`
 	HTTP       HTTPConfig `yaml:"http"`
 }
 
@@ -48,4 +48,6 @@ type Flow struct {
 type Step struct {
 	PluginRef  string                 `yaml:"pluginRef"`
 	Parameters map[string]interface{} `yaml:"parameters,omitempty"`
+	Parallel   bool                   `yaml:"parallel,omitempty"`
+	DependsOn  []string               `yaml:"dependsOn,omitempty"`
 }

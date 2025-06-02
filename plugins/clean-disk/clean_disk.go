@@ -1,4 +1,4 @@
-// clean disk, cache and tmp files on a daily schedule
+// plugins/clean-disk/clean_disk.go
 package main
 
 import (
@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -15,74 +14,106 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type CleanDisk struct {
-	logger *logrus.Logger
-	ticker  *time.Ticker // daily
-	done    chan bool
+// DefaultConfig define valores por defecto para el plugin
+var DefaultConfig = struct {
+	ThresholdMB    int64
+	TargetDirPath  string
+	AgeThresholdH  int
+	DryRun         bool
+	DeletePatterns []string
+}{
+	ThresholdMB:    1000,   // 1GB
+	TargetDirPath:  "/tmp", // Default to clean /tmp
+	AgeThresholdH:  24,     // 24 hours (1 day)
+	DryRun:         false,
+	DeletePatterns: []string{"*.tmp", "*.log.*"},
 }
 
-func (c *CleanDisk) Initialize(ctx context.Context, params map[string]interface{}, logger *logrus.Logger) error {
-	c.logger = logger
-	c.done = make(chan bool)
-	c.ticker = time.NewTicker(24 * time.Hour)
+type CleanDiskPlugin struct {
+	logger        *logrus.Logger
+	thresholdMB   int64
+	targetDirPath string
+	ageThresholdH int
+	dryRun        bool
+	patterns      []string
+	ticker        *time.Ticker // daily
+	done          chan bool
+}
 
-	logger.Info("Initializing CleanDisk plugin")
-	go func() {
-		for {
-			select {
-			case <-c.ticker.C:
-				if err := c.cleanDisk(logger, params); err != nil {
-					logger.Errorf("Cleanup failed: %v", err)
-				}
-				logger.Info("Cleanup completed successfully 😎 \n")
-			case <-c.done:
-				c.ticker.Stop()
-				return
+// Initialize sets up the plugin
+func (p *CleanDiskPlugin) Initialize(ctx context.Context, config map[string]interface{}, logger *logrus.Logger) error {
+	p.logger = logger
+	p.logger.Info("Initializing Clean Disk Plugin")
+
+	// Set default values
+	p.thresholdMB = DefaultConfig.ThresholdMB
+	p.targetDirPath = DefaultConfig.TargetDirPath
+	p.ageThresholdH = DefaultConfig.AgeThresholdH
+	p.dryRun = DefaultConfig.DryRun
+	p.patterns = DefaultConfig.DeletePatterns
+
+	// Override with config if provided
+	if threshold, ok := config["threshold_mb"].(float64); ok {
+		p.thresholdMB = int64(threshold)
+		p.logger.Infof("Setting threshold to %d MB", p.thresholdMB)
+	}
+
+	if targetDir, ok := config["target_dir"].(string); ok && targetDir != "" {
+		p.targetDirPath = targetDir
+		p.logger.Infof("Setting target directory to: %s", p.targetDirPath)
+	}
+
+	if ageHours, ok := config["age_hours"].(float64); ok {
+		p.ageThresholdH = int(ageHours)
+		p.logger.Infof("Setting age threshold to %d hours", p.ageThresholdH)
+	}
+
+	if dryRun, ok := config["dry_run"].(bool); ok {
+		p.dryRun = dryRun
+		p.logger.Infof("Dry run mode: %v", p.dryRun)
+	}
+
+	if patterns, ok := config["delete_patterns"].([]interface{}); ok && len(patterns) > 0 {
+		p.patterns = make([]string, 0, len(patterns))
+		for _, pattern := range patterns {
+			if patternStr, ok := pattern.(string); ok && patternStr != "" {
+				p.patterns = append(p.patterns, patternStr)
 			}
 		}
-	}()
+		p.logger.Infof("Setting delete patterns to: %v", p.patterns)
+	}
 
 	return nil
 }
 
-func (c *CleanDisk) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
-	return nil, c.cleanDisk(c.logger, *shared)
-}
+// Execute performs disk cleanup based on age
+func (p *CleanDiskPlugin) Execute(ctx context.Context, request *http.Request, shared *map[string]any) (interface{}, error) {
+	result := struct {
+		DryRun       bool     `json:"dry_run"`
+		FilesDeleted int      `json:"files_deleted"`
+		BytesFreed   int64    `json:"bytes_freed"`
+		DeletedFiles []string `json:"deleted_files,omitempty"`
+	}{
+		DryRun:       p.dryRun,
+		FilesDeleted: 0,
+		BytesFreed:   0,
+		DeletedFiles: []string{},
+	}
 
-// cleanDisk removes temporary and cache files from the system
-func (c *CleanDisk) cleanDisk(logger *logrus.Logger, _ map[string]interface{}) error {
-	logger.Info("Starting disk cleanup")
+	// Limpia el directorio objetivo
+	p.logger.Infof("Cleaning files older than %d hours in %s", p.ageThresholdH, p.targetDirPath)
 
-	// Clean temp directory
-	logger.Info("Cleaning /tmp directory")
-	err := cleanDirectory("/tmp", logger)
+	if p.targetDirPath == "" || p.targetDirPath == "/" {
+		return nil, fmt.Errorf("invalid target directory: %s", p.targetDirPath)
+	}
+
+	err := cleanDirectory(p.targetDirPath, p.logger)
 	if err != nil {
-		return fmt.Errorf("error cleaning /tmp: %v", err)
+		p.logger.Errorf("Error cleaning directory %s: %v", p.targetDirPath, err)
+		return nil, err
 	}
 
-	// Clean cache directories
-	logger.Info("Cleaning cache directories")
-	cacheDirs := []string{
-		"/var/cache/apt",
-		"/var/tmp",
-	}
-	for _, dir := range cacheDirs {
-		err := cleanDirectory(dir, logger)
-		if err != nil {
-			logger.Warnf("Error cleaning %s: %v", dir, err)
-		}
-	}
-
-	// Sync filesystem
-	logger.Info("Cleaning filesystem")
-	cmd := exec.Command("sync")
-	if err := cmd.Run(); err != nil {
-		logger.Warnf("Error running sync: %v", err)
-		return err
-	}
-	logger.Info("Filesystem cleaned successfully")
-
-	return nil
+	return result, nil
 }
 
 func cleanDirectory(dir string, logger *logrus.Logger) error {
@@ -106,13 +137,25 @@ func cleanDirectory(dir string, logger *logrus.Logger) error {
 	return nil
 }
 
-func (c *CleanDisk) Name() string {
-	return "clean-disk"
-}
-
 // FormatResult formats the result of the cleanup operation
-func (c *CleanDisk) FormatResult(_ interface{}) (string, error) {
-	return "", nil
+func (p *CleanDiskPlugin) FormatResult(result interface{}) (string, error) {
+	if result == nil {
+		return "No cleanup results", nil
+	}
+
+	if res, ok := result.(struct {
+		DryRun       bool     `json:"dry_run"`
+		FilesDeleted int      `json:"files_deleted"`
+		BytesFreed   int64    `json:"bytes_freed"`
+		DeletedFiles []string `json:"deleted_files,omitempty"`
+	}); ok {
+		if res.DryRun {
+			return fmt.Sprintf("Dry run: Would have deleted %d files, freeing %d bytes", res.FilesDeleted, res.BytesFreed), nil
+		}
+		return fmt.Sprintf("Deleted %d files, freed %d bytes", res.FilesDeleted, res.BytesFreed), nil
+	}
+
+	return fmt.Sprintf("%v", result), nil
 }
 
-var PluginInstance pluginconf.Plugin = &CleanDisk{}
+var PluginInstance pluginconf.Plugin = &CleanDiskPlugin{}

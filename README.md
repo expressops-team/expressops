@@ -1,11 +1,43 @@
+
 ## ExpressOps 🚀 <img src="docs/img/RistrettOps.png" alt="ExpressOps Logo" align="right" width="300" style="margin-top: 20px;">
 
-ExpressOps is a lightweight flow orchestrator powered by dynamically loaded plugins. It allows you to define operational workflows (such as health checks, formatting, notifications, and logging) via a simple YAML configuration. Each plugin handles one task and flows chain them together.
 
-## 📦 Docker Hub
+> 🚨 <span style="color:red">**Note: Currently under active development**</span> - API and features may change without notice
 
-The ExpressOps Docker image is available on Docker Hub at:
-https://hub.docker.com/r/expressopsfreepik/expressops
+
+The ExpressOps Docker image is available on Docker Hub in two similar images:
+
+ExpressOps: A lightweight flow orchestrator that:
+- Loads plugins dynamically
+- Chains plugins into workflows via YAML config
+- Each plugin = one task (health checks, formatting, notifications, etc.)
+
+## Docker
+
+Grab our image from Docker Hub:
+
+```bash
+docker pull davidnull/expressops:1.1.7
+
+ or
+
+docker pull expressopsfreepik/expressops:tag
+
+```
+*Note: This is a temporary location. We'll move to expressopsfreepik/expressops soon*
+
+## Contents
+
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Secret Management](#secret-management)
+- [Example: Dr. House](#example-dr-house)
+- [Contributing](#contributing)
+- [License](#license)
+docker pull expressopsfreepik/expressops:latest
+```
 
 ## 📜 Table of Contents
 
@@ -30,7 +62,7 @@ ExpressOps follows a modular architecture with three main components:
 2. **Plugin System**: Dynamically loads and executes plugins through a standardized interface
 3. **Flow Orchestration**: Manages the execution of plugin pipelines based on YAML configuration
 
-## ✨ Features
+ExpressOps comes with several ready-to-use plugins:
 
 - 🔌 Dynamic plugin loading from `.so` files at runtime
 - 🛠️ **Extensive plugin ecosystem**:
@@ -44,11 +76,11 @@ ExpressOps follows a modular architecture with three main components:
 - 📊 Metrics collection for monitoring system performance
 - 📜 Detailed logging for debugging and traceability
 
-## 📦 Requirements
-
-> 🐧 ExpressOps runs on Linux (due to the Go plugin system)
-- Golang 1.20+
-- Linux environment (for plugin support)
+- 🐧 ExpressOps runs on Linux (due to the Go plugin system)
+- Go 1.20+
+- Docker (for containerized deployment)
+- Kubernetes (for production)
+- External Secrets Operator (for secret management)
 
 ## 🔧 Installation
 
@@ -66,11 +98,12 @@ go build -buildmode=plugin -o plugins/healthcheck/health_check.so plugins/health
 go build -buildmode=plugin -o plugins/formatters/health_alert_formatter.so plugins/formatters/health_alert_formatter.go
 ```
 
-## 🚀 Usage
+## Usage
 
 Start the server with your configuration file:
 
 ```bash
+<<<<<<< HEAD
 ./expressops -config path/to/your/config.yaml
 ```
 
@@ -113,6 +146,97 @@ You can configure various parameters like ports, log levels, and paths by settin
 ## ⚙️ Configuration
 
 ExpressOps uses a YAML configuration file that defines logging settings, server configuration, plugins, and flows:
+=======
+./expressops -config docs/samples/config.yaml
+```
+
+Run a flow:
+```bash
+curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
+
+curl "http://localhost:8080/flow?flowName=alert-flow"
+```
+
+### Environment Variables
+
+- `SERVER_PORT`: HTTP port (default: 8080)
+- `SERVER_ADDRESS`: Listen address (default: 0.0.0.0)
+- `TIMEOUT_SECONDS`: Execution timeout in seconds (default: 4)
+- `LOG_LEVEL`: Logging level (info, debug, warn, error)
+- `LOG_FORMAT`: Log format (text, json)
+- `SLACK_WEBHOOK_URL`: Required for Slack notifications
+
+## Help Commands
+
+The Makefile includes built-in help:
+
+- `make help`: Shows all available commands
+- `make quick-help`: Essential frequently-used commands
+- `make about`: Basic project info
+- `make config`: Current configuration
+
+![Make QuickHelp Command](docs/img/help.png)
+
+## Secret Management
+
+We use External Secrets Operator with Google Cloud Secret Manager:
+
+1. **GCP Secrets**: 
+   - Name: `slack-webhook`
+   - Project: `fc-it-school-2025`
+
+2. **Deployment with secrets**:
+   ```bash
+   # Make sure you have key.json in project root
+   make setup-with-gcp-credentials
+   
+   # Or use Helm
+   make helm-install-with-gcp-secrets
+   ```
+
+## Kubernetes Deployment
+
+```bash
+# Connect to Kubernetes
+gcloud compute ssh --zone "europe-west1-d" "it-school-2025-1" --tunnel-through-iap --project "fc-it-school-2025" --ssh-flag "-N -L 6443:127.0.0.1:6443"
+
+# Install ESO (first time)
+make k8s-install-eso
+
+# Deploy with secrets
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/REAL/TOKEN"
+make k8s-deploy-with-clustersecretstore
+
+# Check deployment
+make k8s-status
+make k8s-port-forward
+make k8s-logs
+```
+
+## Monitoring
+
+ExpressOps includes Prometheus and Grafana monitoring:
+
+```bash
+# Install Prometheus
+make prometheus-install PROMETHEUS_NAMESPACE=monitoring-david
+
+# Install Grafana
+make grafana-install PROMETHEUS_NAMESPACE=monitoring-david GRAFANA_RELEASE=grafana-david
+
+# Access interfaces
+make local-prometheus-port-forward PROMETHEUS_NAMESPACE=monitoring-david PROMETHEUS_PORT=9091
+make grafana-port-forward PROMETHEUS_NAMESPACE=monitoring-david GRAFANA_RELEASE=grafana-david GRAFANA_PORT=3001
+```
+
+## Terraform
+
+This project also supports deployment of its monitoring stack (OpenSearch, OpenSearch Dashboards, Fluent Bit) using Terraform. The Terraform configuration can be found in the `terraform/` directory.
+
+
+![Terraform](terraform/Esquema%20Terraform.png)
+
+## Configuration Example
 
 ```yaml
 logging:
@@ -156,19 +280,33 @@ ExpressOps comes with a variety of plugins:
 | user-creation-plugin | management | Creates system users |
 | clean-disk-plugin | maintenance | Handles disk cleanup operations |
 
-## 📋 Example Flows
+## 📋 Example Flows:
 
 ### Health Check with Notification (alert-flow)
 
 This flow performs a system health check, formats the results, and sends an alert to Slack:
 
+## Example: Dr. House
+
+A flow that runs a health check, formats results, and displays a test message:
+
 ```bash
 curl "http://localhost:8080/flow?flowName=alert-flow"
+
+curl "http://localhost:8080/flow?flowName=dr-house"
 ```
 
-## 🤝 Contributing
+## Flow Discovery
 
-Contributions are welcome! Feel free to open an issue, fork the repo, or submit a pull request.
+List all available flows:
+
+```bash
+curl "http://localhost:8080/flow?flowName=all-flows"
+```
+
+## Contributing
+
+Want to contribute? Make sure to export your plugin as `PluginInstance` implementing the `Plugin` interface:
 
 Please follow the convention of exporting your plugin as PluginInstance, and ensure it implements the Plugin interface:
 
@@ -180,7 +318,7 @@ type Plugin interface {
 }
 ```
 
-## 🪪 License
+## License
 
 Copyright 2025.
 
@@ -190,4 +328,5 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 Thanks to all contributors and plugin authors who made this modular system possible.
 
-Happy hacking ✨
+
+

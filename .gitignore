@@ -12,6 +12,7 @@ logs/*.log
 logs/*.zip
 
 # Kubernetes secrets
+
 k8s/secrets.yaml
 k3s/secret.yaml
 k3s/*.json
@@ -20,3 +21,22 @@ k3s/*.json
 .env
 *.local
 /bin
+
+k8s/secrets/fake-clustersecretstore.yaml  
+# terraform/*
+
+
+# Local environment files
+.env
+*.local
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+# Google service account key
+key.json
+k3s.yaml
+key_artifact.json
+

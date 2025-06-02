@@ -1,0 +1,66 @@
+{
+    "policy": {
+      "policy_id": "logs-default-policy",
+      "description": "politica de rotacion y eliminacion para logs ====> TEST 1",
+      "default_state": "hot",
+      "states": [
+        {
+          "name": "hot",
+          "actions": [
+            {
+              "rollover": {
+                "min_index_age": "1d",
+                "min_size": "1gb"
+              }
+            }
+          ],
+          "transitions": [
+            {
+              "state_name": "warm",
+              "conditions": {
+                "min_index_age": "2d"
+              }
+            }
+          ]
+        },
+        {
+          "name": "warm",
+          "actions": [
+            {
+              "read_only": {}
+            }
+          ],
+          "transitions": [
+            {
+              "state_name": "delete",
+              "conditions": {
+                "min_index_age": "7d"
+              }
+            }
+          ]
+        },
+        {
+          "name": "delete",
+          "actions": [
+            {
+              "delete": {}
+            }
+          ],
+          "transitions": []
+        }
+      ]
+    }
+  }
+  
+
+//  curl -k -X PUT "https://localhost:9200/_plugins/_ism/policies/logs-default-policy" \
+//  -H "Content-Type: application/json" \
+//  -u "admin:admin" \
+//  -d @ISM_policy.json
+
+// by default only manual gested indices are supported
+// to enable auto-generated indices need to set:
+// opensearch.plugins.ism.enabled: true
+// opensearch.plugins.ism.rollover_alias: "rollover-alias"
+// opensearch.plugins.ism.rollover_alias_enabled: true
+

@@ -1,0 +1,28 @@
+opensearchHosts: "${opensearch_hosts}" 
+
+image:
+  repository: opensearchproject/opensearch-dashboards # not using artifact registry for now, maybe change??
+  tag: "${dashboards_image_tag}"
+  pullPolicy: IfNotPresent
+
+opensearchAccount:
+  secret: ${opensearch_secret_name} 
+  keyPassphrase:
+    enabled: false
+
+config:
+  opensearch_dashboards.yml: |
+    server.name: opensearch-dashboards
+    server.host: "0.0.0.0"
+    opensearch.hosts: ["${opensearch_hosts}"] # Templated
+    opensearch.ssl.verificationMode: none # Consider 'full' or 'certificate' for production
+    opensearch.username: $${OPENSEARCH_USERNAME} # Env var will be picked by dashboards entrypoint
+    opensearch.password: $${OPENSEARCH_PASSWORD} # Env var will be picked by dashboards entrypoint
+    opensearch.requestHeadersAllowlist: ["Authorization", "X-Security-Tenant", "securitytenant"]
+
+service:
+  type: ClusterIP
+  port: 5601
+  targetPort: 5601
+
+#no extra envs needed
