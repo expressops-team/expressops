@@ -10,7 +10,7 @@ spec:
   resources:
     requests:
       storage: 5Gi
-  storageClassName: juicefs-sc
+  storageClassName: juicefs-gcs-redis-canonica
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -30,10 +30,8 @@ data:
     elasticsearch.requestTimeout: 60000
     elasticsearch.shardTimeout: 30000
     
-    # Security settings
     elasticsearch.ssl.verificationMode: none
     
-    # Logging
     logging.level: info
     logging.appenders:
       default:
@@ -42,14 +40,11 @@ data:
           type: pattern
           pattern: "[%date] [%level] [%logger] %message"
     
-    # Kibana configuration
     kibana.index: ".kibana"
     kibana.defaultAppId: "discover"
     
-    # Data path
     path.data: "/usr/share/kibana/data"
     
-    # Advanced settings
     server.maxPayload: 1048576
     elasticsearch.pingTimeout: 1500
     elasticsearch.requestHeadersWhitelist: ["authorization"]
