@@ -3,86 +3,124 @@ package metrics
 import (
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	// ActivePlugins measures currently active plugins
-	ActivePlugins = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "expressops_active_plugins",
-		Help: "Current number of active plugins",
-	})
+	once     sync.Once
+	registry *prometheus.Registry
 
-	// FlowsExecuted counts flow executions
-	FlowsExecuted = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "expressops_flows_executed_total",
-		Help: "The total number of executed flows",
-	}, []string{"flow_name", "status"})
-
-	// FlowDuration measures flow execution time
-	FlowDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "expressops_flow_duration_seconds",
-		Help:    "Flow execution duration in seconds",
-		Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10, 30, 60, 120},
-	}, []string{"flow_name"})
-
-	// PluginErrors counts plugin errors
-	PluginErrors = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "expressops_plugin_errors_total",
-		Help: "The total number of plugin errors",
-	}, []string{"plugin_name", "error_type"})
-
-	// HttpRequests counts HTTP requests
-	HttpRequests = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "expressops_http_requests_total",
-		Help: "The total number of HTTP requests",
-	}, []string{"endpoint", "method", "status"})
-
-	// MemoryUsage measures memory usage
-	MemoryUsage = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "expressops_memory_usage_bytes",
-		Help: "Current memory usage in bytes",
-	})
-
-	// CpuUsage measures CPU usage
-	CpuUsage = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "expressops_cpu_usage_percent",
-		Help: "Current CPU usage percentage",
-	})
-
-	// PluginLatency measures plugin latency
-	PluginLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "expressops_plugin_latency_seconds",
-		Help:    "Plugin execution latency in seconds",
-		Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 2, 5},
-	}, []string{"plugin_name"})
-
-	// ConcurrentPlugins measures concurrently running plugins
-	ConcurrentPlugins = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "expressops_concurrent_plugins",
-		Help: "Number of plugins currently running",
-	})
-
-	// StorageOperations counts storage operations
-	StorageOperations = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "expressops_storage_operations_total",
-		Help: "The total number of storage operations",
-	}, []string{"operation", "status"})
-
-	// StorageUsage measures storage usage
-	StorageUsage = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "expressops_storage_usage_bytes",
-		Help: "Current storage usage in bytes",
-	})
+	// Métricas de Prometheus
+	ActivePlugins     prometheus.Gauge
+	FlowsExecuted     *prometheus.CounterVec
+	FlowDuration      *prometheus.HistogramVec
+	PluginErrors      *prometheus.CounterVec
+	HttpRequests      *prometheus.CounterVec
+	MemoryUsage       prometheus.Gauge
+	CpuUsage          prometheus.Gauge
+	PluginLatency     *prometheus.HistogramVec
+	ConcurrentPlugins prometheus.Gauge
+	StorageOperations *prometheus.CounterVec
+	StorageUsage      prometheus.Gauge
 )
+
+func init() {
+	once.Do(func() {
+		// Crear un registry personalizado
+		registry = prometheus.NewRegistry()
+
+		// Registrar el recolector por defecto
+		registry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+		registry.MustRegister(prometheus.NewGoCollector())
+
+		// ActivePlugins measures currently active plugins
+		ActivePlugins = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "expressops_active_plugins",
+			Help: "Current number of active plugins",
+		})
+		registry.MustRegister(ActivePlugins)
+
+		// FlowsExecuted counts flow executions
+		FlowsExecuted = prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "expressops_flows_executed_total",
+			Help: "The total number of executed flows",
+		}, []string{"flow_name", "status"})
+		registry.MustRegister(FlowsExecuted)
+
+		// FlowDuration measures flow execution time
+		FlowDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "expressops_flow_duration_seconds",
+			Help:    "Flow execution duration in seconds",
+			Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10, 30, 60, 120},
+		}, []string{"flow_name"})
+		registry.MustRegister(FlowDuration)
+
+		// PluginErrors counts plugin errors
+		PluginErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "expressops_plugin_errors_total",
+			Help: "The total number of plugin errors",
+		}, []string{"plugin_name", "error_type"})
+		registry.MustRegister(PluginErrors)
+
+		// HttpRequests counts HTTP requests
+		HttpRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "expressops_http_requests_total",
+			Help: "The total number of HTTP requests",
+		}, []string{"endpoint", "method", "status"})
+		registry.MustRegister(HttpRequests)
+
+		// MemoryUsage measures memory usage
+		MemoryUsage = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "expressops_memory_usage_bytes",
+			Help: "Current memory usage in bytes",
+		})
+		registry.MustRegister(MemoryUsage)
+
+		// CpuUsage measures CPU usage
+		CpuUsage = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "expressops_cpu_usage_percent",
+			Help: "Current CPU usage percentage",
+		})
+		registry.MustRegister(CpuUsage)
+
+		// PluginLatency measures plugin latency
+		PluginLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "expressops_plugin_latency_seconds",
+			Help:    "Plugin execution latency in seconds",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 2, 5},
+		}, []string{"plugin_name"})
+		registry.MustRegister(PluginLatency)
+
+		// ConcurrentPlugins measures concurrently running plugins
+		ConcurrentPlugins = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "expressops_concurrent_plugins",
+			Help: "Number of plugins currently running",
+		})
+		registry.MustRegister(ConcurrentPlugins)
+
+		// StorageOperations counts storage operations
+		StorageOperations = prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "expressops_storage_operations_total",
+			Help: "The total number of storage operations",
+		}, []string{"operation", "status"})
+		registry.MustRegister(StorageOperations)
+
+		// StorageUsage measures storage usage
+		StorageUsage = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "expressops_storage_usage_bytes",
+			Help: "Current storage usage in bytes",
+		})
+		registry.MustRegister(StorageUsage)
+	})
+}
 
 // MetricsHandler returns an HTTP handler for Prometheus metrics
 func MetricsHandler() http.Handler {
-	return promhttp.Handler()
+	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
 }
 
 // SetActivePlugins updates the active plugins counter
