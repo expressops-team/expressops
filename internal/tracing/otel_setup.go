@@ -10,6 +10,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 var tracer trace.Tracer
@@ -56,7 +57,7 @@ func InitTracerProvider(serviceName string) (*sdktrace.TracerProvider, error) {
 func GetTracer() trace.Tracer {
 	if tracer == nil {
 		log.Println("ADVERTENCIA: Tracer no inicializado, usando NoopTracer.")
-		return trace.NewNoopTracerProvider().Tracer("noop")
+		return noop.NewTracerProvider().Tracer("noop")
 	}
 	return tracer
 }

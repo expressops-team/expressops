@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"expressops/internal/metrics"
+
 	pluginconf "expressops/internal/plugin/loader"
 
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -100,6 +102,10 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 	result := make(map[string]interface{})
 	result["hostname"] = hostname
 
+	// Variables para tracking de estado
+	allChecksOK := true
+	diskResults := make(map[string]interface{})
+
 	// Get CPU metrics
 	var cpuUsagePercent float64
 	if cpuPercents, err := cpu.Percent(time.Second, false); err == nil && len(cpuPercents) > 0 {
@@ -107,8 +113,9 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 		result["cpu"] = map[string]interface{}{
 			"usage_percent": cpuUsagePercent,
 		}
-	} else {
-		p.logger.WithFields(logFields).WithError(err).Error("Error obteniendo porcentaje de CPU")
+
+		// <---REGISTER CPU USAGE GAUGE --->
+		metrics.SetResourceUsage("cpu", "", cpuPercents[0])
 	}
 
 	// Get memory metrics
@@ -121,42 +128,84 @@ func (p *HealthCheckPlugin) Execute(ctx context.Context, request *http.Request, 
 			"free":         memInfo.Free,
 			"used_percent": memInfo.UsedPercent,
 		}
-	} else {
-		p.logger.WithFields(logFields).WithError(err).Error("Error obteniendo información de memoria")
+
+		// <---REGISTER MEMORY USAGE GAUGE --->
+		metrics.SetResourceUsage("memory", "", memInfo.UsedPercent)
 	}
 
-	diskResults := make(map[string]interface{})
-	if usage, err := disk.Usage(p.pathToCheck); err == nil {
-		diskResults[p.pathToCheck] = map[string]interface{}{
-			"total":        usage.Total,
-			"used":         usage.Used,
-			"free":         usage.Free,
-			"used_percent": usage.UsedPercent,
+	if parts, err := disk.Partitions(false); err == nil {
+		diskInfo := make(map[string]interface{})
+
+		maxDiskUsageForGauge := 0.0 // To record the worst record on the gauge
+		worstMountPoint := ""
+
+		for _, part := range parts {
+			// Only consider actual file system partitions, skip others like /dev/loop, /snap
+			if !strings.HasPrefix(part.Device, "/dev/sd") &&
+				!strings.HasPrefix(part.Device, "/dev/hd") &&
+				!strings.HasPrefix(part.Device, "/dev/nvme") &&
+				!strings.HasPrefix(part.Device, "/dev/mapper") &&
+				part.Fstype != "fuse.portal" {
+				p.logger.Debugf("Skipping non-standard partition: %s (Device: %s, Fstype: %s)", part.Mountpoint, part.Device, part.Fstype)
+				continue
+			}
+
+			if usage, err := disk.Usage(part.Mountpoint); err == nil {
+				diskInfo[part.Mountpoint] = map[string]interface{}{
+					"total":        usage.Total,
+					"used":         usage.Used,
+					"free":         usage.Free,
+					"used_percent": usage.UsedPercent,
+				}
+				// Almacenar datos de disco para uso posterior
+				diskResults[part.Mountpoint] = map[string]interface{}{
+					"total":        usage.Total,
+					"used":         usage.Used,
+					"free":         usage.Free,
+					"used_percent": usage.UsedPercent,
+				}
+				// <---UPDATE WORST DISK USAGE --->
+				if usage.UsedPercent > maxDiskUsageForGauge {
+					maxDiskUsageForGauge = usage.UsedPercent
+					worstMountPoint = part.Mountpoint
+				}
+				// <--- END UPDATE --->
+			} else {
+				p.logger.Warnf("Could not get disk usage for %s: %v", part.Mountpoint, err)
+			}
 		}
-	} else {
-		p.logger.WithFields(logFields).WithField("path", p.pathToCheck).WithError(err).Error("Error obteniendo uso de disco para path principal")
+		result["disk"] = diskInfo
+		if worstMountPoint != "" { // Ensure we have a valid mount point
+			metrics.SetResourceUsage("disk", worstMountPoint, maxDiskUsageForGauge)
+			p.logger.Debugf("Set disk resource usage gauge: Mount='%s', Usage=%.2f%%", worstMountPoint, maxDiskUsageForGauge)
+		} else {
+			p.logger.Debug("No suitable disk mount point found to report for resource usage gauge.")
+		}
 	}
 	result["disk"] = diskResults
 
 	// Execute checks
 	healthStatus := make(map[string]string)
-	allChecksOK := true
-	for name, checkFunc := range p.checks {
-		checkSpecificLogFields := make(logrus.Fields)
-		for k, v := range logFields {
-			checkSpecificLogFields[k] = v
-		}
-		checkSpecificLogFields["checkName"] = name
 
-		p.logger.WithFields(checkSpecificLogFields).Debug("Ejecutando chequeo de health")
-		if err := checkFunc(); err != nil {
-			p.logger.WithFields(checkSpecificLogFields).WithError(err).Warn("Chequeo de health fallido")
+	for name, check := range p.checks {
+		p.logger.Infof("Running check: %s", name)
+		statusLabel := "ok"
+		checkSpecificLogFields := logrus.Fields{
+			"pluginName": "HealthCheckPlugin",
+			"checkName":  name,
+		}
+
+		if err := check(); err != nil {
+			statusLabel = "fail"
+			p.logger.Warnf("Check failed: %s - %v", name, err) // we use warnf because it's not an error, it's a warning
+
 			healthStatus[name] = fmt.Sprintf("FAIL: %v", err)
 			allChecksOK = false
 		} else {
 			healthStatus[name] = "OK"
 			p.logger.WithFields(checkSpecificLogFields).Debug("Chequeo de health OK")
 		}
+		metrics.IncHealthCheckPerformed(name, statusLabel)
 	}
 	result["health_status"] = healthStatus
 
@@ -213,16 +262,32 @@ func (p *HealthCheckPlugin) checkMemoryThreshold() error {
 
 func (p *HealthCheckPlugin) checkDiskThreshold() error {
 	threshold := p.thresholds["disk"]
-	if usage, err := disk.Usage(p.pathToCheck); err == nil {
-		if usage.UsedPercent > threshold {
-			return fmt.Errorf("uso de disco alto en %s: %.2f%% (umbral: %.2f%%)", p.pathToCheck, usage.UsedPercent, threshold)
+
+	parts, err := disk.Partitions(false)
+	if err != nil {
+		return fmt.Errorf("error getting disk info: %v", err)
+	}
+	var highUsageMessages []string
+	for _, part := range parts {
+		usage, err := disk.Usage(part.Mountpoint)
+		if err != nil {
+			p.logger.Debugf("Skipping disk %s due to error: %v", part.Mountpoint, err)
+			continue
 		}
-	} else {
-		p.logger.WithFields(logrus.Fields{
-			"pluginName": "HealthCheckPlugin",
-			"checkName":  "disk_threshold",
-			"path":       p.pathToCheck,
-		}).WithError(err).Warn("No se pudo obtener uso de disco para el path principal del chequeo")
+		if usage.UsedPercent > threshold {
+			highUsageMessages = append(highUsageMessages, fmt.Sprintf("high disk usage on %s: %.2f%% (threshold: %.2f%%)", part.Mountpoint, usage.UsedPercent, threshold))
+		}
+	}
+
+	// Check the main path
+	p.logger.WithFields(logrus.Fields{
+		"pluginName": "HealthCheckPlugin",
+		"checkName":  "disk_threshold",
+		"path":       p.pathToCheck,
+	}).WithError(err).Warn("No se pudo obtener uso de disco para el path principal del chequeo")
+
+	if len(highUsageMessages) > 0 {
+		return fmt.Errorf("high disk usage detected: %s", strings.Join(highUsageMessages, "; "))
 	}
 	return nil
 }
@@ -233,48 +298,9 @@ func (p *HealthCheckPlugin) RegisterCheck(name string, check func() error) {
 	p.checks[name] = check
 }
 
-func (p *HealthCheckPlugin) FormatResult(result interface{}) (string, error) {
-	pluginName := "HealthCheckPlugin"
-	logFields := logrus.Fields{
-		"pluginName": pluginName,
-		"action":     "FormatResult",
-	}
-	p.logger.WithFields(logFields).Info("Formateando resultado de health check")
-
-	data, ok := result.(map[string]interface{})
-	if !ok {
-		err := fmt.Errorf("tipo de resultado inesperado: %T", result)
-		p.logger.WithFields(logFields).WithField("error", err.Error()).Error("Error formateando resultado")
-		return "", err
-	}
-
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Hostname: %v\n", data["hostname"]))
-	if cpuData, ok := data["cpu"].(map[string]interface{}); ok {
-		sb.WriteString(fmt.Sprintf("CPU Usage: %.2f%%\n", cpuData["usage_percent"]))
-	}
-	if memData, ok := data["memory"].(map[string]interface{}); ok {
-		sb.WriteString(fmt.Sprintf("Memory Usage: %.2f%% (Used: %.2fGB, Total: %.2fGB)\n",
-			memData["used_percent"],
-			float64(memData["used"].(uint64))/1024/1024/1024,
-			float64(memData["total"].(uint64))/1024/1024/1024))
-	}
-	if diskData, ok := data["disk"].(map[string]interface{}); ok {
-		if mainPathData, ok := diskData[p.pathToCheck].(map[string]interface{}); ok {
-			sb.WriteString(fmt.Sprintf("Disk Usage (%s): %.2f%% (Used: %.2fGB, Total: %.2fGB)\n",
-				p.pathToCheck,
-				mainPathData["used_percent"],
-				float64(mainPathData["used"].(uint64))/1024/1024/1024,
-				float64(mainPathData["total"].(uint64))/1024/1024/1024))
-		}
-	}
-	if status, ok := data["health_status"].(map[string]string); ok {
-		sb.WriteString("Status Checks:\n")
-		for name, state := range status {
-			sb.WriteString(fmt.Sprintf("  - %s: %s\n", name, state))
-		}
-	}
-	return sb.String(), nil
+// simple text output for the health check results
+func (p *HealthCheckPlugin) FormatResult(_ interface{}) (string, error) {
+	return "Health check completed", nil
 }
 
 func NewHealthCheckPlugin(logger *logrus.Logger) pluginconf.Plugin {

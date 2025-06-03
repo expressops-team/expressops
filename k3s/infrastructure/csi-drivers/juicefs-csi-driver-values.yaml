@@ -1,0 +1,71 @@
+# juicefs-csi-driver-values.yaml
+
+# Por defecto, el chart de JuiceFS CSI Driver crea las ServiceAccounts,
+# ClusterRoles y ClusterRoleBindings necesarios para su operación.
+# No es necesario especificar credenciales aquí para el montaje del volumen
+# pre-formateado, ya que se gestionarán a través de la StorageClass
+# y los secrets referenciados (juicefs-meta-conf).
+
+# Puedes ajustar los recursos para los pods del driver si es necesario,
+# pero los valores por defecto suelen ser adecuados para empezar.
+# juicefs-csi-driver-values.yaml
+
+# Configuración de imágenes de sidecar para resolver el problema de ImagePullBackOff
+sidecars:
+  livenessProbeImage:
+    repository: registry.k8s.io/sig-storage/livenessprobe
+    tag: "v2.12.0"
+    pullPolicy: "IfNotPresent"
+  nodeDriverRegistrarImage:
+    repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
+    tag: "v2.9.0"
+    pullPolicy: "IfNotPresent"
+  csiProvisionerImage:
+    repository: registry.k8s.io/sig-storage/csi-provisioner
+    tag: "v2.2.2"
+    pullPolicy: "IfNotPresent"
+  csiResizerImage:
+    repository: registry.k8s.io/sig-storage/csi-resizer
+    tag: "v1.9.0"
+    pullPolicy: "IfNotPresent"
+
+# Recursos para los pods del controlador CSI
+controller:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi 
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Recursos para los pods de nodo (CSI node) (Daemonset)
+node:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Patch dinámico para los Mount Pods (volúmenes JuiceFS)
+# Mount Pods (uno por PVC)
+globalConfig:
+  mountPodPatch:
+    - resources:
+        requests:
+          cpu: 75m 
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 1.5Gi
+
+# Si quieres habilitar el caché en disco para los nodos JuiceFS (mejora el rendimiento)
+# Esto se configura globalmente aquí o por StorageClass/PV.
+# Es más flexible configurarlo por StorageClass o PV si tienes diferentes necesidades.
+# Ejemplo:
+# mountPod:
+#   mountOptions:
+#     cacheDir: "/var/jfsCache" # Directorio en el hostPath del nodo o un emptyDir
+#     cacheSize: 10240 # Tamaño del caché en MiB (10GiB)

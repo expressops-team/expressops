@@ -1,21 +1,28 @@
-.PHONY: helm-install helm-upgrade helm-uninstall helm-template helm-package helm-install-with-secrets helm-install-with-gcp-secrets
+.PHONY: helm-install helm-upgrade helm-uninstall helm-template helm-package helm-install-with-secrets helm-install-with-gcp-secrets helm-deploy
 
 ## Helm chart operations for deployment and management
+
+helm-deploy: ## Deploy Helm chart to namespace with auto-versioned image tag
+	@NEW_TAG=$$(cat .docker_tag 2>/dev/null || { echo "$(RED)Error: .docker_tag file not found. Ensure image is built or set tag manually.$(RESET)"; exit 1; }); \
+	echo "🚀 Deploying Helm chart expressops with image tag $$NEW_TAG to namespace $(K8S_NAMESPACE)..."; \
+	helm upgrade --install expressops $(HELM_CHART_DIR) -n $(K8S_NAMESPACE) --create-namespace \
+		--set image.tag=$$NEW_TAG; \
+	echo "✅ Helm chart deployed successfully"
 
 helm-install: ## Install ExpressOps using Helm chart
 	@echo "🚀 Installing ExpressOps with Helm..."
 	@echo "$(BLUE)Deploying in namespace: $(K8S_NAMESPACE)$(RESET)"
-	-helm install expressops ./helm --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret
+	-helm install expressops $(HELM_CHART_DIR) --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret
 	@echo "✅ Helm chart installed successfully"
 
 helm-upgrade: ## Upgrade existing Helm deployment
 	@echo "🔄 Upgrading ExpressOps with Helm..."
-	-helm upgrade expressops ./helm --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret
+	-helm upgrade expressops $(HELM_CHART_DIR) --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret
 	@echo "✅ Helm chart upgraded successfully"
 
 helm-diff: ## Diff Helm deployment
 	@echo "🔄 Checking differences in Helm chart..."
-	-helm diff upgrade expressops ./helm --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret
+	-helm diff upgrade expressops $(HELM_CHART_DIR) --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret
 	@echo "✅ Helm chart diff displayed successfully"
 
 helm-uninstall: ## Uninstall Helm deployment
@@ -25,11 +32,11 @@ helm-uninstall: ## Uninstall Helm deployment
 
 helm-template: ## View Helm templates without installing
 	@echo "👀 Rendering Helm templates..."
-	-helm template expressops ./helm --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret
+	-helm template expressops $(HELM_CHART_DIR) --namespace $(K8S_NAMESPACE) --set secrets.secretName=expressops-slack-secret
 
 helm-package: ## Package Helm chart into a .tgz file
 	@echo "📦 Packaging Helm chart..."
-	-helm package ./helm
+	-helm package $(HELM_CHART_DIR)
 	@echo "✅ Chart packaged. Ready to distribute."
 
 helm-install-with-secrets: ## Install ExpressOps with ClusterSecretStore (legacy)
@@ -39,7 +46,7 @@ helm-install-with-secrets: ## Install ExpressOps with ClusterSecretStore (legacy
 	fi
 	@echo "$(BLUE)🚀 Installing ExpressOps with Helm using ClusterSecretStore...$(RESET)"
 	@echo "$(BLUE)Deploying in namespace: $(K8S_NAMESPACE)$(RESET)"
-	-helm upgrade --install expressops ./helm \
+	-helm upgrade --install expressops $(HELM_CHART_DIR) \
 		--namespace $(K8S_NAMESPACE) \
 		--set clusterSecretStore.webhookUrl="$(SLACK_WEBHOOK_URL)" \
 		--set secrets.secretName=expressops-slack-secret
@@ -55,7 +62,7 @@ helm-install-with-gcp-secrets: ## Install ExpressOps with GCP Secret Manager via
 	fi
 	
 	@echo "$(BLUE)Deploying in namespace: $(K8S_NAMESPACE)$(RESET)"
-	-helm upgrade --install expressops ./helm \
+	-helm upgrade --install expressops $(HELM_CHART_DIR) \
 		--namespace $(K8S_NAMESPACE) \
 		--set gcpSecretManager.enabled=true \
 		--set gcpSecretManager.projectID=fc-it-school-2025 \

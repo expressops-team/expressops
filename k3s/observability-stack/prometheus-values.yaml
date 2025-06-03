@@ -1,0 +1,40 @@
+# prometheus-values.yaml
+
+prometheus:
+  prometheusSpec:
+    # Importante para la compatibilidad con K3s y JuiceFS CSI
+    # El contenedor de Prometheus se ejecuta como usuario 'nobody' (UID 65534)
+    # fsGroup asegura que el volumen montado sea escribible por el grupo del contenedor.
+    podSecurityContext:
+      fsGroup: 65534
+      # runAsUser: 65534 # El chart ya lo establece a nivel de contenedor
+      # runAsGroup: 65534 # El chart ya lo establece a nivel de contenedor
+      runAsNonRoot: true
+
+    # Configuración de persistencia
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: "juicefs-gcs-redis-canonica"
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 30Gi
+        # selector: {} # Usualmente no es necesario si se usa storageClassName
+
+# Opcional: Si también quieres persistir datos de Alertmanager usando JuiceFS
+#alertmanager:
+#  alertmanagerSpec:
+#    podSecurityContext:
+#      fsGroup: 65534
+      # runAsUser: 65534
+      # runAsGroup: 65534
+      # runAsNonRoot: true
+#    storage:
+#      volumeClaimTemplate:
+#        spec:
+#          storageClassName: "juicefs-gcs-redis-canonica"
+#          accessModes: ["ReadWriteOnce"]
+#          resources:
+#            requests:
+#              storage: 10Gi # Ajusta el tamaño

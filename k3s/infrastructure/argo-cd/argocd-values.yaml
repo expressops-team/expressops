@@ -1,0 +1,115 @@
+# argocd-values.yaml
+# Valores para la instalación de Argo CD con Helm usando la StorageClass juicefs-gcs-redis-canonica
+
+# ---- Componentes Principales y Configuraciones Generales ----
+# Se mantienen los valores por defecto del chart para la mayoría de las configuraciones
+# para asemejarse a la instalación estándar por manifiestos, a menos que se indique lo contrario.
+
+# Configuración del controlador de Argo CD
+controller:
+  # Las réplicas, recursos, etc., se dejan por defecto del chart.
+  # No se configura persistencia aquí ya que el estado principal está en los CRDs.
+  {}
+
+# Configuración del servidor de API de Argo CD
+server:
+  # Las réplicas, recursos, etc., se dejan por defecto del chart.
+  # No se habilita Ingress por defecto, similar a la instalación por manifiestos.
+  # Si necesitas Ingress, deberás configurarlo aquí:
+  # ingress:
+  #   enabled: true
+  #   ingressClassName: "tu-ingress-class" # ej. nginx, gce
+  #   hosts:
+  #     - argocd.tu-dominio.com
+  #   tls:
+  #     - secretName: argocd-server-tls
+  #       hosts:
+  #         - argocd.tu-dominio.com
+  {}
+
+# Configuración del servidor de repositorios de Argo CD
+repoServer:
+  # Las réplicas, recursos, etc., se dejan por defecto del chart.
+  persistence:
+    enabled: true
+    # Nota: El chart de Argo CD usa 'storageClassName' aquí, no 'storageClass'
+    storageClassName: "juicefs-gcs-redis-canonica"
+    accessModes:
+      - ReadWriteOnce
+    size: "10Gi" # Tamaño para el caché de repositorios Git, ajusta según necesidad
+    # mountPath: /var/opt/argo-cd/repo-cache # Ejemplo de mountPath si necesitas cambiar el default /tmp
+
+# Configuración de Dex (Servicio de Identidad OIDC)
+dex:
+  enabled: true # Dex está habilitado por defecto en el chart, similar a los manifiestos.
+  # Habilitar persistencia para Dex es una mejora respecto a los manifiestos (que usan emptyDir).
+  # Es útil si Dex maneja usuarios o estado que deba persistir.
+  persistence:
+    enabled: true
+    storageClass: "juicefs-gcs-redis-canonica" # Dex usa 'storageClass'
+    accessModes:
+      - ReadWriteOnce
+    size: "2Gi" # Dex suele necesitar menos espacio que Redis o el repo-server.
+
+# Configuración de Redis
+# El chart de Argo CD utiliza un subchart de Bitnami para Redis.
+# Por defecto, no usa Redis HA, lo cual es similar a la instalación por manifiestos.
+redis:
+  enabled: true # Habilitado por defecto
+  # Configuración para el nodo master de Redis (ya que no usamos HA por defecto)
+  master:
+    persistence:
+      enabled: true
+      storageClass: "juicefs-gcs-redis-canonica"
+      accessModes:
+        - ReadWriteOnce # Redis típicamente usa RWO para su volumen de datos
+      size: "8Gi" # Tamaño para los datos de Redis, ajusta según necesidad
+
+  # No se habilitan réplicas de Redis por defecto para mantener la simplicidad,
+  # similar a la instalación por manifiestos.
+  replica:
+    replicaCount: 0
+    persistence:
+      enabled: false # Si se habilitaran réplicas, también podrían tener persistencia.
+
+# Configuración para Redis HA (Alta Disponibilidad)
+# Se deja deshabilitada por defecto para mantener la configuración simple,
+# al igual que en la instalación por manifiestos.
+redis-ha:
+  enabled: false
+  # Si se habilita redis-ha, la configuración de persistencia se gestionaría
+  # a través de las opciones de redis-ha.server.persistence, etc.
+
+# ---- Otras Configuraciones ----
+# Se asume que las CRDs de Argo CD ya están instaladas o serán instaladas
+# por el chart de Helm si es la primera vez (helm install --skip-crds=false).
+# Si gestionas CRDs por separado, puedes usar --skip-crds=true con Helm.
+
+# Las configuraciones de recursos (requests/limits) para los pods de Argo CD
+# se toman de los valores por defecto del chart. Puedes ajustarlos aquí si es necesario,
+# por ejemplo:
+# controller:
+#   resources:
+#     limits:
+#       cpu: "1"
+#       memory: "1Gi"
+#     requests:
+#       cpu: "250m"
+#       memory: "256Mi"
+# server:
+#   resources:
+#     # ...
+# repoServer:
+#   resources:
+#     # ...
+# dex:
+#   resources:
+#     # ...
+# redis:
+#   master:
+#     resources:
+#       # ...
+
+# Configuraciones adicionales (notificaciones, etc.) se dejan por defecto.
+# Revisa el values.yaml completo del chart de Argo CD para todas las opciones disponibles:
+# https://github.com/argoproj/argo-helm/blob/main/charts/argo-cd/values.yaml

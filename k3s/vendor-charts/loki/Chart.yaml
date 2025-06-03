@@ -1,0 +1,10 @@
+apiVersion: v2
+name: loki-wrapper
+description: Un chart wrapper para Loki
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+dependencies:
+  - name: loki
+    version: "6.29.0"  # Versión extraída del archivo gitops-argocd
+    repository: "https://grafana.github.io/helm-charts" 

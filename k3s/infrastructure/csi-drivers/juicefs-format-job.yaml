@@ -1,0 +1,65 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: juicefs-format-expressops-main-vol
+  namespace: expressops-dev
+  annotations:
+    # Esta anotación indica que el job es un hook de sincronización
+    argocd.argoproj.io/hook: Sync
+    # Esta anotación indica que el job se eliminará después de completarse con éxito
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: juicefs-format
+        image: juicedata/juicefs-csi-driver:v0.20.0
+        command:
+          - "/bin/sh"
+          - "-c"
+        args:
+          - |
+            set -ex
+            echo "Iniciando formateo de JuiceFS..."
+            echo "META_URL: $META_URL"
+            echo "VOLUME_NAME: $VOLUME_NAME"
+            echo "BUCKET_NAME: $BUCKET_NAME_FROM_SECRET"
+            echo "GOOGLE_APPLICATION_CREDENTIALS: $GOOGLE_APPLICATION_CREDENTIALS_FROM_SECRET"
+
+            export GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_APPLICATION_CREDENTIALS_FROM_SECRET"
+
+            
+            juicefs format \
+              --storage gs \
+              --bucket "$BUCKET_NAME_FROM_SECRET" \
+              "${META_URL}" \
+              "${VOLUME_NAME}"
+
+            echo "Formateo completado."
+        env:
+        - name: VOLUME_NAME
+          valueFrom:
+            secretKeyRef:
+              name: juicefs-volume-config
+              key: name
+        - name: META_URL
+          valueFrom:
+            secretKeyRef:
+              name: juicefs-volume-config
+              key: metaurl
+        - name: BUCKET_NAME_FROM_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: juicefs-volume-config
+              key: bucket
+        - name: GOOGLE_APPLICATION_CREDENTIALS_FROM_SECRET
+          value: "/gcp-creds-for-format/credentials.json" # Ruta donde se montará
+        volumeMounts:
+        - name: gcp-credentials-for-format # Nombre del volumen
+          mountPath: "/gcp-creds-for-format" # Ruta de montaje
+          readOnly: true
+      volumes:
+      - name: gcp-credentials-for-format
+        secret:
+          secretName: juicefs-gcs-manager-credentials # El secret con el credentials.json

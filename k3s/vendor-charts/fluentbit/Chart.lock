@@ -1,0 +1,6 @@
+dependencies:
+- name: fluent-bit
+  repository: https://fluent.github.io/helm-charts
+  version: 0.49.0
+digest: sha256:8bb4f3dda4e203e430061439185a1d8ef641789547aabe83f8ac3418fb7196da
+generated: "2025-05-30T14:48:36.911416186+02:00"

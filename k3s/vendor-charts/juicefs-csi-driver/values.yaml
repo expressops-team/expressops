@@ -1,0 +1,32 @@
+juicefs-csi-driver:
+  # Configuración para el controlador CSI
+  controller:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi 
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  # Configuración para los pods de nodo (CSI node) (Daemonset)
+  node:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # Patch dinámico para los Mount Pods (volúmenes JuiceFS)
+  # Mount Pods (uno por PVC)
+  globalConfig:
+    mountPodPatch:
+      - resources:
+          requests:
+            cpu: 75m 
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1.5Gi 

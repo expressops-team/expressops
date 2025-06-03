@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: expressops-env-config
+  labels:
+    app: expressops
+data:
+  SERVER_PORT: "8080"
+  SERVER_ADDRESS: "0.0.0.0"
+  PLUGINS_PATH: "plugins" 

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"expressops/internal/metrics"
+
 	pluginconf "expressops/internal/plugin/loader"
 
 	"github.com/sirupsen/logrus"
@@ -29,22 +31,9 @@ func (p *TestPrintPlugin) Execute(ctx context.Context, request *http.Request, sh
 	pluginName := "TestPrintPlugin"
 	flowName := request.URL.Query().Get("flowName")
 
-	logFields := logrus.Fields{
-		"pluginName": pluginName,
-		"action":     "Execute",
-		"flowName":   flowName,
-		"remoteAddr": request.RemoteAddr,
-		"userAgent":  request.UserAgent(),
-	}
-	p.logger.WithFields(logFields).Info("Petición recibida para TestPrintPlugin")
-
-	// Loguear datos de 'shared' si existen, para depuración
-	if shared != nil && len(*shared) > 0 {
-		p.logger.WithFields(logFields).WithField("sharedData", *shared).Debug("Contenido de 'shared' data")
-	}
-
-	p.logger.WithFields(logFields).Info("TestPrintPlugin ejecutado exitosamente")
-	return "👋 Hello!  If you see this, the project is working! ✨ :D", nil
+	result := fmt.Sprintf("👋 Hello, I am a %s plugin running in flow: %s!", pluginName, flowName)
+	metrics.IncTestPrint("success")
+	return result, nil
 }
 
 func (p *TestPrintPlugin) FormatResult(result interface{}) (string, error) {
@@ -55,6 +44,7 @@ func (p *TestPrintPlugin) FormatResult(result interface{}) (string, error) {
 	if str, ok := result.(string); ok {
 		return str, nil
 	}
+	metrics.IncTestPrint("error_format")
 	return fmt.Sprintf("%v", result), nil
 }
 
