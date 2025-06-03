@@ -28,7 +28,7 @@ KUBECONFIG ?= ~/.kube/config
 
 # Prometheus/Grafana variables
 PROMETHEUS_NAMESPACE ?= monitoring # Namespace for Grafana. Assumes your existing Prometheus (prometheus-kube-prometheus-prometheus) is also in this namespace.
-GRAFANA_RELEASE ?= david-grafana
+GRAFANA_RELEASE ?= grafana
 GRAFANA_CHART_VERSION ?= 8.15.0
 GRAFANA_PORT ?= 3000
 
