@@ -3,7 +3,7 @@
 replicaCount: 2
 image:
   repository: expressopsfreepik/expressops
-  tag: "v1"
+  tag: "v2"
   
   pullPolicy: IfNotPresent
 slackSecretName: slack-webhook-secret
