@@ -22,23 +22,11 @@ spec:
 
       valueFiles:
         - values.yaml
-      # Opcional: Si tuvieras un archivo de values específico para este entorno,
-      # podrías añadirlo aquí y se fusionaría (ej. values-dev.yaml)
-      # - values-dev.yaml
-
-      # ArgoCD puede pasar parámetros específicos que sobrescriban los de valueFiles
-      # o los defaults del chart. Por ejemplo, para forzar una etiqueta de imagen:
-      # parameters:
-      #   - name: "image.tag"
-      #     value: "latest" # O la etiqueta que desees
-      # Sin embargo, tu values.yaml ya define image.tag, así que esto no es necesario
-      # a menos que quieras sobrescribirlo dinámicamente aquí.
 
   destination:
-    server: 'https://kubernetes.default.svc' # URL del servidor API de Kubernetes
-    # El namespace donde se desplegará tu aplicación expressops.
-    # Asegúrate de que coincida con el namespace que esperas (ej. 'expressops', 'expressops-dev')
-    namespace: expressops-dev # Ajusta si es necesario
+    server: 'https://kubernetes.default.svc'
+ 
+    namespace: expressops-dev
   syncPolicy:
     automated:
       prune: true    # Permite a ArgoCD eliminar recursos gestionados que ya no están en Git

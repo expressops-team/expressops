@@ -4,20 +4,22 @@ replicaCount: 2
 image:
   repository: expressopsfreepik/expressops
   tag: "v1"
-  # Image pull policy
+  
   pullPolicy: IfNotPresent
-  # tag: "v2" # The image tag is controlled by appVersion in Chart.yaml by default
 slackSecretName: slack-webhook-secret
 sleepDuration: "10"
+
 # Configuration for the K8s Service
 service:
   type: ClusterIP
   port: 80
   targetPort: 8080
+
 # Configuration for the k8s Prometheus operator
 serviceMonitor:
   enabled: true
   interval: 15s
+
 # Configuring resources for pods
 resources:
   limits:
@@ -29,10 +31,12 @@ resources:
 
 # Name of the K8s Secret containing the GCP JSON credentials
 gcpCredentialsSecretName: "gcp-creds-for-eso"
+
 # ClusterSecretStore Configuration
 clusterSecretStore:
   kind: ClusterSecretStore
   name: gcp-cluster-secret-store
+  
 # ExternalSecret Configuration
 externalSecret:
   name: expressops-slack-webhook
@@ -40,3 +44,19 @@ externalSecret:
 args:
   - "--config"
   - "/app/config.yaml"
+
+# Argo Rollouts Configuration
+rollouts:
+  enabled: true # Para usar Rollout en vez de Deployment
+  canaryServiceName: expressops-canary-service
+  stableServiceName: expressops-stable-service
+  canaryWeight: 50
+  canaryStepWeight: 10
+
+  analysisTemplateName: "{{ include \"expressops-chart.fullname\" . }}-analysis" 
+  args:
+    - name: service-name
+      value: "{{ include \"expressops-chart.fullname\" . }}" # El servicio estable
+    - name: canary-service-name
+      value: "{{ include \"expressops-chart.fullname\" . }}-canary"
+

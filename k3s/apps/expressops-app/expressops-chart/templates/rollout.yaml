@@ -1,0 +1,79 @@
+# k3s/apps/expressops-app/expressops-chart/templates/rollout.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: {{ include "expressops-chart.fullname" . }}
+  labels:
+    {{- include "expressops-chart.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "expressops-chart.selectorLabels" . | nindent 6 }}
+  template: # Esta es la plantilla del Pod, igual que en un Deployment
+    metadata:
+      labels:
+        {{- include "expressops-chart.selectorLabels" . | nindent 8 }}
+        # Argo Rollouts inyectará aquí un hash para diferenciar pods canary/stable
+    spec:
+      # imagePullSecrets: ... si usas privados
+      serviceAccountName: {{ include "expressops-chart.serviceAccountName" . }} # Asegúrate de tener una SA si necesitas permisos específicos
+      securityContext:
+        {} # fsGroup: 2000
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {} # capabilities: { drop: ["ALL"] }, readOnlyRootFilesystem: true, runAsNonRoot: true, runAsUser: 1000
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- toYaml .Values.args | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+
+           livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          timeoutSeconds: 2
+          periodSeconds: 10
+          failureThreshold: 3
+
+            readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 2
+          periodSeconds: 5
+          
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts: # Necesario si config.yaml se monta desde un ConfigMap
+            - name: config-volume
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+      volumes: # Necesario si config.yaml se monta desde un ConfigMap
+        - name: config-volume
+          configMap:
+            name: {{ include "expressops-chart.fullname" . }}-config # Asume que tienes un ConfigMap para config.yaml
+  strategy:
+    canary:
+      # stableService: {{ include "expressops-chart.fullname" . }}-stable # Opcional, Rollouts lo infiere
+      canaryService: {{ include "expressops-chart.fullname" . }}-canary # Servicio que apuntará a los pods canary
+      steps:
+      - setWeight: 10 # Envía el 10% del tráfico a la versión canary
+      - pause: {duration: 60s} # Pausa durante 60 segundos para observación manual o análisis
+      # - analysis: # (Opcional, pero muy recomendado) Sección para análisis automatizado
+      #     templates:
+      #       - templateName: expressops-success-rate # Referencia a un AnalysisTemplate
+      #     args:
+      #       - name: service-name
+      #         value: {{ include "expressops-chart.fullname" . }}-canary
+      - setWeight: 30
+      - pause: {duration: 60s}
+      # - analysis: ...
+      # ... más pasos hasta setWeight: 100, o dejar que Rollouts complete automáticamente
+      # Si no hay análisis y todos los pasos de pausa se completan, se promociona automáticamente.

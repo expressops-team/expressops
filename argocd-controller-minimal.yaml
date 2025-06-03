@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app.kubernetes.io/component: application-controller
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/name: argocd-application-controller
+    app.kubernetes.io/part-of: argocd
+  name: argocd-application-controller
+  namespace: argocd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: argocd
+      app.kubernetes.io/name: argocd-application-controller
+  serviceName: argocd-application-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: application-controller
+        app.kubernetes.io/instance: argocd
+        app.kubernetes.io/name: argocd-application-controller
+        app.kubernetes.io/part-of: argocd
+    spec:
+      containers:
+      - args:
+        - /usr/local/bin/argocd-application-controller
+        - --metrics-port=8082
+        env:
+        - name: ARGOCD_CONTROLLER_REPLICAS
+          value: "1"
+        - name: REDIS_SERVER
+          value: argocd-redis:6379
+        image: quay.io/argoproj/argocd:v2.9.2
+        imagePullPolicy: IfNotPresent
+        name: application-controller
+        ports:
+        - containerPort: 8082
+          name: metrics
+        resources:
+          limits:
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /app/config/controller/tls
+          name: argocd-repo-server-tls
+        - mountPath: /home/argocd
+          name: argocd-home
+      serviceAccountName: argocd-application-controller
+      tolerations:
+      - effect: NoSchedule
+        key: containerd-issues
+        operator: Exists
+      volumes:
+      - emptyDir: {}
+        name: argocd-home
+      - name: argocd-repo-server-tls
+        secret:
+          optional: true
+          secretName: argocd-repo-server-tls 
