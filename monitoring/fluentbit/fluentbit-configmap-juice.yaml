@@ -1,0 +1,129 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluentbit-config-dual
+  namespace: dav-monitoring
+  labels:
+    app.kubernetes.io/name: fluentbit
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         1
+        Daemon        Off
+        Log_Level     info
+        Parsers_File  parsers.conf
+        HTTP_Server   On
+        HTTP_Listen   0.0.0.0
+        HTTP_Port     2020
+
+    @INCLUDE inputs.conf
+    @INCLUDE filters.conf
+    @INCLUDE outputs.conf
+
+  inputs.conf: |
+    [INPUT]
+        Name              tail
+        Path              /var/log/pods/default_expressops*/*/*.log
+        Tag               expressops
+        Parser            cri
+        DB                /fluent-bit/tail_db/flb_kube.db
+        Mem_Buf_Limit     5MB
+        Skip_Long_Lines   On
+        Refresh_Interval  10
+
+  filters.conf: |
+    [FILTER]
+        Name                modify
+        Match               expressops
+        Add                 application expressops
+        Add                 environment production
+        Add                 source_namespace default
+    
+    [FILTER]
+        Name                parser
+        Match               expressops
+        Key_Name            log
+        Parser              expressops_log_format
+        Reserve_Data        On
+        Preserve_Key        On
+        
+    [FILTER]
+        Name                parser
+        Match               expressops
+        Key_Name            log
+        Parser              expressops_simple
+        Reserve_Data        On
+        Preserve_Key        On
+        
+    [FILTER]
+        Name                modify
+        Match               expressops
+        Condition           Key_does_not_exist log_level
+        Add                 log_level unknown
+        
+    [FILTER]
+        Name                modify
+        Match               expressops
+        Condition           Key_does_not_exist message
+        Copy                log message
+
+  outputs.conf: |
+    # Output a OpenSearch (existente)
+    [OUTPUT]
+        Name              opensearch
+        Match             expressops
+        Host              opensearch-standard.dav-monitoring.svc.cluster.local
+        Port              9200
+        Index             expressops-logs-opensearch
+        Logstash_Format   On
+        Logstash_Prefix   expressops-logs-opensearch
+        Suppress_Type_Name On
+        HTTP_User         ${OPENSEARCH_USER}
+        HTTP_Passwd       ${OPENSEARCH_PASSWORD}
+        tls               On
+        tls.verify        Off
+        Retry_Limit       5
+
+    # Output a Elasticsearch (nuevo)
+    [OUTPUT]
+        Name              es
+        Match             expressops
+        Host              elasticsearch.dav-monitoring.svc.cluster.local
+        Port              9200
+        Index             expressops-logs-elasticsearch
+        Logstash_Format   On
+        Logstash_Prefix   expressops-logs-elasticsearch
+        Logstash_DateFormat %Y.%m.%d
+        Type              _doc
+        Retry_Limit       5
+        Suppress_Type_Name On
+
+  parsers.conf: |
+    [PARSER]
+        Name        cri
+        Format      regex
+        Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+
+    [PARSER]
+        Name        docker
+        Format      json
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+
+    [PARSER]
+        Name        expressops_log_format
+        Format      regex
+        Regex       ^time="(?<original_timestamp>[^"]*)" level=(?<log_level>\w+) msg="(?<message>[^"]*)".*$
+        
+    [PARSER]
+        Name        expressops_simple
+        Format      regex
+        Regex       .*level=(?<log_level>\w+).*msg="(?<message>[^"]*)".*
+        
+    [PARSER]
+        Name        json_parser
+        Format      json
+        Time_Key    timestamp
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z 
