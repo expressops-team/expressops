@@ -47,6 +47,7 @@ args:
 
 # Argo Rollouts Configuration
 rollouts:
+
   enabled: true # Para usar Rollout en vez de Deployment
   canaryServiceName: expressops-canary-service
   stableServiceName: expressops-stable-service
