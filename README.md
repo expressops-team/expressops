@@ -1,16 +1,30 @@
-
 ## ExpressOps 🚀 <img src="docs/img/RistrettOps.png" alt="ExpressOps Logo" align="right" width="300" style="margin-top: 20px;">
 
-
 > 🚨 <span style="color:red">**Note: Currently under active development**</span> - API and features may change without notice
-
-
-The ExpressOps Docker image is available on Docker Hub in two similar images:
 
 ExpressOps: A lightweight flow orchestrator that:
 - Loads plugins dynamically
 - Chains plugins into workflows via YAML config
 - Each plugin = one task (health checks, formatting, notifications, etc.)
+
+## 📜 Table of Contents
+
+- [Features](#features)
+- [Architecture](#-architecture-overview)
+- [Requirements](#-requirements)
+- [Installation](#-installation)
+- [Usage](#-usage)
+- [Configuration](#-configuration)
+- [Docker](#docker)
+- [Secret Management](#secret-management)
+- [Kubernetes Deployment](#kubernetes-deployment)
+- [Monitoring](#monitoring)
+- [Terraform](#terraform)
+- [Plugins](#-plugins)
+- [Example Flows](#-example-flows)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgements](#-acknowledgements)
 
 ## Docker
 
@@ -18,40 +32,11 @@ Grab our image from Docker Hub:
 
 ```bash
 docker pull davidnull/expressops:1.1.7
-
- or
-
-docker pull expressopsfreepik/expressops:tag
-
-```
-*Note: This is a temporary location. We'll move to expressopsfreepik/expressops soon*
-
-## Contents
-
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Secret Management](#secret-management)
-- [Example: Dr. House](#example-dr-house)
-- [Contributing](#contributing)
-- [License](#license)
+# or
 docker pull expressopsfreepik/expressops:latest
 ```
 
-## 📜 Table of Contents
-
-- [Features](#-features)
-- [Architecture](#-architecture-overview)
-- [Requirements](#-requirements)
-- [Installation](#-installation)
-- [Usage](#-usage)
-- [Configuration](#-configuration)
-- [Plugins](#-plugins)
-- [Example Flows](#-example-flows)
-- [Contributing](#-contributing)
-- [License](#-license)
-- [Acknowledgements](#-acknowledgements)
+*Note: This is a temporary location. We'll move to expressopsfreepik/expressops soon*
 
 ## 🧭 Architecture Overview
 
@@ -61,6 +46,8 @@ ExpressOps follows a modular architecture with three main components:
 1. **Core Engine**: Handles configuration loading, plugin management, and server initialization
 2. **Plugin System**: Dynamically loads and executes plugins through a standardized interface
 3. **Flow Orchestration**: Manages the execution of plugin pipelines based on YAML configuration
+
+## Features
 
 ExpressOps comes with several ready-to-use plugins:
 
@@ -75,6 +62,8 @@ ExpressOps comes with several ready-to-use plugins:
 - 🌐 HTTP server with endpoints to trigger flows dynamically
 - 📊 Metrics collection for monitoring system performance
 - 📜 Detailed logging for debugging and traceability
+
+## 🔧 Requirements
 
 - 🐧 ExpressOps runs on Linux (due to the Go plugin system)
 - Go 1.20+
@@ -98,13 +87,12 @@ go build -buildmode=plugin -o plugins/healthcheck/health_check.so plugins/health
 go build -buildmode=plugin -o plugins/formatters/health_alert_formatter.so plugins/formatters/health_alert_formatter.go
 ```
 
-## Usage
+## 🛠️ Usage
 
 Start the server with your configuration file:
 
 ```bash
-<<<<<<< HEAD
-./expressops -config path/to/your/config.yaml
+./expressops -config docs/samples/config.yaml
 ```
 
 Or use the default configuration:
@@ -113,11 +101,20 @@ Or use the default configuration:
 ./expressops
 ```
 
-Trigger a flow:
-
+Run a flow:
 ```bash
+curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
 curl "http://localhost:8080/flow?flowName=alert-flow"
 ```
+
+### Environment Variables
+
+- `SERVER_PORT`: HTTP port (default: 8080)
+- `SERVER_ADDRESS`: Listen address (default: 0.0.0.0)
+- `TIMEOUT_SECONDS`: Execution timeout in seconds (default: 4)
+- `LOG_LEVEL`: Logging level (info, debug, warn, error)
+- `LOG_FORMAT`: Log format (text, json)
+- `SLACK_WEBHOOK_URL`: Required for Slack notifications
 
 ## 🛠️ Makefile Commands
 
@@ -127,6 +124,9 @@ ExpressOps includes a comprehensive Makefile with various commands to simplify d
 - `make build` - Build plugins and application locally
 - `make run` - Run application locally
 - `make help` - Display all available commands and current configuration
+- `make quick-help`: Essential frequently-used commands
+- `make about`: Basic project info
+- `make config`: Current configuration
 
 ### Docker Workflow
 - `make docker-build` - Build Docker image (auto-versioned) and update Helm values
@@ -141,41 +141,37 @@ ExpressOps includes a comprehensive Makefile with various commands to simplify d
 ### Combined Workflow
 - `make release` - Complete release cycle: build, push, and deploy
 
-You can configure various parameters like ports, log levels, and paths by setting environment variables or editing the Makefile.
+![Make QuickHelp Command](docs/img/help.png)
 
 ## ⚙️ Configuration
 
 ExpressOps uses a YAML configuration file that defines logging settings, server configuration, plugins, and flows:
-=======
-./expressops -config docs/samples/config.yaml
+
+```yaml
+logging:
+  level: info
+  format: text
+
+server:
+  port: 8080
+  address: 0.0.0.0
+  timeoutSeconds: 4
+
+plugins:
+  - name: slack-notifier
+    path: plugins/slack/slack.so
+    type: notification
+    config:
+      webhook_url: $SLACK_WEBHOOK_URL
+
+flows:
+  - name: alert-flow
+    description: "Health check with notification"
+    pipeline:
+      - pluginRef: health-check-plugin
+      - pluginRef: formatter-plugin
+      - pluginRef: slack-notifier
 ```
-
-Run a flow:
-```bash
-curl "http://localhost:8080/flow?flowName=dr-house&format=verbose"
-
-curl "http://localhost:8080/flow?flowName=alert-flow"
-```
-
-### Environment Variables
-
-- `SERVER_PORT`: HTTP port (default: 8080)
-- `SERVER_ADDRESS`: Listen address (default: 0.0.0.0)
-- `TIMEOUT_SECONDS`: Execution timeout in seconds (default: 4)
-- `LOG_LEVEL`: Logging level (info, debug, warn, error)
-- `LOG_FORMAT`: Log format (text, json)
-- `SLACK_WEBHOOK_URL`: Required for Slack notifications
-
-## Help Commands
-
-The Makefile includes built-in help:
-
-- `make help`: Shows all available commands
-- `make quick-help`: Essential frequently-used commands
-- `make about`: Basic project info
-- `make config`: Current configuration
-
-![Make QuickHelp Command](docs/img/help.png)
 
 ## Secret Management
 
@@ -233,36 +229,7 @@ make grafana-port-forward PROMETHEUS_NAMESPACE=monitoring-david GRAFANA_RELEASE=
 
 This project also supports deployment of its monitoring stack (OpenSearch, OpenSearch Dashboards, Fluent Bit) using Terraform. The Terraform configuration can be found in the `terraform/` directory.
 
-
 ![Terraform](terraform/Esquema%20Terraform.png)
-
-## Configuration Example
-
-```yaml
-logging:
-  level: info
-  format: text
-
-server:
-  port: 8080
-  address: 0.0.0.0
-  timeoutSeconds: 4
-
-plugins:
-  - name: slack-notifier
-    path: plugins/slack/slack.so
-    type: notification
-    config:
-      webhook_url: $SLACK_WEBHOOK_URL
-
-flows:
-  - name: alert-flow
-    description: "Health check with notification"
-    pipeline:
-      - pluginRef: health-check-plugin
-      - pluginRef: formatter-plugin
-      - pluginRef: slack-notifier
-```
 
 ## 🔌 Plugins
 
@@ -280,23 +247,25 @@ ExpressOps comes with a variety of plugins:
 | user-creation-plugin | management | Creates system users |
 | clean-disk-plugin | maintenance | Handles disk cleanup operations |
 
-## 📋 Example Flows:
+## 📋 Example Flows
 
 ### Health Check with Notification (alert-flow)
 
 This flow performs a system health check, formats the results, and sends an alert to Slack:
 
-## Example: Dr. House
+```bash
+curl "http://localhost:8080/flow?flowName=alert-flow"
+```
+
+### Dr. House
 
 A flow that runs a health check, formats results, and displays a test message:
 
 ```bash
-curl "http://localhost:8080/flow?flowName=alert-flow"
-
 curl "http://localhost:8080/flow?flowName=dr-house"
 ```
 
-## Flow Discovery
+### Flow Discovery
 
 List all available flows:
 
@@ -307,8 +276,6 @@ curl "http://localhost:8080/flow?flowName=all-flows"
 ## Contributing
 
 Want to contribute? Make sure to export your plugin as `PluginInstance` implementing the `Plugin` interface:
-
-Please follow the convention of exporting your plugin as PluginInstance, and ensure it implements the Plugin interface:
 
 ```go
 type Plugin interface {
