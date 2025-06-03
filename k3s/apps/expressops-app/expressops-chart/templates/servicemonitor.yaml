@@ -19,4 +19,11 @@ spec:
   endpoints:
   - port: http
     path: /metrics
+    interval: {{ .Values.serviceMonitor.interval }}
+#  Esto añade la etiqueta 'rollouts_pod_template_hash' de los pods a las métricas scrapeadas,
+# permitiendo a PromQL filtrar por la versión canary o estable:
+    metricRelabelings:
+    - sourceLabels: [_meta_kubernetes_pod_label_rollouts_pod_template_hash]
+      targetLabel: rollouts_pod_template_hash
+      action: replace
 {{- end }}

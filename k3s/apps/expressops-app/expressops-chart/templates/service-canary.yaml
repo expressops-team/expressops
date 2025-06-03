@@ -8,15 +8,12 @@ metadata:
     # Puedes añadir una etiqueta para identificarlo como canary si quieres
     argo-rollouts.argoproj.io/service-type: canary
 spec:
-  type: {{ .Values.service.type }} # Generalmente ClusterIP para servicios internos
+  type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
       name: http
   selector:
-    # Este selector es el mismo que el del servicio estable.
-    # Argo Rollouts gestiona qué pods (estables o canary) son seleccionados
-    # por este servicio actualizando los endpoints o usando la etiqueta rollouts-pod-template-hash.
     {{- include "expressops-chart.selectorLabels" . | nindent 4 }}
 {{- end }}
