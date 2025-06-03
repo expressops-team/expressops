@@ -47,17 +47,20 @@ args:
 
 # Argo Rollouts Configuration
 rollouts:
-
   enabled: true # Para usar Rollout en vez de Deployment
-  canaryServiceName: expressops-canary-service
-  stableServiceName: expressops-stable-service
-  canaryWeight: 50
-  canaryStepWeight: 10
-
+  canary:
+  #canaryServiceName: expressops-canary-service
+  #stableServiceName: expressops-stable-service
+  #canaryWeight: 50
+  #canaryStepWeight: 10
   analysisTemplateName: "{{ include \"expressops-chart.fullname\" . }}-analysis" 
   args:
-    - name: service-name
+    - name: service-name # Para filtrar en PromQL
       value: "{{ include \"expressops-chart.fullname\" . }}" # El servicio estable
     - name: canary-service-name
       value: "{{ include \"expressops-chart.fullname\" . }}-canary"
 
+# Estrategia con Canary con pasos (20% canary, pausa para análisis, luego 100%)
+  steps:
+    - setWeight: 20
+    - pause: {duration: 5m} # 5 minutos de pausa para análisis

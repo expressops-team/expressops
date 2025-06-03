@@ -1,4 +1,4 @@
-# k3s/apps/expressops-app/expressops-chart/templates/rollout.yaml
+{{- if .Values.rollouts.enabled }}
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
@@ -10,70 +10,84 @@ spec:
   selector:
     matchLabels:
       {{- include "expressops-chart.selectorLabels" . | nindent 6 }}
-  template: # Esta es la plantilla del Pod, igual que en un Deployment
+  template: # La plantilla del Pod es idéntica a la de tu Deployment
     metadata:
       labels:
         {{- include "expressops-chart.selectorLabels" . | nindent 8 }}
-        # Argo Rollouts inyectará aquí un hash para diferenciar pods canary/stable
+        # Rollouts puede añadir etiquetas adicionales si es necesario para el análisis,
+        # pero normalmente el pod-template-hash es suficiente.
     spec:
-      # imagePullSecrets: ... si usas privados
-      serviceAccountName: {{ include "expressops-chart.serviceAccountName" . }} # Asegúrate de tener una SA si necesitas permisos específicos
-      securityContext:
-        {} # fsGroup: 2000
       containers:
-        - name: {{ .Chart.Name }}
-          securityContext:
-            {} # capabilities: { drop: ["ALL"] }, readOnlyRootFilesystem: true, runAsNonRoot: true, runAsUser: 1000
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          args:
-            {{- toYaml .Values.args | nindent 12 }}
-          ports:
-            - name: http
-              containerPort: {{ .Values.service.targetPort }}
-              protocol: TCP
-
-           livenessProbe:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.targetPort }}
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        envFrom:
+        - secretRef:
+            name: {{ .Values.slackSecretName }}
+        - configMapRef:
+            name: {{ include "expressops-chart.fullname" . }}-env
+        args:
+          {{- toYaml .Values.args | nindent 10 }}
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+        livenessProbe:
           httpGet:
             path: /healthz
-            port: 8080
+            port: {{ .Values.service.targetPort }}
           initialDelaySeconds: 5
           timeoutSeconds: 2
           periodSeconds: 10
           failureThreshold: 3
-
-            readinessProbe:
+        readinessProbe:
           httpGet:
             path: /healthz
-            port: 8080
+            port: {{ .Values.service.targetPort }}
           initialDelaySeconds: 2
           periodSeconds: 5
-          
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-          volumeMounts: # Necesario si config.yaml se monta desde un ConfigMap
-            - name: config-volume
-              mountPath: /app/config.yaml
-              subPath: config.yaml
-      volumes: # Necesario si config.yaml se monta desde un ConfigMap
-        - name: config-volume
-          configMap:
-            name: {{ include "expressops-chart.fullname" . }}-config # Asume que tienes un ConfigMap para config.yaml
+      volumes:
+      - name: config-volume
+        configMap:
+          name: {{ include "expressops-chart.fullname" . }}-config
+
   strategy:
     canary:
-      # stableService: {{ include "expressops-chart.fullname" . }}-stable # Opcional, Rollouts lo infiere
-      canaryService: {{ include "expressops-chart.fullname" . }}-canary # Servicio que apuntará a los pods canary
+      # El servicio que siempre apunta a la versión estable
+      stableService: {{ include "expressops-chart.fullname" . }}
+      # El servicio que apuntará a los pods canary durante el rollout
+      canaryService: {{ include "expressops-chart.canaryServiceName" . }}
+      # Pasos para el despliegue canary
       steps:
-      - setWeight: 10 # Envía el 10% del tráfico a la versión canary
-      - pause: {duration: 60s} # Pausa durante 60 segundos para observación manual o análisis
-      # - analysis: # (Opcional, pero muy recomendado) Sección para análisis automatizado
-      #     templates:
-      #       - templateName: expressops-success-rate # Referencia a un AnalysisTemplate
-      #     args:
-      #       - name: service-name
-      #         value: {{ include "expressops-chart.fullname" . }}-canary
-      - setWeight: 30
-      - pause: {duration: 60s}
-      # - analysis: ...
-      # ... más pasos hasta setWeight: 100, o dejar que Rollouts complete automáticamente
-      # Si no hay análisis y todos los pasos de pausa se completan, se promociona automáticamente.
+      {{- if .Values.rollouts.steps }}
+      {{- toYaml .Values.rollouts.steps | nindent 6 }}
+      {{- else }}
+      # Pasos por defecto si no se especifican en values.yaml
+      - setWeight: 25
+      - pause: {} # Pausa indefinida hasta promoción manual o análisis exitoso
+      - setWeight: 50
+      - pause: {duration: 10m} # Pausa por 10 minutos
+      - setWeight: 75
+      - pause: {duration: 10m}
+      # El último paso implícito es setWeight: 100
+      {{- end }}
+      # Opcional: Configuración de Traffic Routing si usas un Ingress Controller o Service Mesh
+      # trafficRouting:
+      #   nginx: # Ejemplo para NGINX Ingress
+      #     stableIngress: <nombre-del-ingress-estable>
+      #     # annotationsPrefix: nginx.ingress.kubernetes.io # Si usas un prefijo no estándar
+      #   # istio:
+      #   #   virtualService:
+      #   #     name: <nombre-del-virtualservice>
+      #   #     routes:
+      #   #     - primary # Nombre de la ruta en tu VirtualService
+      #   # alb: # Ejemplo para AWS ALB Ingress Controller
+      #   #   ingress: <nombre-del-ingress>
+      #   #   servicePort: 80
+      #   #   rootService: <nombre-del-servicio-raiz-para-ALB>
+{{- end }}

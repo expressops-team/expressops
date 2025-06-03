@@ -65,3 +65,10 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Canary Service name
+*/}}
+{{- define "expressops-chart.canaryServiceName" -}}
+{{- printf "%s-canary" (include "expressops-chart.fullname" .) -}}
+{{- end -}}

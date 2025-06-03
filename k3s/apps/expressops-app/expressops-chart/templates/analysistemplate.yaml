@@ -1,0 +1,113 @@
+{{- if .Values.rollouts.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ .Values.rollouts.canary.analysisTemplateName }} # ej: expressops-expressops-chart-analysis
+spec:
+  args:
+    # Estos argumentos son pasados por el Rollout
+    # 'stable-hash' y 'canary-hash' (o 'latest-hash') son inyectados por Argo Rollouts.
+    # - name: stable-hash # No lo usamos directamente en las queries de este ejemplo, pero está disponible
+    # - name: canary-hash # Referenciado como {{ "{{args.canary-hash}}" }} en las queries
+    # Valores que podrías querer pasar desde tus .Values.rollouts.canary.args si necesitas umbrales dinámicos
+    - name: http-error-rate-threshold # Ejemplo: "0.01" (1%)
+      value: "0.01" # Valor por defecto si no se pasa desde el Rollout spec
+    - name: http-latency-p95-threshold-seconds # Ejemplo: "0.5" (500ms)
+      value: "0.5"
+    - name: flow-error-rate-threshold
+      value: "0.02" # 2%
+    - name: flow-latency-p95-threshold-seconds
+      value: "1.0" # 1 segundo
+    - name: plugin-error-rate-threshold
+      value: "0.05" # 5%
+  metrics:
+    # 1. Tasa de Errores HTTP (5xx) del Canary
+    - name: http-error-rate-canary
+      interval: 30s # Con qué frecuencia ejecutar la consulta
+      count: 5      # Cuántas mediciones exitosas consecutivas se necesitan para pasar
+      failureLimit: 2 # Cuántos fallos consecutivos para que la métrica falle
+      # Condición para el éxito: tasa de error < umbral especificado
+      successCondition: "result[0] < {{ "{{args.http-error-rate-threshold}}" }}"
+      provider:
+        prometheus:
+          address: http://prometheus-d-kube-promethe-prometheus.monitoring.svc.cluster.local:9090
+          # Tasa de errores HTTP 5xx para los pods canary, normalizada por el total de requests.
+          # La etiqueta 'rollouts_pod_template_hash' es añadida por tu ServiceMonitor.
+          query: |
+            (
+              sum(rate(expressops_http_requests_total{app_kubernetes_io_instance="{{ .Release.Name }}", rollouts_pod_template_hash="{{ "{{args.canary-hash}}" }}", code=~"5.."}[2m]))
+              or vector(0)
+            )
+            /
+            (
+              sum(rate(expressops_http_requests_total{app_kubernetes_io_instance="{{ .Release.Name }}", rollouts_pod_template_hash="{{ "{{args.canary-hash}}" }}[2m]))
+              or vector(1) # Evitar división por cero, asume 1 request si no hay datos para el denominador
+            )
+
+    # 2. Latencia P95 de Peticiones HTTP del Canary
+    - name: http-latency-p95-canary
+      interval: 30s
+      count: 5
+      failureLimit: 2
+      # Condición para el éxito: latencia P95 < umbral especificado
+      successCondition: "result[0] < {{ "{{args.http-latency-p95-threshold-seconds}}" }}"
+      provider:
+        prometheus:
+          address: http://prometheus-d-kube-promethe-prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            histogram_quantile(0.95, sum(rate(expressops_http_request_duration_seconds_bucket{app_kubernetes_io_instance="{{ .Release.Name }}", rollouts_pod_template_hash="{{ "{{args.canary-hash}}" }}[2m])) by (le, rollouts_pod_template_hash, app_kubernetes_io_instance))
+            or vector(0) # Si no hay datos, asume 0 latencia (éxito) - ajusta si prefieres un fallo
+
+    # 3. Tasa de Errores en Ejecución de Flows del Canary
+    - name: flow-error-rate-canary
+      interval: 30s
+      count: 5
+      failureLimit: 2
+      successCondition: "result[0] < {{ "{{args.flow-error-rate-threshold}}" }}"
+      provider:
+        prometheus:
+          address: http://prometheus-d-kube-promethe-prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            (
+              sum(rate(expressops_flows_executed_total{app_kubernetes_io_instance="{{ .Release.Name }}", rollouts_pod_template_hash="{{ "{{args.canary-hash}}" }}", status="error"}[2m]))
+              or vector(0)
+            )
+            /
+            (
+              sum(rate(expressops_flows_executed_total{app_kubernetes_io_instance="{{ .Release.Name }}", rollouts_pod_template_hash="{{ "{{args.canary-hash}}" }}[2m]))
+              or vector(1)
+            )
+
+    # 4. Latencia P95 en Ejecución de Flows del Canary
+    - name: flow-latency-p95-canary
+      interval: 30s
+      count: 5
+      failureLimit: 2
+      successCondition: "result[0] < {{ "{{args.flow-latency-p95-threshold-seconds}}" }}"
+      provider:
+        prometheus:
+          address: http://prometheus-d-kube-promethe-prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            histogram_quantile(0.95, sum(rate(expressops_flow_execution_duration_seconds_bucket{app_kubernetes_io_instance="{{ .Release.Name }}", rollouts_pod_template_hash="{{ "{{args.canary-hash}}" }}[2m])) by (le, rollouts_pod_template_hash, app_kubernetes_io_instance))
+            or vector(0)
+
+    # 5. Tasa de Errores en Ejecución de Plugins del Canary
+    - name: plugin-error-rate-canary
+      interval: 30s
+      count: 5
+      failureLimit: 2
+      successCondition: "result[0] < {{ "{{args.plugin-error-rate-threshold}}" }}"
+      provider:
+        prometheus:
+          address: http://prometheus-d-kube-promethe-prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            (
+              sum(rate(expressops_plugins_executed_total{app_kubernetes_io_instance="{{ .Release.Name }}", rollouts_pod_template_hash="{{ "{{args.canary-hash}}" }}", status="error"}[2m]))
+              or vector(0)
+            )
+            /
+            (
+              sum(rate(expressops_plugins_executed_total{app_kubernetes_io_instance="{{ .Release.Name }}", rollouts_pod_template_hash="{{ "{{args.canary-hash}}" }}[2m]))
+              or vector(1)
+            )
+{{- end }}
