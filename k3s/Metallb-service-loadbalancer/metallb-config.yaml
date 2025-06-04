@@ -1,0 +1,17 @@
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: k3s-gcp-pool 
+  namespace: metallb-system
+spec:
+  addresses:
+  - 10.150.0.240-10.150.0.250
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: k3s-l2-advertisement
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - k3s-gcp-pool
