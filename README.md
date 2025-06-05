@@ -3,7 +3,7 @@
 > 🚨 <span style="color:red">**Note: Currently under active development**</span> - API and features may change without notice
 
 <div align="center">
-  <img src="./docs/img/expressops description.png" width="600" >
+  <img src="./docs/img/expressops description.png" width="400" >
 </div>
 
 <br><br>
