@@ -2,8 +2,8 @@
 
 > 🚨 <span style="color:red">**Note: Currently under active development**</span> - API and features may change without notice
 
-<div align="center">
-  <img src="./docs/img/expressops description.png" width="400" >
+<div align="left">
+  <img src="./docs/img/expressops description.png" width="600" >
 </div>
 
 <br><br>
