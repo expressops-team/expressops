@@ -2,10 +2,11 @@
 
 > 🚨 <span style="color:red">**Note: Currently under active development**</span> - API and features may change without notice
 
-ExpressOps: A lightweight flow orchestrator that:
-- Loads plugins dynamically
-- Chains plugins into workflows via YAML config
-- Each plugin = one task (health checks, formatting, notifications, etc.)
+<div align="center">
+  <img src="./docs/img/expressops description.png" width="600" >
+</div>
+
+<br><br>
 
 ## 📜 Table of Contents
 
