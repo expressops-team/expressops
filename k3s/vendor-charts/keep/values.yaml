@@ -1,0 +1,56 @@
+keep:
+  database:
+    type: sqlite
+
+  prometheus:
+    url: "http://prometheus.monitoring.svc.cluster.local"
+    
+  opensearch:
+    url: "http://opensearch-standard.dav-monitoring.svc.cluster.local:9200"
+  
+  image:
+    pullPolicy: IfNotPresent
+    
+  persistence:
+    enabled: true
+    existingClaim: "juicefs-gcs-redis-canonica"
+    
+  service:
+    type: ClusterIP
+    port: 8080
+
+  ingress:
+    enabled: false
+    
+    
+  websocket:
+    enabled: true
+    url: "http://keep.keep.svc.cluster.local"  
+    
+  env:
+    - name: KEEP_WEBSOCKET_ENABLED
+      value: "true"
+    - name: KEEP_API_URL
+      value: "http://localhost:8080"
+      
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+      
+  livenessProbe:
+    httpGet:
+      path: /healthcheck
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    
+  readinessProbe:
+    httpGet:
+      path: /healthcheck
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 5 

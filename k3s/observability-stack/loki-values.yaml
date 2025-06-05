@@ -29,9 +29,25 @@ singleBinary:
   securityContext:
     runAsUser: 10001
     runAsGroup: 10001
+  # 🔧 OPTIMIZACIÓN DE RECURSOS - Reducir memoria de ~10GB a 1GB
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
 
 gateway:
   enabled: true
+  # RECURSOS DEL GATEWAY
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
 
 read:
   replicas: 0
@@ -39,6 +55,18 @@ write:
   replicas: 0
 backend:
   replicas: 0
+
+# CONFIGURACIÓN DE CACHE - Reducir significativamente el uso de memoria
+chunksCache:
+  enabled: true
+  # Reducir drásticamente el cache de chunks de ~10GB a 512MB
+  allocatedMemory: 512 # MB
+  writeDedupeCache:
+    maxSize: 64m
+
+resultsCache:
+  enabled: true
+  allocatedMemory: 256 # 256MB para cache de resultados
 
 # Opcional: Habilitar serviceMonitor si usas Prometheus Operator
 monitoring:
