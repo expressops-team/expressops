@@ -1,0 +1,11 @@
+apiVersion: v2
+name: keep-wrapper
+description: Un chart wrapper para Keep - Alert Management Platform
+type: application
+version: 0.1.0
+appVersion: "latest"
+
+dependencies:
+- name: keep
+  version: "0.27.3"
+  repository: "https://keephq.github.io/helm-charts" 
