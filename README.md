@@ -1,4 +1,4 @@
-## ExpressOps 🚀 <img src="docs/img/RistrettOps.png" alt="ExpressOps Logo" align="right" width="300" style="margin-top: 20px;">
+## ExpressOps  <img src="docs/img/RistrettOps.png" alt="ExpressOps Logo" align="right" width="300" style="margin-top: 20px;">
 
 > 🚨 <span style="color:red">**Note: Currently under active development**</span> - API and features may change without notice
 
@@ -33,7 +33,7 @@
 Grab our image from Docker Hub:
 
 ```bash
-docker pull davidnull/expressops:1.1.7
+docker pull davidnull/expressops:1.1.8
 # or
 docker pull expressopsfreepik/expressops:latest
 ```
